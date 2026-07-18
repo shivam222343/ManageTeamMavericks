@@ -33,6 +33,7 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import AboutEventsSection from '../../components/public/AboutEventsSection';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -246,6 +247,12 @@ const PublicLanding = () => {
         { opacity: 0, scale: 0.95 },
         { opacity: 1, scale: 1, duration: 0.8, ease: 'back.out(1.7)', delay: 0.6 }
       );
+
+      // Force refresh ScrollTrigger positions after page expands from loader state
+      const timer = setTimeout(() => {
+        ScrollTrigger.refresh();
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [loading, campaign]);
 
@@ -646,27 +653,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- About / Motto Section --- */}
-      <section className="py-24 bg-white/30 border-y border-blue-50/50 dark:bg-zinc-950/20 dark:border-zinc-900/60 px-6 relative z-10">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-          <div className="space-y-4">
-            <span className="text-[10px] text-blue-800/80 dark:text-zinc-500 uppercase tracking-widest font-black">Who We Are</span>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">Unorthodox Views &amp; Innovative Ideas</h2>
-            <p className="text-xs text-zinc-650 dark:text-zinc-400 leading-relaxed font-medium">
-              We, Team Mavericks symbolize a team having unorthodox views
-              and innovative ideas. "Maverick" means an independent person or
-              a team who is similar to a bird that loves to live a free and prosperous life.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {['BODHANTRA', 'INVICTA', 'ARCANE', 'CARNIVAL'].map((evt) => (
-              <div key={evt} className="p-5 border rounded-2xl shadow-sm hover:border-blue-200/60 dark:hover:border-zinc-700 transition duration-200 bg-white/70 border-white/60 dark:bg-zinc-900/30 dark:border-zinc-800/80 shadow-md shadow-blue-900/5 dark:shadow-none">
-                <span className="text-[9px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest block mb-1">Flagship Event</span>
-                <span className="font-extrabold text-sm text-zinc-900 dark:text-white">{evt}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <AboutEventsSection isDark={isDark} />
 
       {/* --- Dynamic Registration Form (Stepped wizard form) --- */}
       <section id="apply-form" className="py-24 px-6 bg-blue-50/10 dark:bg-zinc-950/10 border-t border-blue-50/40 dark:border-zinc-900/40 relative z-10">
