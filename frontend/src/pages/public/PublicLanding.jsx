@@ -119,7 +119,6 @@ const PublicLanding = () => {
         }
       } catch (err) {
         toast.error(err.response?.data?.error || 'Recruitment campaign is currently inactive.');
-        // If not found, redirect to default
       } finally {
         setLoading(false);
       }
@@ -257,7 +256,7 @@ const PublicLanding = () => {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6 text-center">
         <div className="space-y-4 max-w-md p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow">
-          <AlertCircle className="mx-auto text-accent-red" size={32} />
+          <AlertCircle className="mx-auto text-red-500" size={32} />
           <h2 className="text-xl font-bold">Campaign Inactive</h2>
           <p className="text-xs text-zinc-500">This recruitment drive is either closed or does not exist.</p>
         </div>
@@ -373,17 +372,13 @@ const PublicLanding = () => {
     const { fd, emailVal } = buildFormData(data);
 
     if (otpRequired && !otpVerified) {
-      // Pre-fill email from form if available
       if (emailVal) setOtpEmail(emailVal);
       setPendingFormData(fd);
       setOtpModalOpen(true);
       return;
     }
-
-    // OTP not required or already verified → submit directly
     await doSubmit(fd, emailVal);
   };
-
 
   // Stepper triggers
   const nextStep = () => {
@@ -400,8 +395,6 @@ const PublicLanding = () => {
     }
   };
 
-
-
   const getDomainIcon = (iconName) => {
     const icons = {
       Terminal: <Code size={20} />,
@@ -414,21 +407,37 @@ const PublicLanding = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/40 to-blue-100/60 dark:from-[#02000A] dark:via-[#050B24] dark:to-[#0A183C] dark:bg-[#06040F] text-zinc-800 dark:text-zinc-200 flex flex-col relative overflow-hidden transition-all duration-500 selection:bg-blue-600/30 selection:text-white">
+      
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
+        
+        .font-handwritten {
+          font-family: 'Caveat', cursive, sans-serif;
+        }
+      `}</style>
+
+      {/* Mesh glowing ambient background layers */}
+      <div className="absolute top-[-10%] left-[-15%] w-[80vw] h-[80vw] md:w-[50vw] md:h-[50vw] bg-indigo-950/40 rounded-full blur-[140px] pointer-events-none z-0 opacity-40 dark:opacity-100" />
+      <div className="absolute top-[30%] right-[-10%] w-[70vw] h-[70vw] md:w-[45vw] md:h-[45vw] bg-blue-950/20 rounded-full blur-[150px] pointer-events-none z-0 opacity-40 dark:opacity-100" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[60vw] h-[60vw] md:w-[40vw] md:h-[40vw] bg-violet-950/30 rounded-full blur-[130px] pointer-events-none z-0 opacity-40 dark:opacity-100" />
+      
+      {/* Decorative top grid overlay */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.05),rgba(255,255,255,0))] pointer-events-none z-0" />
 
       {/* --- Public Header Navigation --- */}
-      <header className="sticky top-0 z-40 h-16 border-b border-zinc-200/60 dark:border-zinc-900/60 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md flex items-center justify-between px-6 md:px-12">
+      <header className="sticky top-0 z-40 h-16 border-b border-blue-50/40 dark:border-zinc-900/40 bg-white/70 dark:bg-[#06040F]/70 backdrop-blur-xl flex items-center justify-between px-6 md:px-12 transition-all">
         <div className="flex items-center gap-3">
-          <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0" />
+          <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]" />
           <div>
-            <h1 className="font-logo text-[10px] leading-none">Team Mavericks</h1>
+            <h1 className="font-extrabold text-[11px] uppercase tracking-widest font-mono text-zinc-900 dark:text-zinc-100">Team Mavericks</h1>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <a
             href="#apply-form"
-            className="px-4 py-1.5 bg-primary-blue hover:bg-primary-blue-dark text-white rounded-lg text-xs font-bold shadow-md shadow-primary-blue/15 hover:shadow-primary-blue/25 transition cursor-pointer"
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/10 hover:shadow-blue-500/25 active:scale-95 transition-all duration-150 cursor-pointer"
           >
             Apply Now
           </a>
@@ -436,51 +445,133 @@ const PublicLanding = () => {
       </header>
 
       {/* --- Hero Section --- */}
-      <section ref={heroRef} className="py-20 md:py-28 px-6 text-center max-w-4xl mx-auto space-y-6">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-          <Sparkles size={12} className="text-secondary-orange animate-pulse" />
-          <span>KIT CoEK recruitment drive 2026</span>
+      <section ref={heroRef} className="py-20 md:py-24 px-6 text-center w-full relative z-10 flex flex-col items-center">
+        
+        {/* Floating comments absolute block positioned relative to the Hero Section height */}
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden hidden md:block w-full">
+          {/* Comment 1: Top Left */}
+          <motion.div
+            animate={{ y: [0, -10, 0] }}
+            transition={{ duration: 5.2, repeat: Infinity, ease: "easeInOut", delay: 0 }}
+            className="absolute top-[18%] left-[3vw] lg:left-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 -rotate-6"
+          >
+            "Only a couple of days left until the big reveal! 🚀"
+          </motion.div>
+          
+          {/* Comment 2: Mid Left (Surrounding Countdown Left) */}
+          <motion.div
+            animate={{ y: [0, -12, 0] }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
+            className="absolute top-[52%] left-[1.5vw] lg:left-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 rotate-3"
+          >
+            "Just a few more days! The excitement is real!"
+          </motion.div>
+          
+          {/* Comment 3: Bottom Left */}
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+            className="absolute top-[80%] left-[3vw] lg:left-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 -rotate-3"
+          >
+            "The countdown is on! Who else can't wait? ⏳"
+          </motion.div>
+
+          {/* Comment 4: Top Right */}
+          <motion.div
+            animate={{ y: [0, -11, 0] }}
+            transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+            className="absolute top-[22%] right-[3vw] lg:right-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 rotate-6"
+          >
+            "Only a few days to go. I'm so ready for this! 💪"
+          </motion.div>
+          
+          {/* Comment 5: Mid Right (Surrounding Countdown Right) */}
+          <motion.div
+            animate={{ y: [0, -9, 0] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 2.2 }}
+            className="absolute top-[56%] right-[1.5vw] lg:right-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 -rotate-2"
+          >
+            "Just a couple of days to go! 📱✨"
+          </motion.div>
+          
+          {/* Comment 6: Bottom Right */}
+          <motion.div
+            animate={{ y: [0, -13, 0] }}
+            transition={{ duration: 6.4, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+            className="absolute top-[82%] right-[3vw] lg:right-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 rotate-6"
+          >
+            "So excited for the announcement! 🚀"
+          </motion.div>
         </div>
 
-        <h1
-          ref={titleRef}
-          className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight select-none"
-        >
-          Build. Lead. Innovation.<br />
-          Join <span className="text-primary-blue dark:text-blue-400">Team Mavericks</span>
-        </h1>
+        {/* Central Content */}
+        <div className="max-w-4xl mx-auto space-y-8 relative z-10 w-full flex flex-col items-center">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-blue-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/40 text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm text-zinc-650 dark:text-zinc-400">
+            <Sparkles size={11} className="text-amber-500 animate-pulse" />
+            <span>KIT CoEK recruitment drive 2026</span>
+          </div>
 
-        <p
-          ref={descRef}
-          className="text-zinc-500 max-w-xl mx-auto text-sm md:text-base font-semibold leading-relaxed"
-        >
-          {campaign.description}
-        </p>
+          <h1
+            ref={titleRef}
+            className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.08] select-none text-zinc-900 dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-b dark:from-white dark:to-zinc-400"
+          >
+            Build. Lead. Innovation.<br />
+            Join <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-650 to-violet-600 dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400 font-extrabold">Team Mavericks</span>
+          </h1>
 
-        {/* Countdown Timer */}
-        <div ref={timerRef} className="pt-6">
-          <div className="inline-flex flex-col p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl shadow-lg shadow-zinc-900/5 max-w-md mx-auto w-full">
-            <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold mb-4">Registration Deadline Countdown</span>
+          <p
+            ref={descRef}
+            className="text-zinc-650 dark:text-zinc-400 max-w-xl mx-auto text-sm md:text-base font-medium leading-relaxed"
+          >
+            {campaign.description}
+          </p>
 
+          {/* Centerpiece Countdown block: Enormous format */}
+          <div ref={timerRef} className="pt-8 relative z-10 w-full max-w-4xl mx-auto px-4">
             {campaignClosed ? (
-              <span className="text-sm font-bold text-accent-red uppercase tracking-wider">Recruitment is Closed</span>
+              <span className="text-xl font-black text-red-500 uppercase tracking-widest animate-pulse">Recruitment is Closed</span>
             ) : (
-              <div className="grid grid-cols-4 gap-4 text-center font-display font-bold">
-                <div className="space-y-1">
-                  <span className="text-2xl sm:text-3xl text-zinc-800 dark:text-zinc-50">{timeLeft.days}</span>
-                  <p className="text-[9px] uppercase tracking-wide text-zinc-400 font-bold">Days</p>
+              <div className="flex items-center justify-center gap-3 sm:gap-6 md:gap-8 font-black select-none">
+                <div className="flex flex-col items-center">
+                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
+                    {String(timeLeft.days).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
+                    Days
+                  </span>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-2xl sm:text-3xl text-zinc-800 dark:text-zinc-50">{timeLeft.hours}</span>
-                  <p className="text-[9px] uppercase tracking-wide text-zinc-400 font-bold">Hours</p>
+                
+                <span className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl text-blue-300 dark:text-zinc-700 self-start mt-2 sm:mt-4 animate-pulse">:</span>
+                
+                <div className="flex flex-col items-center">
+                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
+                    {String(timeLeft.hours).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
+                    Hours
+                  </span>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-2xl sm:text-3xl text-zinc-800 dark:text-zinc-50">{timeLeft.minutes}</span>
-                  <p className="text-[9px] uppercase tracking-wide text-zinc-400 font-bold">Min</p>
+                
+                <span className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl text-blue-300 dark:text-zinc-700 self-start mt-2 sm:mt-4 animate-pulse">:</span>
+                
+                <div className="flex flex-col items-center">
+                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
+                    {String(timeLeft.minutes).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
+                    Minutes
+                  </span>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-2xl sm:text-3xl text-zinc-800 dark:text-zinc-50">{timeLeft.seconds}</span>
-                  <p className="text-[9px] uppercase tracking-wide text-zinc-400 font-bold">Sec</p>
+                
+                <span className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl text-blue-300 dark:text-zinc-700 self-start mt-2 sm:mt-4 animate-pulse">:</span>
+                
+                <div className="flex flex-col items-center">
+                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
+                    {String(timeLeft.seconds).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
+                    Seconds
+                  </span>
                 </div>
               </div>
             )}
@@ -489,11 +580,12 @@ const PublicLanding = () => {
       </section>
 
       {/* --- About / Motto Section --- */}
-      <section className="py-16 bg-zinc-100/50 dark:bg-zinc-900/30 border-y border-zinc-200/50 dark:border-zinc-900 px-6">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+      <section className="py-24 bg-white/30 border-y border-blue-50/50 dark:bg-zinc-950/20 dark:border-zinc-900/60 px-6 relative z-10">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
           <div className="space-y-4">
-            <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Who We Are</span>
-            <p className="text-xs text-zinc-500 leading-relaxed font-semibold">
+            <span className="text-[10px] text-blue-800/80 dark:text-zinc-500 uppercase tracking-widest font-black">Who We Are</span>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">Unorthodox Views &amp; Innovative Ideas</h2>
+            <p className="text-xs text-zinc-650 dark:text-zinc-400 leading-relaxed font-medium">
               We, Team Mavericks symbolize a team having unorthodox views
               and innovative ideas. "Maverick" means an independent person or
               a team who is similar to a bird that loves to live a free and prosperous life.
@@ -501,51 +593,48 @@ const PublicLanding = () => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {['BODHANTRA', 'INVICTA', 'ARCANE', 'CARNIVAL'].map((evt) => (
-              <div key={evt} className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl shadow-sm">
-                <span className="text-[10px] font-bold text-primary-blue uppercase tracking-wider block mb-1">Flagship Event</span>
-                <span className="font-extrabold text-sm">{evt}</span>
+              <div key={evt} className="p-5 border rounded-2xl shadow-sm hover:border-blue-200/60 dark:hover:border-zinc-700 transition duration-200 bg-white/70 border-white/60 dark:bg-zinc-900/30 dark:border-zinc-800/80 shadow-md shadow-blue-900/5 dark:shadow-none">
+                <span className="text-[9px] font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest block mb-1">Flagship Event</span>
+                <span className="font-extrabold text-sm text-zinc-900 dark:text-white">{evt}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-
-
       {/* --- Dynamic Registration Form (Stepped wizard form) --- */}
-      <section id="apply-form" className="py-20 px-6 bg-zinc-100/50 dark:bg-zinc-900/30 border-t border-zinc-200/50 dark:border-zinc-900">
-        <div className="max-w-2xl mx-auto space-y-8">
+      <section id="apply-form" className="py-24 px-6 bg-blue-50/10 dark:bg-zinc-950/10 border-t border-blue-50/40 dark:border-zinc-900/40 relative z-10">
+        <div className="max-w-2xl mx-auto space-y-10">
           {campaign.status === 'closed' || campaignClosed ? (
-            <div className="p-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-md space-y-4 text-center">
-              <div className="w-16 h-16 bg-red-100 dark:bg-red-950/30 text-accent-red rounded-full flex items-center justify-center mx-auto shadow-inner">
+            <div className="p-8 border rounded-3xl shadow-2xl space-y-5 text-center bg-white/70 border-white/80 dark:bg-zinc-950/60 dark:border-zinc-900">
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-950/30 text-red-650 dark:text-red-500 rounded-full flex items-center justify-center mx-auto shadow-inner border border-red-500/20">
                 <AlertCircle size={28} />
               </div>
-              <h2 className="text-2xl font-bold tracking-tight">Recruitment is Closed</h2>
-              <p className="text-zinc-500 text-xs font-semibold leading-relaxed max-w-md mx-auto">
+              <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">Recruitment is Closed</h2>
+              <p className="text-zinc-650 dark:text-zinc-400 text-xs font-medium leading-relaxed max-w-md mx-auto">
                 {campaign.closed_message || 'Recruitment is currently closed. Thank you for your interest in Team Mavericks!'}
                 <br />
-                <span className="mt-2 block text-primary-blue dark:text-blue-400 font-bold">Please contact the club admin or members for further inquiries.</span>
+                <span className="mt-3 block text-blue-600 dark:text-blue-500 font-bold">Please contact the club admin or members for further inquiries.</span>
               </p>
             </div>
           ) : (
             <>
               <div className="text-center space-y-2">
-                <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Start your application</span>
-                <h2 className="text-3xl font-extrabold tracking-tight">Candidate Registration</h2>
-                <p className="text-xs text-zinc-500">Fill out this dynamic form. Your progress will auto-save as you type.</p>
+                <span className="text-[10px] text-blue-800/80 dark:text-zinc-500 uppercase tracking-widest font-black">Start your application</span>
+                <h2 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Candidate Registration</h2>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400">Fill out this dynamic form. Your progress will auto-save as you type.</p>
               </div>
 
               {/* Stepper Progress Bar */}
-              <div className="flex justify-between items-center gap-1 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-
+              <div className="flex justify-between items-center gap-1.5 text-[9px] font-black text-zinc-500 dark:text-zinc-500 tracking-widest font-mono uppercase">
                 {formStructure.map((sec, idx) => (
-                  <div key={sec.id} className="flex-1 flex flex-col gap-1 items-center">
-                    <div className={`h-1.5 w-full rounded-full transition-colors duration-200
-                  ${idx <= activeStep ? 'bg-primary-blue' : 'bg-zinc-200 dark:bg-zinc-800'}
-                `}></div>
-                    <span className={`hidden sm:inline truncate max-w-[80px] mt-1
-                  ${idx === activeStep ? 'text-primary-blue' : 'text-zinc-400'}
-                `}>
+                  <div key={sec.id} className="flex-1 flex flex-col gap-2 items-center">
+                    <div className={`h-1.5 w-full rounded-full transition-colors duration-300 bg-zinc-200 dark:bg-zinc-800
+                      ${idx <= activeStep ? 'bg-gradient-to-r from-blue-600 to-indigo-650 dark:from-blue-500 dark:to-indigo-500' : ''}
+                    `}></div>
+                    <span className={`hidden sm:inline truncate max-w-[80px] mt-0.5
+                      ${idx === activeStep ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-zinc-500'}
+                    `}>
                       {sec.name}
                     </span>
                   </div>
@@ -553,28 +642,28 @@ const PublicLanding = () => {
               </div>
 
               {/* Form Structure container */}
-              <form onSubmit={handleSubmit(onSubmitForm)} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl p-6 md:p-8 shadow-md">
-
+              <form onSubmit={handleSubmit(onSubmitForm)} className="border rounded-3xl p-6 md:p-8 shadow-2xl relative bg-white/70 border-white/80 dark:bg-zinc-950/60 dark:border-zinc-900 shadow-blue-900/5 dark:shadow-none">
+                
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeStep}
-                    initial={{ opacity: 0, x: 10 }}
+                    initial={{ opacity: 0, x: 12 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
+                    exit={{ opacity: 0, x: -12 }}
                     transition={{ duration: 0.2 }}
                     className="space-y-6 text-xs font-semibold"
                   >
-                    <div className="border-b border-zinc-100 dark:border-zinc-800 pb-3 flex items-center justify-between gap-4">
+                    <div className="border-b border-zinc-200 dark:border-zinc-800/40 pb-4 flex items-center justify-between gap-4">
                       <div>
-                        <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50">
+                        <h3 className="text-base font-black text-zinc-900 dark:text-white">
                           {formStructure[activeStep]?.name}
                         </h3>
-                        <p className="text-[10px] text-zinc-400 font-semibold">{formStructure[activeStep]?.description}</p>
+                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">{formStructure[activeStep]?.description}</p>
                       </div>
                       <button
                         type="button"
                         onClick={handleClearDraft}
-                        className="text-[10px] font-bold text-zinc-400 hover:text-accent-red cursor-pointer flex items-center gap-1 transition px-2.5 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-850"
+                        className="text-[10px] font-black cursor-pointer flex items-center gap-1 transition duration-150 px-3 py-1.5 border rounded-xl border-zinc-300 hover:bg-zinc-100/50 text-zinc-600 dark:border-zinc-800 dark:hover:bg-zinc-900/60 dark:text-zinc-400"
                       >
                         Clear Form
                       </button>
@@ -584,41 +673,41 @@ const PublicLanding = () => {
                     {formStructure[activeStep]?.fields.map((field) => {
                       const key = `field_${field.id}`;
 
-                      // Skip system custom domains in dynamic loops and handle domains selection separately in "Domain preference" section
+                      // Preferred Domains Cards Selection
                       if (field.field_type === 'checkbox' && field.label === 'Preferred Domains') {
                         return (
-                          <div key={field.id} className="space-y-2">
-                            <label className="block text-[11px] font-bold uppercase text-zinc-500 tracking-wide">
-                              {field.label} {field.is_required && <span className="text-accent-red">*</span>}
+                          <div key={field.id} className="space-y-3">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-650 dark:text-zinc-400">
+                              {field.label} {field.is_required && <span className="text-red-500">*</span>}
                             </label>
-                            <p className="text-[10px] text-zinc-400 leading-normal font-semibold">{field.description}</p>
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-500 leading-normal font-medium">{field.description}</p>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                               {domains.map((dom) => (
                                 <label
                                   key={dom.id}
-                                  className={`p-3 border rounded-lg flex items-center gap-3 cursor-pointer transition
-                                ${watch('preferred_domains')?.includes(String(dom.id))
-                                      ? 'border-primary-blue bg-primary-blue/5'
-                                      : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50/50'
+                                  className={`p-4 border rounded-2xl flex items-start gap-3.5 cursor-pointer transition-all duration-200 select-none
+                                    ${watch('preferred_domains')?.includes(String(dom.id))
+                                      ? 'border-blue-600 bg-blue-50/50 text-blue-900 dark:border-blue-500/50 dark:bg-blue-500/5 dark:text-white font-bold'
+                                      : 'border-zinc-200 hover:border-zinc-300 bg-white/30 text-zinc-700 dark:border-zinc-800 dark:hover:border-zinc-700 dark:bg-zinc-900/20 dark:text-zinc-300'
                                     }
-                              `}
+                                  `}
                                 >
                                   <input
                                     type="checkbox"
                                     value={String(dom.id)}
                                     {...register('preferred_domains', { required: field.is_required ? 'Please select at least one preferred domain.' : false })}
-                                    className="w-4 h-4 rounded text-primary-blue focus:ring-primary-blue"
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500/50 border-zinc-300 dark:border-zinc-800 mt-0.5 bg-zinc-950"
                                   />
                                   <div>
                                     <p className="font-bold text-xs">{dom.name}</p>
-                                    <span className="text-[9px] text-zinc-400 leading-none">{dom.description}</span>
+                                    <span className="text-[10px] text-zinc-500 dark:text-zinc-550 leading-normal font-medium mt-0.5 block">{dom.description}</span>
                                   </div>
                                 </label>
                               ))}
                             </div>
                             {errors.preferred_domains && (
-                              <p className="mt-1 text-[10px] text-accent-red flex items-center gap-1">
+                              <p className="mt-2 text-[10px] text-red-500 flex items-center gap-1.5">
                                 <AlertCircle size={12} />
                                 <span>{errors.preferred_domains.message}</span>
                               </p>
@@ -629,12 +718,12 @@ const PublicLanding = () => {
 
                       // Default input type renderings
                       return (
-                        <div key={field.id} className="space-y-1.5">
-                          <label className="block text-[11px] font-bold uppercase text-zinc-500 tracking-wide">
-                            {field.label} {field.is_required && <span className="text-accent-red">*</span>}
+                        <div key={field.id} className="space-y-2">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-650 dark:text-zinc-405">
+                            {field.label} {field.is_required && <span className="text-red-500">*</span>}
                           </label>
                           {field.description && (
-                            <p className="text-[10px] text-zinc-400 font-semibold mb-1.5 leading-normal">{field.description}</p>
+                            <p className="text-[10px] text-zinc-555 font-medium leading-normal">{field.description}</p>
                           )}
 
                           {/* 1. Single Line Input */}
@@ -648,9 +737,9 @@ const PublicLanding = () => {
                                 maxLength: field.validation_rules?.max ? { value: field.validation_rules.max, message: `Maximum ${field.validation_rules.max} characters` } : undefined,
                                 pattern: field.validation_rules?.regex ? { value: new RegExp(field.validation_rules.regex), message: 'Invalid formatting value' } : undefined
                               })}
-                              className={`w-full px-3 py-2 border rounded-lg bg-zinc-50 dark:bg-zinc-950 text-xs focus:ring-1 focus:ring-primary-blue focus:outline-none transition
-                            ${errors[key] ? 'border-accent-red/50 focus:ring-accent-red' : 'border-zinc-200 dark:border-zinc-800'}
-                          `}
+                              className={`w-full px-4 py-3 border rounded-xl text-xs focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 focus:outline-none transition-all duration-200 bg-white border-zinc-300 text-zinc-900 placeholder-zinc-450 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-650
+                                ${errors[key] ? 'border-red-500/50 focus:ring-red-500/50' : ''}
+                              `}
                             />
                           )}
 
@@ -663,9 +752,9 @@ const PublicLanding = () => {
                                 required: field.is_required ? `${field.label} is required` : false,
                                 minLength: field.validation_rules?.min ? { value: field.validation_rules.min, message: `Answer must be at least ${field.validation_rules.min} characters` } : undefined
                               })}
-                              className={`w-full px-3 py-2 border rounded-lg bg-zinc-50 dark:bg-zinc-950 text-xs focus:ring-1 focus:ring-primary-blue focus:outline-none transition resize-none
-                            ${errors[key] ? 'border-accent-red/50 focus:ring-accent-red' : 'border-zinc-200 dark:border-zinc-800'}
-                          `}
+                              className={`w-full px-4 py-3 border rounded-xl text-xs focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 focus:outline-none transition-all duration-200 resize-none bg-white border-zinc-300 text-zinc-900 placeholder-zinc-455 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-650
+                                ${errors[key] ? 'border-red-500/50 focus:ring-red-500/50' : ''}
+                              `}
                             />
                           )}
 
@@ -673,27 +762,27 @@ const PublicLanding = () => {
                           {field.field_type === 'dropdown' && (
                             <select
                               {...register(key, { required: field.is_required ? `${field.label} is required` : false })}
-                              className={`w-full px-3 py-2 border rounded-lg bg-zinc-50 dark:bg-zinc-950 text-xs focus:ring-1 focus:ring-primary-blue focus:outline-none
-                            ${errors[key] ? 'border-accent-red/50' : 'border-zinc-200 dark:border-zinc-800'}
-                          `}
+                              className={`w-full px-4 py-3 border rounded-xl text-xs focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 focus:outline-none transition-all duration-200 bg-white border-zinc-300 text-zinc-900 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white
+                                ${errors[key] ? 'border-red-500/50' : ''}
+                              `}
                             >
-                              <option value="">{field.placeholder || 'Select value...'}</option>
+                              <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{field.placeholder || 'Select value...'}</option>
                               {field.options?.map((opt) => (
-                                <option key={opt.id} value={opt.option_value}>{opt.option_label}</option>
+                                <option key={opt.id} value={opt.option_value} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{opt.option_label}</option>
                               ))}
                             </select>
                           )}
 
-                          {/* 3.1 Radio Buttons (Single Choice) */}
+                          {/* 3.1 Radio Buttons */}
                           {field.field_type === 'radio' && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                               {field.options?.map((opt) => (
-                                <label key={opt.id} className="flex items-center gap-2.5 cursor-pointer text-xs text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 bg-zinc-50/20 hover:bg-zinc-50 dark:bg-zinc-950/10 dark:hover:bg-zinc-950/30 transition shadow-sm select-none">
+                                <label key={opt.id} className="flex items-center gap-3 cursor-pointer text-xs border rounded-xl p-3.5 transition-all select-none border-zinc-200 hover:border-zinc-300 bg-white/30 text-zinc-700 dark:border-zinc-800 dark:hover:border-zinc-700 dark:bg-zinc-900/20 dark:text-zinc-300">
                                   <input
                                     type="radio"
                                     value={opt.option_value}
                                     {...register(key, { required: field.is_required ? 'This selection is required.' : false })}
-                                    className="w-4 h-4 text-primary-blue focus:ring-primary-blue border-zinc-300"
+                                    className="w-4 h-4 text-blue-600 focus:ring-blue-650/50 border-zinc-300 dark:border-zinc-800 bg-zinc-950"
                                   />
                                   <span>{opt.option_label}</span>
                                 </label>
@@ -701,16 +790,16 @@ const PublicLanding = () => {
                             </div>
                           )}
 
-                          {/* 3.2 Checkboxes (Multiple Choice) */}
+                          {/* 3.2 Checkboxes */}
                           {field.field_type === 'checkbox' && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                               {field.options?.map((opt) => (
-                                <label key={opt.id} className="flex items-center gap-2.5 cursor-pointer text-xs text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 bg-zinc-50/20 hover:bg-zinc-50 dark:bg-zinc-950/10 dark:hover:bg-zinc-950/30 transition shadow-sm select-none">
+                                <label key={opt.id} className="flex items-center gap-3 cursor-pointer text-xs border rounded-xl p-3.5 transition-all select-none border-zinc-200 hover:border-zinc-300 bg-white/30 text-zinc-700 dark:border-zinc-800 dark:hover:border-zinc-700 dark:bg-zinc-900/20 dark:text-zinc-300">
                                   <input
                                     type="checkbox"
                                     value={opt.option_value}
                                     {...register(key, { required: field.is_required ? 'Please select at least one option.' : false })}
-                                    className="w-4 h-4 rounded text-primary-blue focus:ring-primary-blue border-zinc-300"
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-650/50 border-zinc-300 dark:border-zinc-800 bg-zinc-950"
                                   />
                                   <span>{opt.option_label}</span>
                                 </label>
@@ -726,13 +815,13 @@ const PublicLanding = () => {
                               rules={{ required: field.is_required ? 'Rating is required' : false }}
                               defaultValue={field.default_value || 4}
                               render={({ field: { value, onChange } }) => (
-                                <div className="flex gap-1.5 text-amber-500 text-base">
+                                <div className="flex gap-2 text-amber-500 text-lg py-1">
                                   {[1, 2, 3, 4, 5].map((star) => (
                                     <button
                                       type="button"
                                       key={star}
                                       onClick={() => onChange(star)}
-                                      className="hover:scale-110 transition cursor-pointer text-lg"
+                                      className="hover:scale-125 active:scale-95 transition-all cursor-pointer text-2xl"
                                     >
                                       {star <= value ? '★' : '☆'}
                                     </button>
@@ -744,9 +833,9 @@ const PublicLanding = () => {
 
                           {/* 5. Document Resume / ID Upload */}
                           {['resume', 'id_card', 'file', 'image', 'pdf'].includes(field.field_type) && (
-                            <div className="space-y-2">
-                              <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer bg-zinc-50/50 hover:bg-zinc-100/30 dark:bg-zinc-950/20 dark:hover:bg-zinc-950/50 transition duration-150 select-none
-                                ${errors[key] ? 'border-accent-red/50 bg-red-50/10' : 'border-zinc-200 dark:border-zinc-800 hover:border-primary-blue dark:hover:border-primary-blue/60'}
+                            <div className="space-y-3">
+                              <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-8 cursor-pointer transition-all duration-200 select-none group bg-white/40 border-zinc-300 text-zinc-800 dark:bg-zinc-900/20 dark:border-zinc-800 dark:text-zinc-200 hover:border-blue-500/50 dark:hover:border-blue-500/50
+                                ${errors[key] ? 'border-red-500/40 bg-red-950/5' : ''}
                               `}>
                                 <input
                                   type="file"
@@ -754,18 +843,18 @@ const PublicLanding = () => {
                                   {...register(key, { required: field.is_required ? `${field.label} file is required` : false })}
                                   className="sr-only"
                                 />
-                                <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-500 rounded-xl shadow-sm mb-3">
-                                  <Upload size={18} className="text-zinc-550 dark:text-zinc-405" />
+                                <div className="p-3.5 bg-zinc-100 border border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800 text-zinc-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 rounded-xl shadow-sm mb-3.5 transition-colors">
+                                  <Upload size={18} />
                                 </div>
-                                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                                <span className="text-xs font-bold">
                                   {formValues[key] && formValues[key][0] ? formValues[key][0].name : `Choose file to upload`}
                                 </span>
-                                <span className="text-[10px] text-zinc-400 font-medium mt-1">
+                                <span className="text-[10px] text-zinc-500 font-medium mt-1">
                                   {formValues[key] && formValues[key][0] ? `Click to swap file` : `PDF, Doc, Images (Max 5MB)`}
                                 </span>
                               </label>
 
-                              {/* Image Live Preview (Rounded Frame) */}
+                              {/* Image Live Preview */}
                               {formValues[key] && formValues[key][0] && formValues[key][0].type?.startsWith('image/') && (
                                 <div className="relative mt-3 p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-32 h-32 bg-white dark:bg-zinc-900 shadow-md flex items-center justify-center group overflow-hidden">
                                   <div className="w-full h-full rounded-xl overflow-hidden bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
@@ -782,27 +871,27 @@ const PublicLanding = () => {
 
                           {/* 6. Consent Checkbox */}
                           {field.field_type === 'consent' && (
-                            <label className="flex gap-2 items-start cursor-pointer select-none">
+                            <label className="flex gap-3 items-start cursor-pointer select-none py-1">
                               <input
                                 type="checkbox"
                                 {...register(key, { required: field.is_required ? 'You must accept the declaration.' : false })}
-                                className="w-4 h-4 rounded border-zinc-300 text-primary-blue focus:ring-primary-blue mt-0.5"
+                                className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500/50 mt-0.5 bg-zinc-950"
                               />
-                              <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium">
+                              <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed">
                                 {field.description || 'I confirm the information above.'}
                               </span>
                             </label>
                           )}
 
                           {field.help_text && (
-                            <p className="text-[9px] text-zinc-400 font-medium font-sans flex items-center gap-1">
-                              <HelpCircle size={10} />
+                            <p className="text-[10px] text-zinc-500 font-medium flex items-center gap-1.5 mt-1 font-mono">
+                              <HelpCircle size={10} className="text-zinc-450" />
                               <span>{field.help_text}</span>
                             </p>
                           )}
 
                           {errors[key] && (
-                            <p className="mt-1 text-[10px] text-accent-red flex items-center gap-1">
+                            <p className="mt-2 text-[10px] text-red-505 flex items-center gap-1.5 font-semibold">
                               <AlertCircle size={12} />
                               <span>{errors[key].message}</span>
                             </p>
@@ -814,12 +903,12 @@ const PublicLanding = () => {
                 </AnimatePresence>
 
                 {/* Stepper Buttons */}
-                <div className="flex justify-between border-t border-zinc-100 dark:border-zinc-800 pt-5 mt-8 gap-3">
+                <div className="flex justify-between border-t border-zinc-200 dark:border-zinc-800 pt-6 mt-8 gap-3">
                   <button
                     type="button"
                     onClick={prevStep}
                     disabled={activeStep === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 rounded-lg text-xs font-bold shadow-sm disabled:opacity-40 transition cursor-pointer select-none"
+                    className="flex items-center gap-1.5 px-4.5 py-2.5 border rounded-xl text-xs font-bold shadow-sm disabled:opacity-40 transition cursor-pointer select-none active:scale-95 border-zinc-350 hover:bg-zinc-100/50 text-zinc-650 dark:border-zinc-800 dark:hover:bg-zinc-900/60 dark:text-zinc-400"
                   >
                     <ChevronLeft size={14} />
                     <span>Previous</span>
@@ -829,7 +918,7 @@ const PublicLanding = () => {
                     <button
                       type="button"
                       onClick={nextStep}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-zinc-850 text-white dark:bg-zinc-850 hover:bg-zinc-800 dark:hover:bg-zinc-800 rounded-lg text-xs font-bold shadow transition cursor-pointer select-none"
+                      className="flex items-center gap-1.5 px-4.5 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer select-none active:scale-95"
                     >
                       <span>Next Step</span>
                       <ChevronRight size={14} />
@@ -838,7 +927,7 @@ const PublicLanding = () => {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="flex items-center gap-1.5 px-5 py-2 bg-primary-blue hover:bg-primary-blue-dark text-white rounded-lg text-xs font-bold shadow-md shadow-primary-blue/15 hover:shadow transition cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1.5 px-5.5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/10 hover:shadow-blue-500/25 transition cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                     >
                       {submitting ? (
                         <>
@@ -862,27 +951,27 @@ const PublicLanding = () => {
         </div>
       </section>
 
-      {/* ===== OTP VERIFICATION MODAL (Submit-time) ===== */}
+      {/* ===== OTP VERIFICATION MODAL ===== */}
       {otpModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
-            {/* Blue gradient top bar */}
-            <div className="h-1.5 w-full" style={{ background: 'linear-gradient(90deg, #0d2399 0%, #1a3fd4 50%, #f97316 100%)' }} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#06040f]/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-md bg-white border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-900 rounded-3xl shadow-2xl overflow-hidden">
+            {/* Ambient neon line */}
+            <div className="h-1 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600" />
 
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-6">
               {/* Header */}
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary-blue/10 border border-primary-blue/20 flex items-center justify-center shrink-0">
-                  <Mail size={18} className="text-primary-blue" />
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                  <Mail size={18} className="text-blue-650" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-50">Verify Your Email to Submit</h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">We'll send a 6-digit code to confirm your email before submitting the application.</p>
+                  <h3 className="text-sm font-black text-zinc-900 dark:text-white">Verify Your Email</h3>
+                  <p className="text-[10px] text-zinc-500 mt-1 leading-normal">We will send a 6-digit code to confirm your email before submitting.</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => { setOtpModalOpen(false); setOtpSent(false); setOtpCode(''); }}
-                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  className="text-zinc-400 hover:text-zinc-650 dark:text-zinc-550 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900"
                 >
                   ✕
                 </button>
@@ -890,43 +979,43 @@ const PublicLanding = () => {
 
               {/* Email Row */}
               <div className="space-y-2">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500">Email Address</label>
-                <div className="flex gap-2">
+                <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500">Email Address</label>
+                <div className="flex gap-2.5">
                   <input
                     type="email"
                     placeholder="your@email.com"
                     value={otpEmail}
                     onChange={e => setOtpEmail(e.target.value)}
                     disabled={otpSent && otpCountdown > 0}
-                    className="flex-1 h-10 px-3 text-xs font-semibold rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-blue/40 disabled:opacity-50 transition"
+                    className="flex-1 h-11 px-4 text-xs font-semibold rounded-xl bg-white border border-zinc-300 text-zinc-900 placeholder-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-white dark:placeholder-zinc-650 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 disabled:opacity-50 transition-all duration-200"
                   />
                   <button
                     type="button"
                     onClick={otpSent && otpCountdown > 0 ? undefined : handleSendOtp}
                     disabled={otpSending || (otpSent && otpCountdown > 0)}
-                    className="h-10 px-3 bg-primary-blue hover:bg-primary-blue-dark disabled:opacity-50 text-white text-xs font-bold rounded-lg transition whitespace-nowrap shadow-sm"
+                    className="h-11 px-4.5 bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition shadow-md whitespace-nowrap active:scale-95"
                   >
                     {otpSending ? 'Sending…' : otpSent && otpCountdown > 0 ? `Resend in ${otpCountdown}s` : otpSent ? 'Resend' : 'Send OTP'}
                   </button>
                 </div>
               </div>
 
-              {/* OTP Code Input — shown after OTP sent */}
+              {/* OTP Code Input */}
               {otpSent && (
-                <div className="space-y-3">
-                  <p className="text-[10px] text-black-600 dark:text-white-100 font-semibold flex items-center gap-1.5">
-                    <CheckCircle size={11} />
-                    OTP sent to <span className="font-bold">{otpEmail}</span> — check your inbox
+                <div className="space-y-4">
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium flex items-center gap-2">
+                    <CheckCircle size={12} className="text-emerald-500" />
+                    OTP sent to <span className="font-bold text-zinc-800 dark:text-white">{otpEmail}</span>
                   </p>
                   <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500">6-Digit OTP Code</label>
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 font-mono">6-Digit OTP Code</label>
                     <input
                       type="text"
                       placeholder="• • • • • •"
                       maxLength={6}
                       value={otpCode}
                       onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-full h-12 px-4 text-xl font-black tracking-[0.5em] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-primary-blue/40 transition text-center"
+                      className="w-full h-12 px-4 text-2xl font-black tracking-[0.5em] rounded-xl border border-zinc-305 bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-white transition-all text-center"
                       autoFocus
                     />
                   </div>
@@ -934,7 +1023,7 @@ const PublicLanding = () => {
                     type="button"
                     onClick={handleVerifyOtp}
                     disabled={otpVerifying || otpCode.length !== 6}
-                    className="w-full h-10 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg transition shadow-md shadow-green-600/20 flex items-center justify-center gap-2"
+                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition shadow-lg active:scale-95 flex items-center justify-center gap-2"
                   >
                     {otpVerifying
                       ? <><RefreshCw size={13} className="animate-spin" /> Verifying…</>
@@ -944,7 +1033,7 @@ const PublicLanding = () => {
                 </div>
               )}
 
-              <p className="text-[10px] text-zinc-400 text-center">Your form data is saved. Verification is only needed once per session.</p>
+              <p className="text-[9px] text-zinc-500 text-center font-medium">Your data is auto-saved. Email verification is required once per session.</p>
             </div>
           </div>
         </div>
@@ -952,19 +1041,19 @@ const PublicLanding = () => {
 
       {/* ===== CLEAR FORM CONFIRMATION MODAL ===== */}
       {showClearConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="relative bg-white dark:bg-zinc-900 border border-blue-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6 overflow-hidden transform scale-100 transition-all duration-300">
-            {/* Blue glowing decoration */}
-            <div className="absolute -top-12 -left-12 w-24 h-24 bg-primary-blue/10 rounded-full blur-xl pointer-events-none" />
-            <div className="absolute -bottom-12 -right-12 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#06040f]/80 backdrop-blur-sm">
+          <div className="relative bg-white border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-900 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6 overflow-hidden transform scale-100 transition-all duration-300">
+            {/* Glowing highlights */}
+            <div className="absolute -top-12 -left-12 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+            <div className="absolute -bottom-12 -right-12 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
 
             <div className="text-center space-y-4 relative z-10">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/50 text-primary-blue dark:text-blue-400 mx-auto shadow-inner shadow-primary-blue/10">
-                <AlertCircle size={24} />
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-50/50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 mx-auto shadow-inner border border-blue-200/40">
+                <AlertCircle size={22} />
               </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50">Clear Form Data?</h3>
-                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
+              <div className="space-y-1.5">
+                <h3 className="text-base font-black text-zinc-900 dark:text-white">Clear Form Data?</h3>
+                <p className="text-xs font-medium text-zinc-550 max-w-xs mx-auto leading-relaxed">
                   Are you sure you want to clear your current progress and start fresh? This action cannot be undone.
                 </p>
               </div>
@@ -974,14 +1063,14 @@ const PublicLanding = () => {
               <button
                 type="button"
                 onClick={() => setShowClearConfirmModal(false)}
-                className="flex-1 h-10 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-850 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold rounded-lg transition"
+                className="flex-1 h-11 border rounded-xl border-zinc-300 bg-white hover:bg-zinc-100 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/20 dark:hover:bg-zinc-900/60 dark:text-zinc-300 text-xs font-bold transition active:scale-95"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmClearDraft}
-                className="flex-1 h-10 bg-primary-blue hover:bg-blue-600 active:bg-blue-700 text-white text-xs font-bold rounded-lg transition shadow-md shadow-primary-blue/20"
+                className="flex-1 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-md active:scale-95"
               >
                 Yes, Clear Form
               </button>
@@ -990,28 +1079,27 @@ const PublicLanding = () => {
         </div>
       )}
 
-
       {/* --- FAQs Accordion --- */}
-      <section className="py-20 max-w-3xl mx-auto px-6 space-y-8">
+      <section className="py-24 max-w-3xl mx-auto px-6 space-y-10 relative z-10">
         <div className="text-center space-y-2">
-          <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Have Questions?</span>
-          <h2 className="text-2xl font-extrabold tracking-tight">Frequently Asked Questions</h2>
+          <span className="text-[10px] text-blue-800/80 dark:text-zinc-500 uppercase tracking-widest font-black">Have Questions?</span>
+          <h2 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Frequently Asked Questions</h2>
         </div>
 
         <div className="space-y-4 text-xs font-semibold">
           {faqs.map((faq, index) => (
             <div
               key={index}
-              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-sm"
+              className="border rounded-2xl overflow-hidden shadow-sm hover:border-blue-100 dark:hover:border-zinc-800 transition duration-200 bg-white/70 border-white/60 dark:bg-zinc-950/60 dark:border-zinc-900 faq-item"
             >
               <button
                 onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                className="w-full p-4 text-left font-bold flex items-center justify-between gap-4 cursor-pointer hover:bg-zinc-50/50"
+                className="w-full p-4 text-left font-bold flex items-center justify-between gap-4 cursor-pointer hover:bg-blue-50/20 dark:hover:bg-zinc-900/40 text-zinc-900 dark:text-white transition duration-150"
               >
                 <span>{faq.question || faq.q}</span>
                 <ChevronDown
                   size={16}
-                  className={`text-zinc-400 transition-transform duration-200 ${openFaq === index ? 'rotate-180' : ''}`}
+                  className="text-zinc-550 transition-transform duration-200"
                 />
               </button>
               <AnimatePresence>
@@ -1020,9 +1108,9 @@ const PublicLanding = () => {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden border-t border-zinc-100 dark:border-zinc-850"
+                    className="overflow-hidden border-t border-zinc-200 dark:border-zinc-900"
                   >
-                    <p className="p-4 text-zinc-500 font-medium leading-relaxed font-sans text-xs">
+                    <p className="p-4 text-zinc-650 dark:text-zinc-400 font-medium leading-relaxed font-sans text-xs">
                       {faq.answer || faq.a}
                     </p>
                   </motion.div>
@@ -1034,17 +1122,17 @@ const PublicLanding = () => {
       </section>
 
       {/* --- Footer --- */}
-      <footer className="py-12 border-t border-zinc-200 dark:border-zinc-900 text-center px-6 bg-zinc-100/50 dark:bg-zinc-950">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-3">
-            <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0" />
+      <footer className="py-16 border-t text-center px-6 backdrop-blur-xl relative z-10 bg-white/60 border-blue-100/40 dark:bg-[#06040f]/60 dark:border-zinc-900/60 footer-main">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-3.5">
+            <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.2)]" />
             <div className="text-left">
-              <span className="font-logo text-[10px] text-zinc-900 dark:text-zinc-50 block leading-none mb-1">Team Mavericks</span>
-              <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Stay Updated!! Stay Ahead!!</p>
+              <span className="font-extrabold text-sm tracking-tight uppercase block text-zinc-900 dark:text-white">Team Mavericks</span>
+              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest font-mono mt-0.5">Stay Updated!! Stay Ahead!!</p>
             </div>
           </div>
-          <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest leading-normal">
-            © {new Date().getFullYear()} Team Mavericks KIT CoEK Kolhapur.
+          <div className="text-[10px] text-zinc-550 font-bold uppercase tracking-widest leading-normal font-mono">
+            &copy; {new Date().getFullYear()} Team Mavericks KIT CoEK Kolhapur.
           </div>
         </div>
       </footer>
