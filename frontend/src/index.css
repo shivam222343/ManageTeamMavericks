@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+
+  --color-primary-blue: #2563eb;
+  --color-primary-blue-dark: #1d4ed8;
+  --color-secondary-orange: #f97316;
+  --color-accent-green: #10b981;
+  --color-accent-red: #ef4444;
+
+  /* Notion / Linear-like Grays */
+  --color-zinc-950: #09090b;
+  --color-zinc-900: #18181b;
+  --color-zinc-800: #27272a;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-600: #52525b;
+  --color-zinc-500: #71717a;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-50: #fafafa;
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
+
+  body {
+    background-color: var(--color-zinc-50);
+    color: var(--color-zinc-900);
+  }
+
+  body.dark {
+    background-color: var(--color-zinc-950);
+    color: var(--color-zinc-50);
+  }
+
+  input, select, textarea, button {
+    color: inherit;
+    font-family: inherit;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+}
+
+/* Glassmorphism Styles */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(228, 228, 231, 0.6);
+}
+
+.dark .glass {
+  background: rgba(24, 24, 27, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(39, 39, 42, 0.6);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-300 rounded-full;
+}
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-400;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-700;
+}
+
+/* Recharts Typography Override */
+.recharts-text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  fill: currentColor;
+}
+
+/* Mavericks Animated Loader Keyframes and Classes */
+@keyframes colorHueRotate {
+  0% {
+    border-top-color: #2563eb;
+    border-right-color: #2563eb;
+    transform: rotate(0deg);
+  }
+  25% {
+    border-top-color: #f97316;
+    border-right-color: #f97316;
+  }
+  50% {
+    border-top-color: #10b981;
+    border-right-color: #10b981;
+  }
+  75% {
+    border-top-color: #a855f7;
+    border-right-color: #a855f7;
+  }
+  100% {
+    border-top-color: #2563eb;
+    border-right-color: #2563eb;
+    transform: rotate(360deg);
+  }
+}
+
+.animate-mavericks-loader {
+  border-style: solid;
+  border-width: 3px;
+  border-bottom-color: transparent !important;
+  border-left-color: transparent !important;
+  animation: colorHueRotate 1.5s linear infinite;
+}
+
+/* ── Dark mode button hover fixes ─────────────────────────────────────────── */
+/* Ensure border-colored ghost buttons stay readable in dark mode on hover    */
+.dark .btn-ghost-hover:hover {
+  background-color: rgba(39, 39, 42, 0.7);  /* zinc-800/70 */
+  color: #f4f4f5;  /* zinc-100 */
+}
