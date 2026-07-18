@@ -10,6 +10,9 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    watch: {
+      ignored: ['**/*.~tmp', '**/*.tmp', '**/public/events/**']
+    },
     proxy: {
       '/api': {
         target: 'http://localhost/backend', // We can configure proxies to simplify request routing
