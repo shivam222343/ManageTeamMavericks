@@ -28,12 +28,17 @@ import {
   ChevronLeft,
   RefreshCw,
   Upload,
-  Mail
+  Mail,
+  Sun,
+  Moon
 } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const PublicLanding = () => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const { slug } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -406,9 +411,47 @@ const PublicLanding = () => {
     return icons[iconName] || <Terminal size={20} />;
   };
 
+  const renderDigit = (value, label) => (
+    <div className="flex flex-col items-center min-w-[70px] sm:min-w-[105px] md:min-w-[125px]">
+      <span className={`font-bebas font-bold text-[54px] sm:text-[80px] md:text-[96px] leading-none tracking-tight transition-colors duration-300 ${isDark ? 'text-white' : 'text-[#0B0F2B]'}`}>
+        <motion.span
+          key={value}
+          initial={{ opacity: 0.7, scale: 0.98, filter: isDark ? 'drop-shadow(0 0 10px rgba(91,125,255,0))' : 'none' }}
+          animate={{
+            opacity: [0.7, 1, 1],
+            scale: [0.98, 1, 1],
+            filter: isDark ? [
+              'drop-shadow(0 0 12px rgba(91,125,255,0.7))',
+              'drop-shadow(0 0 4px rgba(91,125,255,0.2))',
+              'drop-shadow(0 0 1px rgba(255,255,255,0.05))'
+            ] : [
+              'drop-shadow(0 0 0px transparent)',
+              'drop-shadow(0 0 0px transparent)',
+              'drop-shadow(0 0 0px transparent)'
+            ]
+          }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="inline-block"
+        >
+          {String(value).padStart(2, '0')}
+        </motion.span>
+      </span>
+      <span className={`font-sans text-[9px] sm:text-[11px] md:text-[14px] font-semibold tracking-[4px] uppercase mt-2 transition-colors duration-300 ${isDark ? 'text-white/45' : 'text-[#0B0F2B]/60'}`}>
+        {label}
+      </span>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/40 to-blue-100/60 dark:from-[#02000A] dark:via-[#050B24] dark:to-[#0A183C] dark:bg-[#06040F] text-zinc-800 dark:text-zinc-200 flex flex-col relative overflow-hidden transition-all duration-500 selection:bg-blue-600/30 selection:text-white">
-      
+    <div
+      className={`min-h-screen flex flex-col relative overflow-hidden transition-all duration-500 selection:bg-blue-600/30 selection:text-white ${isDark ? 'bg-[#04040C] text-white' : 'bg-[#FFFFFF] text-zinc-900'}`}
+      style={{
+        background: isDark
+          ? 'radial-gradient(circle at top, #11183A 0%, #090A18 35%, #04040C 100%)'
+          : 'radial-gradient(circle at top, #F3F6FF 0%, #F8FAFC 50%, #FFFFFF 100%)'
+      }}
+    >
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
         
@@ -417,165 +460,188 @@ const PublicLanding = () => {
         }
       `}</style>
 
-      {/* Mesh glowing ambient background layers */}
-      <div className="absolute top-[-10%] left-[-15%] w-[80vw] h-[80vw] md:w-[50vw] md:h-[50vw] bg-indigo-950/40 rounded-full blur-[140px] pointer-events-none z-0 opacity-40 dark:opacity-100" />
-      <div className="absolute top-[30%] right-[-10%] w-[70vw] h-[70vw] md:w-[45vw] md:h-[45vw] bg-blue-950/20 rounded-full blur-[150px] pointer-events-none z-0 opacity-40 dark:opacity-100" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[60vw] h-[60vw] md:w-[40vw] md:h-[40vw] bg-violet-950/30 rounded-full blur-[130px] pointer-events-none z-0 opacity-40 dark:opacity-100" />
-      
-      {/* Decorative top grid overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.05),rgba(255,255,255,0))] pointer-events-none z-0" />
+      {/* Grain overlay */}
+      <div className={`absolute inset-0 bg-noise pointer-events-none z-0 transition-opacity duration-500 ${isDark ? 'opacity-[0.02]' : 'opacity-[0.012]'}`} />
+
+      {/* Ambient background glows */}
+      <div className={`absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full blur-[120px] pointer-events-none z-0 animate-breathe transition-colors duration-500 ${isDark ? 'bg-[#8B5CF6]/5' : 'bg-[#8B5CF6]/3'}`} />
+      <div className={`absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[140px] pointer-events-none z-0 animate-breathe transition-colors duration-500 ${isDark ? 'bg-[#3B82FF]/5' : 'bg-[#3B82FF]/3'}`} style={{ animationDelay: '4s' }} />
 
       {/* --- Public Header Navigation --- */}
-      <header className="sticky top-0 z-40 h-16 border-b border-blue-50/40 dark:border-zinc-900/40 bg-white/70 dark:bg-[#06040F]/70 backdrop-blur-xl flex items-center justify-between px-6 md:px-12 transition-all">
-        <div className="flex items-center gap-3">
-          <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]" />
-          <div>
-            <h1 className="font-extrabold text-[11px] uppercase tracking-widest font-mono text-zinc-900 dark:text-zinc-100">Team Mavericks</h1>
-          </div>
+      <header className={`sticky top-0 z-40 h-[76px] border-b bg-transparent backdrop-blur-[18px] flex items-center justify-between px-6 md:px-12 transition-all duration-300 ${isDark ? 'border-white/4' : 'border-zinc-200/50'}`}>
+        <div className="flex items-center gap-6">
+          <img
+            src="/Logos/Mavericks_Logo.png"
+            alt="Team Mavericks Logo"
+            className="w-8 h-8 object-contain shrink-0"
+            style={{ filter: isDark ? 'brightness(0) invert(1)' : 'none' }}
+          />
+          <h1 className={`font-satoshi font-bold text-[18px] tracking-[3px] uppercase transition-colors duration-300 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+            Team Mavericks
+          </h1>
         </div>
 
         <div className="flex items-center gap-4">
           <a
             href="#apply-form"
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/10 hover:shadow-blue-500/25 active:scale-95 transition-all duration-150 cursor-pointer"
+            className="h-[48px] px-[28px] bg-gradient-to-r from-[#2B5CFF] to-[#8C3AFF] text-white rounded-[14px] text-sm font-satoshi font-semibold flex items-center justify-center transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_10px_30px_rgba(85,105,255,0.4)]"
           >
-            Apply Now
+            Apply Now ↗
           </a>
+          <button className={`w-12 h-12 rounded-[14px] flex items-center justify-center border backdrop-blur-md transition-all duration-300 ${isDark ? 'bg-white/5 border-white/8 hover:bg-white/10' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100'}`}>
+            <svg className={`w-5 h-5 transition-colors duration-300 ${isDark ? 'text-white' : 'text-zinc-900'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+            </svg>
+          </button>
         </div>
       </header>
 
       {/* --- Hero Section --- */}
-      <section ref={heroRef} className="py-20 md:py-24 px-6 text-center w-full relative z-10 flex flex-col items-center">
-        
+      <section ref={heroRef} className="py-16 md:py-24 px-6 text-center w-full relative z-10 flex flex-col items-center max-w-[1400px] mx-auto min-h-[calc(100vh-76px)] justify-center">
+
+        {/* Background Eagle Logo */}
+        <img
+          src="/Logos/Mavericks_Logo.png"
+          alt="Mavericks Eagle Logo"
+          className="absolute right-[-12%] top-[5%] w-[65%] max-w-[850px] h-auto pointer-events-none select-none blur-[2px] z-0 transition-all duration-500"
+          style={{
+            opacity: isDark ? 0.08 : 0.07,
+            filter: isDark ? 'brightness(0) invert(1)' : 'none'
+          }}
+        />
+
+        {/* Cinematic lighting radial glow behind heading */}
+        <div className={`absolute top-[20%] left-1/2 -translate-x-1/2 w-[70vw] h-[35vw] max-w-[800px] rounded-full blur-[180px] pointer-events-none z-0 transition-colors duration-500 ${isDark ? 'bg-[#3B74FF]/14' : 'bg-[#3B74FF]/8'}`} />
+
         {/* Floating comments absolute block positioned relative to the Hero Section height */}
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden hidden md:block w-full">
           {/* Comment 1: Top Left */}
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 5.2, repeat: Infinity, ease: "easeInOut", delay: 0 }}
-            className="absolute top-[18%] left-[3vw] lg:left-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 -rotate-6"
+            className={`absolute top-[18%] left-[3vw] lg:left-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten -rotate-3 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
           >
-            "Only a couple of days left until the big reveal! 🚀"
+            Only a couple of days left until the big reveal! 🚀
           </motion.div>
-          
-          {/* Comment 2: Mid Left (Surrounding Countdown Left) */}
+
+          {/* Comment 2: Mid Left */}
           <motion.div
             animate={{ y: [0, -12, 0] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-            className="absolute top-[52%] left-[1.5vw] lg:left-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 rotate-3"
+            className={`absolute top-[52%] left-[1.5vw] lg:left-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten rotate-2 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
           >
-            "Just a few more days! The excitement is real!"
+            Just a few more days! The excitement is real! ✨
           </motion.div>
-          
+
           {/* Comment 3: Bottom Left */}
           <motion.div
             animate={{ y: [0, -8, 0] }}
             transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-            className="absolute top-[80%] left-[3vw] lg:left-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 -rotate-3"
+            className={`absolute top-[80%] left-[3vw] lg:left-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten -rotate-2 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
           >
-            "The countdown is on! Who else can't wait? ⏳"
+            The countdown is on! Who else can't wait? ⏳
           </motion.div>
 
           {/* Comment 4: Top Right */}
           <motion.div
             animate={{ y: [0, -11, 0] }}
             transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-            className="absolute top-[22%] right-[3vw] lg:right-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 rotate-6"
+            className={`absolute top-[22%] right-[3vw] lg:right-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten rotate-4 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
           >
-            "Only a few days to go. I'm so ready for this! 💪"
+            Only a few days to go. I'm so ready for this! 💪
           </motion.div>
-          
-          {/* Comment 5: Mid Right (Surrounding Countdown Right) */}
+
+          {/* Comment 5: Mid Right */}
           <motion.div
             animate={{ y: [0, -9, 0] }}
             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 2.2 }}
-            className="absolute top-[56%] right-[1.5vw] lg:right-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 -rotate-2"
+            className={`absolute top-[56%] right-[1.5vw] lg:right-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten -rotate-3 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
           >
-            "Just a couple of days to go! 📱✨"
+            Just a couple of days to go! 📓✨
           </motion.div>
-          
+
           {/* Comment 6: Bottom Right */}
           <motion.div
             animate={{ y: [0, -13, 0] }}
             transition={{ duration: 6.4, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-            className="absolute top-[82%] right-[3vw] lg:right-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten text-[#3B4CA8] dark:text-blue-300 rotate-6"
+            className={`absolute top-[82%] right-[3vw] lg:right-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten rotate-3 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
           >
-            "So excited for the announcement! 🚀"
+            So excited for the announcement! 🚀
           </motion.div>
         </div>
 
         {/* Central Content */}
-        <div className="max-w-4xl mx-auto space-y-8 relative z-10 w-full flex flex-col items-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-blue-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/40 text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm text-zinc-650 dark:text-zinc-400">
-            <Sparkles size={11} className="text-amber-500 animate-pulse" />
-            <span>KIT CoEK recruitment drive 2026</span>
-          </div>
-
+        <div className="max-w-4xl mx-auto flex flex-col items-center text-center relative z-10 w-full">
           <h1
             ref={titleRef}
-            className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.08] select-none text-zinc-900 dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-b dark:from-white dark:to-zinc-400"
+            className={`font-clash font-[900] text-[48px] sm:text-[96px] md:text-[128px] tracking-[-3px] sm:tracking-[-5px] leading-[0.82] uppercase mb-[32px] select-none transition-colors duration-300 ${isDark ? 'text-white' : 'text-[#0B0F2B]'}`}
           >
-            Build. Lead. Innovation.<br />
-            Join <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-650 to-violet-600 dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400 font-extrabold">Team Mavericks</span>
+            WE ARE <br />
+            <span
+              className={`text-transparent bg-clip-text bg-gradient-to-r ${isDark ? 'from-[#4E8DFF] via-[#7D5BFF] to-[#C15DFF]' : 'from-[#1D4ED8] via-[#3B82F6] to-[#60A5FA]'}`}
+              style={{ textShadow: isDark ? '0 0 40px rgba(125,91,255,0.25)' : 'none' }}
+            >
+              HIRING!
+            </span>
           </h1>
 
           <p
             ref={descRef}
-            className="text-zinc-650 dark:text-zinc-400 max-w-xl mx-auto text-sm md:text-base font-medium leading-relaxed"
+            className={`font-general text-[18px] sm:text-[22px] max-w-[520px] leading-[1.8] mb-[40px] mx-auto transition-colors duration-300 ${isDark ? 'text-white/72' : 'text-zinc-550'}`}
           >
-            {campaign.description}
+            Not just another student club. <br className="hidden sm:inline" />
+            A place where designers, developers, creators and leaders build something unforgettable.
           </p>
 
+          {/* CTA Button */}
+          <div className="mb-[56px]">
+            <a
+              href="#apply-form"
+              className={`group h-[58px] px-8 border backdrop-blur-md rounded-[18px] text-base font-satoshi font-semibold flex items-center justify-center gap-3 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-[2px] ${isDark ? 'bg-white/[0.04] border-[#537CFF]/45 text-white hover:bg-[#3B82FF]/10 hover:border-[#537CFF] hover:shadow-[0_0_35px_rgba(83,124,255,0.3)]' : 'bg-white border-[#7D5BFF]/35 text-zinc-900 hover:bg-zinc-50/80 hover:border-[#7D5BFF] hover:shadow-[0_4px_20px_rgba(125,91,255,0.1)]'}`}
+            >
+              Join Team Mavericks
+              <ChevronRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+            </a>
+          </div>
+
           {/* Centerpiece Countdown block: Enormous format */}
-          <div ref={timerRef} className="pt-8 relative z-10 w-full max-w-4xl mx-auto px-4">
+          <div
+            ref={timerRef}
+            className={`w-full max-w-[920px] h-[180px] backdrop-blur-[30px] rounded-[28px] relative flex items-center justify-around px-4 sm:px-8 md:px-16 gap-2 select-none mb-[28px] transition-all duration-500 ${isDark ? 'bg-white/[0.025] border border-white/[0.08] shadow-[0_35px_80px_rgba(0,0,0,0.45)]' : 'bg-white border border-zinc-200/80 shadow-[0_20px_60px_rgba(0,0,0,0.06)]'}`}
+          >
+            {/* Subtle neon blue highlight at the top edge */}
+            <div className={`absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#00E0FF]/40 to-transparent rounded-t-[28px] transition-opacity duration-300 ${isDark ? 'opacity-100' : 'opacity-20'}`} />
+
+
             {campaignClosed ? (
-              <span className="text-xl font-black text-red-500 uppercase tracking-widest animate-pulse">Recruitment is Closed</span>
+              <span className="font-clash font-extrabold text-xl text-red-500 uppercase tracking-widest animate-pulse">Recruitment is Closed</span>
             ) : (
-              <div className="flex items-center justify-center gap-3 sm:gap-6 md:gap-8 font-black select-none">
-                <div className="flex flex-col items-center">
-                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
-                    {String(timeLeft.days).padStart(2, '0')}
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
-                    Days
-                  </span>
-                </div>
-                
-                <span className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl text-blue-300 dark:text-zinc-700 self-start mt-2 sm:mt-4 animate-pulse">:</span>
-                
-                <div className="flex flex-col items-center">
-                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
-                    {String(timeLeft.hours).padStart(2, '0')}
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
-                    Hours
-                  </span>
-                </div>
-                
-                <span className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl text-blue-300 dark:text-zinc-700 self-start mt-2 sm:mt-4 animate-pulse">:</span>
-                
-                <div className="flex flex-col items-center">
-                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
-                    {String(timeLeft.minutes).padStart(2, '0')}
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
-                    Minutes
-                  </span>
-                </div>
-                
-                <span className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl text-blue-300 dark:text-zinc-700 self-start mt-2 sm:mt-4 animate-pulse">:</span>
-                
-                <div className="flex flex-col items-center">
-                  <span className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tighter text-blue-950 dark:text-white">
-                    {String(timeLeft.seconds).padStart(2, '0')}
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-black tracking-widest text-blue-900/60 dark:text-zinc-450 mt-1.5 uppercase font-mono">
-                    Seconds
-                  </span>
-                </div>
-              </div>
+              <>
+                {renderDigit(timeLeft.days, "Days")}
+                <div className={`w-[1px] h-12 bg-gradient-to-b from-[#3B82FF] to-transparent transition-opacity duration-300 ${isDark ? 'opacity-[0.35]' : 'opacity-[0.2]'}`} />
+                {renderDigit(timeLeft.hours, "Hours")}
+                <div className={`w-[1px] h-12 bg-gradient-to-b from-[#3B82FF] to-transparent transition-opacity duration-300 ${isDark ? 'opacity-[0.35]' : 'opacity-[0.2]'}`} />
+                {renderDigit(timeLeft.minutes, "Minutes")}
+                <div className={`w-[1px] h-12 bg-gradient-to-b from-[#3B82FF] to-transparent transition-opacity duration-300 ${isDark ? 'opacity-[0.35]' : 'opacity-[0.2]'}`} />
+                {renderDigit(timeLeft.seconds, "Seconds")}
+              </>
             )}
           </div>
+
+          {/* Bottom Status Badge */}
+          <div className={`inline-flex items-center justify-center h-[40px] px-5 rounded-full backdrop-blur-md text-[13px] font-satoshi font-semibold mb-4 transition-all duration-300 ${isDark ? 'bg-white/[0.04] border border-white/8 text-white/90 shadow-[0_8px_30px_rgba(59,130,255,0.12)]' : 'bg-zinc-50 border border-zinc-200 text-zinc-950 shadow-sm'}`}>
+            Applications Close Soon 🚀
+          </div>
+
+          {/* Floating Scroll Indicator */}
+          <motion.a
+            href="#apply-form"
+            animate={{ y: [0, 8, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            className={`w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-md cursor-pointer transition-all duration-300 ${isDark ? 'bg-white/5 border border-white/10 shadow-[0_0_20px_rgba(0,224,255,0.25)] hover:bg-white/10' : 'bg-white border border-zinc-200 shadow-md hover:bg-zinc-50'}`}
+          >
+            <ChevronDown size={24} className={isDark ? 'text-[#00E0FF]' : 'text-blue-600'} />
+          </motion.a>
         </div>
       </section>
 
@@ -643,7 +709,7 @@ const PublicLanding = () => {
 
               {/* Form Structure container */}
               <form onSubmit={handleSubmit(onSubmitForm)} className="border rounded-3xl p-6 md:p-8 shadow-2xl relative bg-white/70 border-white/80 dark:bg-zinc-950/60 dark:border-zinc-900 shadow-blue-900/5 dark:shadow-none">
-                
+
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeStep}
