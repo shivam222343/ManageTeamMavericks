@@ -165,6 +165,7 @@ class CampaignController {
             $id
         ]);
 
+        \App\Cache::clearAll();
         Router::sendJson(['message' => 'Campaign updated successfully']);
     }
 
@@ -193,6 +194,7 @@ class CampaignController {
         $stmt2->execute([$id]);
         $campaign = $stmt2->fetch();
 
+        \App\Cache::clearAll();
         Router::sendJson(['message' => 'Status updated', 'campaign' => $campaign]);
     }
 
@@ -215,6 +217,13 @@ class CampaignController {
      */
     public function getPublic(array $params): void {
         $slug = trim($params['slug'] ?? '');
+        $cacheKey = "campaign_public_" . $slug;
+        $cached = \App\Cache::get($cacheKey);
+        if ($cached !== null) {
+            Router::sendJson($cached);
+            return;
+        }
+
         $db = Database::getConnection();
 
         // 1. Fetch Campaign
@@ -233,11 +242,13 @@ class CampaignController {
 
         // If closed, return minimal info so frontend shows the closed page
         if ($campaign['status'] === 'closed') {
-            Router::sendJson([
+            $resData = [
                 'campaign' => $campaign,
                 'domains' => [],
                 'formStructure' => []
-            ]);
+            ];
+            \App\Cache::set($cacheKey, $resData, 300);
+            Router::sendJson($resData);
             return;
         }
 
@@ -275,11 +286,24 @@ class CampaignController {
             $formStructure[] = $sec;
         }
 
-        Router::sendJson([
+        // 4. Fetch OTP setting (safely — table may not exist yet)
+        $otpRequired = 'true';
+        try {
+            $stmtSet = $db->query("SELECT setting_value FROM settings WHERE setting_key = 'otp_required' LIMIT 1");
+            $otpRow = $stmtSet ? $stmtSet->fetch() : null;
+            if ($otpRow) $otpRequired = $otpRow['setting_value'];
+        } catch (\Throwable $e) {
+            // table doesn't exist yet — default to enabled
+        }
+
+        $resData = [
             'campaign' => $campaign,
             'domains' => $domains,
-            'formStructure' => $formStructure
-        ]);
+            'formStructure' => $formStructure,
+            'otp_required' => $otpRequired
+        ];
+        \App\Cache::set($cacheKey, $resData, 300);
+        Router::sendJson($resData);
     }
 
     /**
@@ -328,6 +352,7 @@ class CampaignController {
                 ]);
             }
 
+            \App\Cache::clearAll();
             $db->commit();
             Router::sendJson(['message' => 'Domains updated successfully']);
         } catch (\Exception $e) {

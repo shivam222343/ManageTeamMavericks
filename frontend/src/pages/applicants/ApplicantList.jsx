@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { 
-  Search, 
-  Filter, 
-  ArrowUpDown, 
-  Download, 
-  MoreHorizontal, 
-  ChevronRight, 
-  CheckCircle, 
+import {
+  Search,
+  Filter,
+  ArrowUpDown,
+  Download,
+  MoreHorizontal,
+  ChevronRight,
+  CheckCircle,
   AlertCircle,
   RefreshCw,
   SlidersHorizontal,
-  Trash2
+  Trash2,
+  ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -21,16 +22,32 @@ const ApplicantList = () => {
   const [applicants, setApplicants] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null); // stores applicant object to delete
   const [deleting, setDeleting] = useState(false);
-  
+
   // Search & Filter state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected'
   const [domainFilter, setDomainFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
-  
+
   const [domains, setDomains] = useState([]);
   const [sortField, setSortField] = useState('applied_at');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [formFields, setFormFields] = useState([]);
+  const [showColumnManager, setShowColumnManager] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState([]);
+
+  const handleToggleColumn = (fieldId) => {
+    setVisibleColumns(prev => {
+      let next;
+      if (prev.includes(fieldId)) {
+        next = prev.filter(id => id !== fieldId);
+      } else {
+        next = [...prev, fieldId];
+      }
+      localStorage.setItem('visible_applicant_columns', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Delete applicant
   const handleDeleteConfirm = async () => {
@@ -87,7 +104,41 @@ const ApplicantList = () => {
     };
     fetchDomains();
   }, []);
+  // Fetch campaign form fields for table columns
+  useEffect(() => {
+    const fetchFormFields = async () => {
+      try {
+        const res = await axios.get('/campaigns/1/form');
+        if (Array.isArray(res.data)) {
+          // Flatten all fields across sections
+          const fields = res.data.reduce((acc, sec) => {
+            return [...acc, ...(sec.fields || [])];
+          }, []);
+          setFormFields(fields);
 
+          // Initialize visible columns
+          const savedCols = localStorage.getItem('visible_applicant_columns');
+          if (savedCols) {
+            try {
+              setVisibleColumns(JSON.parse(savedCols));
+            } catch (e) {
+              setVisibleColumns(fields.map(f => f.id));
+            }
+          } else {
+            // Default: show first 4 fields to keep layout clean, or all if less than 4
+            if (fields.length > 4) {
+              setVisibleColumns(fields.slice(0, 4).map(f => f.id));
+            } else {
+              setVisibleColumns(fields.map(f => f.id));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load campaign form fields for headers:', err);
+      }
+    };
+    fetchFormFields();
+  }, []);
   // Trigger search on filter changes
   useEffect(() => {
     fetchApplicants();
@@ -112,7 +163,7 @@ const ApplicantList = () => {
   const handleToggleActiveState = async (id, currentStatus) => {
     const nextStatus = currentStatus === 'rejected' ? 'applied' : 'rejected';
     try {
-      await axios.put(`/applicants/${id}/status`, { 
+      await axios.put(`/applicants/${id}/status`, {
         status: nextStatus,
         notes: `Toggled candidate status from listing panel.`
       });
@@ -140,9 +191,11 @@ const ApplicantList = () => {
     );
   };
 
+  const activeFields = formFields.filter(field => visibleColumns.includes(field.id));
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      
+
       {/* Table Title Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -151,7 +204,7 @@ const ApplicantList = () => {
         </div>
         <div className="flex gap-2.5">
           <a
-            href="http://localhost:8000/applicants/export"
+            href={`http://localhost:8000/applicants/export?token=${localStorage.getItem('token') || ''}`}
             download
             className="flex items-center gap-2 px-3.5 py-1.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
           >
@@ -168,8 +221,8 @@ const ApplicantList = () => {
             key={st}
             onClick={() => setStatusFilter(st)}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 border cursor-pointer
-              ${statusFilter === st 
-                ? 'bg-primary-blue text-white border-primary-blue shadow-sm shadow-primary-blue/15' 
+              ${statusFilter === st
+                ? 'bg-primary-blue text-white border-primary-blue shadow-sm shadow-primary-blue/15'
                 : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-50'
               }
             `}
@@ -225,6 +278,47 @@ const ApplicantList = () => {
           >
             Clear All Filters
           </button>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowColumnManager(!showColumnManager)}
+              className="px-3.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-650 dark:text-zinc-300 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+            >
+              <SlidersHorizontal size={12} />
+              <span>Columns</span>
+            </button>
+
+            {showColumnManager && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowColumnManager(false)} />
+                <div className="absolute right-0 mt-2 z-20 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-3.5 space-y-2.5 text-left text-xs font-semibold">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 pb-1.5 border-b border-zinc-100 dark:border-zinc-800">
+                    Visible Fields
+                  </p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {formFields.map(field => {
+                      const isVisible = visibleColumns.includes(field.id);
+                      return (
+                        <label key={field.id} className="flex items-center gap-2.5 py-0.5 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isVisible}
+                            onChange={() => handleToggleColumn(field.id)}
+                            className="w-3.5 h-3.5 rounded text-primary-blue focus:ring-primary-blue border-zinc-300 dark:border-zinc-750"
+                          />
+                          <span className="truncate">{field.label}</span>
+                        </label>
+                      );
+                    })}
+                    {formFields.length === 0 && (
+                      <p className="text-[10px] italic text-zinc-400 dark:text-zinc-500 py-1">No fields found.</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </form>
 
@@ -233,7 +327,7 @@ const ApplicantList = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <RefreshCw size={24} className="animate-spin text-primary-blue" />
-            <span className="text-xs text-zinc-500 font-semibold">Updating candidate roster...</span>
+            <span className="text-xs text-zinc-500 font-semibold">Loading, Pleas Wait...</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -243,25 +337,25 @@ const ApplicantList = () => {
                   <th className="py-3 px-6">Student Id</th>
                   <th className="py-3 px-6">Student Name</th>
                   <th className="py-3 px-6">Contact info</th>
-                  <th className="py-3 px-6">Department</th>
-                  <th className="py-3 px-6 text-center">Selected domains</th>
-                  <th className="py-3 px-6 text-center">Account Status</th>
-                  <th className="py-3 px-6 text-center">Auto-Reject</th>
+                  {activeFields.map(field => (
+                    <th key={field.id} className="py-3 px-6">
+                      {field.label}
+                    </th>
+                  ))}
+                  <th className="py-3 px-6 text-center"> Status</th>
                   <th className="py-3 px-6 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {Array.isArray(applicants) && applicants.length > 0 ? (
                   applicants.map((app) => {
-                    const isRejected = app.status === 'rejected';
-                    
                     return (
                       <tr key={app.id} className="hover:bg-zinc-50/30 dark:hover:bg-zinc-900/20 align-middle">
                         {/* Student ID */}
                         <td className="py-4 px-6 text-zinc-500 font-mono">
                           {app.registration_id || `TM-${String(app.id).padStart(4, '0')}`}
                         </td>
-                        
+
                         {/* Name */}
                         <td className="py-4 px-6">
                           <div className="font-bold text-zinc-900 dark:text-zinc-100">
@@ -269,41 +363,47 @@ const ApplicantList = () => {
                           </div>
                           <div className="text-[10px] text-zinc-400 font-medium font-mono">{app.prn}</div>
                         </td>
-                        
+
                         {/* Contact */}
                         <td className="py-4 px-6 text-zinc-500 font-medium">
                           <div>{app.email}</div>
                           <div>{app.phone}</div>
                         </td>
-                        
-                        {/* Department */}
-                        <td className="py-4 px-6 uppercase text-zinc-500 font-bold">
-                          {app.department || 'TBD'}
-                        </td>
-                        
-                        {/* Selected Domains */}
-                        <td className="py-4 px-6 text-center text-zinc-700 dark:text-zinc-300 max-w-[200px] truncate">
-                          {app.domains || 'General'}
-                        </td>
-                        
+
+                        {/* Dynamic Form Fields */}
+                        {activeFields.map(field => {
+                          const answer = app.answers?.[field.id] || '';
+                          const isFile = field.field_type === 'resume' || field.field_type === 'id_card' || field.field_type === 'file';
+                          return (
+                            <td key={field.id} className="py-4 px-6 text-zinc-500 font-medium truncate max-w-[200px]" title={answer}>
+                              {isFile ? (
+                                answer ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span>📄 Uploaded</span>
+                                    <a
+                                      href={answer.startsWith('http://') || answer.startsWith('https://') ? answer : `http://localhost:8000/${answer}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="p-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-650 dark:text-zinc-300 transition cursor-pointer inline-flex items-center justify-center"
+                                      title="Open File"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <ExternalLink size={11} />
+                                    </a>
+                                  </div>
+                                ) : '—'
+                              ) : (
+                                answer || '—'
+                              )}
+                            </td>
+                          );
+                        })}
+
                         {/* Account Status */}
                         <td className="py-4 px-6 text-center">
                           {getStatusBadge(app.status)}
                         </td>
-                        
-                        {/* Auto-Reject Switch (Matches Screenshot Auto-Extend Toggle) */}
-                        <td className="py-4 px-6 text-center">
-                          <label className="relative inline-flex items-center cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={isRejected}
-                              onChange={() => handleToggleActiveState(app.id, app.status)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-zinc-200 dark:bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-zinc-600 peer-checked:bg-accent-red"></div>
-                          </label>
-                        </td>
-                                               {/* Action Buttons */}
+                        {/* Action Buttons */}
                         <td className="py-4 px-6 text-right">
                           <div className="flex justify-end gap-1.5">
                             <Link
@@ -348,7 +448,7 @@ const ApplicantList = () => {
               </div>
               <h3 className="font-extrabold text-sm text-zinc-900 dark:text-zinc-50">Delete Student Entry</h3>
             </div>
-            
+
             <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-normal">
               Are you sure you want to delete <span className="font-bold text-zinc-800 dark:text-zinc-200">{deleteTarget.full_name}</span>'s application? This action is permanent and deletes all answers, uploaded documents, and files.
             </p>

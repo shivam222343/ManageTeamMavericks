@@ -15,6 +15,10 @@ class AuthMiddleware {
         $headers = getallheaders();
         $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
+        if (empty($authHeader) && isset($_GET['token'])) {
+            $authHeader = 'Bearer ' . $_GET['token'];
+        }
+
         if (empty($authHeader)) {
             Router::sendJson(['error' => 'Authorization token is required'], 401);
         }

@@ -92,7 +92,7 @@ const RecruitmentAnalytics = () => {
         </div>
         <div className="flex gap-3">
           <a
-            href="http://localhost:8000/applicants/export"
+            href={`http://localhost:8000/applicants/export?token=${localStorage.getItem('token') || ''}`}
             download
             className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-bold hover:shadow transition cursor-pointer shadow-sm"
           >

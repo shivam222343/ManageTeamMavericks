@@ -69,6 +69,7 @@ class FaqController {
                 $stmtDel->execute([$campaignId]);
             }
             
+            \App\Cache::clearAll();
             $db->commit();
             Router::sendJson(['message' => 'FAQs updated successfully']);
         } catch (\Exception $e) {

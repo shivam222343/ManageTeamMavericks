@@ -26,6 +26,8 @@ import PlaceholderPage from './pages/PlaceholderPage';
 import RecruitmentPage from './pages/recruitment/RecruitmentPage';
 import RecruitmentAnalytics from './pages/recruitment/RecruitmentAnalytics';
 import FAQManagement from './pages/recruitment/FAQManagement';
+import CommunicatePage from './pages/recruitment/CommunicatePage';
+import PortalSettings from './pages/settings/PortalSettings';
 
 import MajorLoader from './components/ui/MajorLoader';
 
@@ -36,7 +38,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
-        <MajorLoader size="h-16 w-16" logoSize="w-9 h-9" />
+        <MajorLoader fullPage />
       </div>
     );
   }
@@ -121,6 +123,14 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="settings/portal" 
+            element={
+              <ProtectedRoute allowedRoles={['coordinator']}>
+                <PortalSettings />
+              </ProtectedRoute>
+            } 
+          />
 
           {/* New navigation items placeholders */}
           <Route path="approvals" element={<PlaceholderPage title="Approvals" />} />
@@ -134,6 +144,7 @@ function App() {
           <Route path="recruitment/applications/:id" element={<ApplicantProfile />} />
           <Route path="recruitment/analytics" element={<RecruitmentAnalytics />} />
           <Route path="recruitment/faqs" element={<FAQManagement />} />
+          <Route path="recruitment/communicate" element={<CommunicatePage />} />
           <Route path="finance" element={<PlaceholderPage title="Finance" />} />
         </Route>
 

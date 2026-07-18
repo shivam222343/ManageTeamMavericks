@@ -1,16 +1,21 @@
 import React from 'react';
 
-const MajorLoader = ({ size = 'h-16 w-16', logoSize = 'w-9 h-9', fullPage = false }) => {
+const MajorLoader = ({ size, logoSize, fullPage = false }) => {
+  const finalSize = size || (fullPage ? 'h-40 w-40' : 'h-28 w-28');
+  const finalLogoSize = logoSize || (fullPage ? 'w-32 h-32' : 'w-28 h-28');
+
   const loader = (
-    <div className={`relative flex items-center justify-center ${size}`}>
-      {/* Animated outer circle with changing colors */}
-      <div className="absolute inset-0 rounded-full animate-mavericks-loader"></div>
-      {/* Inner Mavericks logo */}
-      <img 
-        src="/Logos/Mavericks_Logo.png" 
-        alt="Team Mavericks Logo" 
-        className={`${logoSize} object-contain`} 
-      />
+    <div className={`relative flex items-center justify-center flex-col gap-2 ${finalSize}`}>
+      {/* Shiny light sweep effect container */}
+      <div className="relative overflow-hidden rounded-full">
+        <img
+          src="/Logos/Mavericks_Logo.png"
+          alt="Team Mavericks Logo"
+          className={`${finalLogoSize} object-contain animate-pulse-subtle`}
+        />
+        {/* Sweeping light shine overlay */}
+        <div className="absolute inset-0 rounded-full animate-shine-sweep pointer-events-none" />
+      </div>
     </div>
   );
 

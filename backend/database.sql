@@ -196,6 +196,22 @@ CREATE TABLE IF NOT EXISTS settings (
     `value` TEXT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 15. Applicant Email Logs
+CREATE TABLE IF NOT EXISTS application_email_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    application_id INT NOT NULL,
+    sender_id INT NULL,
+    email_type VARCHAR(100) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    body_html TEXT NOT NULL,
+    status ENUM('sent', 'failed') NOT NULL DEFAULT 'sent',
+    error_message TEXT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 
 -- ==================== SEED DATA ====================
 
@@ -304,7 +320,7 @@ INSERT INTO email_templates (campaign_id, trigger_event, subject, body_html) VAL
   <p>Our Core Committee and Coordinators are currently reviewing all submissions. We will reach out to you via email for the next rounds of the recruitment drive.</p>
   <p>If you have any questions, feel free to reply to this email.</p>
   <br/>
-  <p>Best regards,<br/><strong>Team Mavericks</strong><br/><span style="color: #6b7280; font-size: 12px;">Learning with Fun</span></p>
+  <p>Best regards,<br/><strong>Team Mavericks</strong><br/><span style="color: #6b7280; font-size: 12px;">Stay Updated!! Stay Ahead!!</span></p>
 </div>
 '),
 (1, 'shortlisted', 'Congratulations! You are Shortlisted - Team Mavericks Recruitment 2026', '
@@ -318,7 +334,7 @@ INSERT INTO email_templates (campaign_id, trigger_event, subject, body_html) VAL
   </div>
   <p>We will schedule your interview shortly. You will receive another email containing the date, time, and venue details. Please be prepared to discuss your portfolio, projects, and interest in the club.</p>
   <br/>
-  <p>Best regards,<br/><strong>Team Mavericks</strong><br/><span style="color: #6b7280; font-size: 12px;">Learning with Fun</span></p>
+  <p>Best regards,<br/><strong>Team Mavericks</strong><br/><span style="color: #6b7280; font-size: 12px;">Stay Updated!! Stay Ahead!!</span></p>
 </div>
 '),
 (1, 'interview_scheduled', 'Interview Scheduled - Team Mavericks Recruitment 2026', '
@@ -332,7 +348,7 @@ INSERT INTO email_templates (campaign_id, trigger_event, subject, body_html) VAL
   </div>
   <p>Please make sure to arrive 10 minutes prior to your slot. If you have any conflicts, please contact us immediately.</p>
   <br/>
-  <p>Best regards,<br/><strong>Team Mavericks Team</strong><br/><span style="color: #6b7280; font-size: 12px;">Learning with Fun</span></p>
+  <p>Best regards,<br/><strong>Team Mavericks Team</strong><br/><span style="color: #6b7280; font-size: 12px;">Stay Updated!! Stay Ahead!!</span></p>
 </div>
 '),
 (1, 'selected', 'Welcome to Team Mavericks! - Selection Notice', '
@@ -343,7 +359,7 @@ INSERT INTO email_templates (campaign_id, trigger_event, subject, body_html) VAL
   <p>We received an overwhelming number of applications, and your talent, attitude, and drive stood out among the rest.</p>
   <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 20px 0; text-align: center;">
     <h3 style="color: #166534; margin: 0 0 10px 0;">Selected Domain: {domains}</h3>
-    <p style="margin: 0; color: #166534; font-size: 14px;">Get ready for an amazing journey of "Learning with Fun"!</p>
+    <p style="margin: 0; color: #166534; font-size: 14px;">Get ready for an amazing journey of "Stay Updated!! Stay Ahead!!"!</p>
   </div>
   <p>We will host an onboarding/welcome meet shortly. Details regarding date, time, and location will be shared in our official communication channels.</p>
   <p>Congratulations once again! We cannot wait to build awesome things together.</p>
@@ -359,6 +375,6 @@ INSERT INTO email_templates (campaign_id, trigger_event, subject, body_html) VAL
   <p>Please note that this is not a reflection of your potential. We receive hundreds of applications and are constrained by a limited student intake. We encourage you to keep developing your skills, stay active in college workshops, and apply again in our future recruitment drives!</p>
   <p>We wish you the very best in your academic and professional endeavors.</p>
   <br/>
-  <p>Sincerely,<br/><strong>Team Mavericks Committee</strong><br/><span style="color: #6b7280; font-size: 12px;">Learning with Fun</span></p>
+  <p>Sincerely,<br/><strong>Team Mavericks Committee</strong><br/><span style="color: #6b7280; font-size: 12px;">Stay Updated!! Stay Ahead!!</span></p>
 </div>
 ');

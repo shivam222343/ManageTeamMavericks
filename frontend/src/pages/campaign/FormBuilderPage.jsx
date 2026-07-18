@@ -16,7 +16,8 @@ import {
   AlertCircle, 
   HelpCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  GripVertical
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,12 +29,23 @@ const FormBuilderPage = () => {
   const [sections, setSections] = useState([]);
   const [activeField, setActiveField] = useState(null); // Currently selected field for config pane
 
+  const [activeDragField, setActiveDragField] = useState(null);
+  const [draggingField, setDraggingField] = useState(null);
+  const [dragOverField, setDragOverField] = useState(null);
+
   // Fetch form configuration
   const fetchFormStructure = async () => {
     try {
       const res = await axios.get(`/campaigns/${id}/form`);
       if (Array.isArray(res.data)) {
-        setSections(res.data);
+        const sectionsWithDragId = res.data.map(s => ({
+          ...s,
+          fields: (s.fields || []).map(f => ({
+            ...f,
+            dragId: f.id || Math.random().toString(36).substring(2, 9)
+          }))
+        }));
+        setSections(sectionsWithDragId);
       } else {
         setSections([]);
         toast.error('Invalid form layout format received');
@@ -49,6 +61,71 @@ const FormBuilderPage = () => {
   useEffect(() => {
     fetchFormStructure();
   }, [id]);
+
+  // ── Drag & Drop Handlers ───────────────────────────────────────────────────
+  const handleDragStart = (e, sectionIdx, fieldIdx) => {
+    setDraggingField({ sectionIdx, fieldIdx });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `${sectionIdx},${fieldIdx}`);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingField(null);
+    setDragOverField(null);
+    setActiveDragField(null);
+  };
+
+  const handleDragOver = (e, sectionIdx, fieldIdx) => {
+    e.preventDefault();
+    if (draggingField && (draggingField.sectionIdx !== sectionIdx || draggingField.fieldIdx !== fieldIdx)) {
+      setDragOverField({ sectionIdx, fieldIdx });
+    }
+  };
+
+  const handleDrop = (e, targetSectionIdx, targetFieldIdx) => {
+    e.preventDefault();
+    setDragOverField(null);
+    
+    let sourceSectionIdx, sourceFieldIdx;
+    if (draggingField) {
+      sourceSectionIdx = draggingField.sectionIdx;
+      sourceFieldIdx = draggingField.fieldIdx;
+    } else {
+      const data = e.dataTransfer.getData('text/plain');
+      if (!data) return;
+      [sourceSectionIdx, sourceFieldIdx] = data.split(',').map(Number);
+    }
+
+    if (sourceSectionIdx === undefined || sourceFieldIdx === undefined) return;
+    if (sourceSectionIdx === targetSectionIdx && sourceFieldIdx === targetFieldIdx) return;
+
+    setSections(prev => {
+      const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
+      const fieldToMove = next[sourceSectionIdx].fields[sourceFieldIdx];
+      
+      // Remove from source
+      next[sourceSectionIdx].fields.splice(sourceFieldIdx, 1);
+      
+      // Insert into target
+      next[targetSectionIdx].fields.splice(targetFieldIdx, 0, fieldToMove);
+      
+      return next;
+    });
+
+    // Update active field selection index if needed
+    if (activeField) {
+      if (activeField.secIndex === sourceSectionIdx && activeField.fieldIndex === sourceFieldIdx) {
+        // The active field itself moved
+        setActiveField({ secIndex: targetSectionIdx, fieldIndex: targetFieldIdx });
+      } else {
+        // Clear active field to prevent mismatches
+        setActiveField(null);
+      }
+    }
+
+    setDraggingField(null);
+    setActiveDragField(null);
+  };
 
   // Save full form structure
   const handleSaveForm = async () => {
@@ -117,7 +194,8 @@ const FormBuilderPage = () => {
       default_value: '',
       help_text: '',
       is_hidden: false,
-      options: []
+      options: [],
+      dragId: Math.random().toString(36).substring(2, 9)
     };
 
     setSections(prev => prev.map((s, idx) => {
@@ -348,25 +426,45 @@ const FormBuilderPage = () => {
                   {sec.fields.map((field, fIdx) => {
                     const isSelected = activeField && activeField.secIndex === sIdx && activeField.fieldIndex === fIdx;
                     
+                    const isDragging = draggingField && draggingField.sectionIdx === sIdx && draggingField.fieldIdx === fIdx;
+                    const isDragOver = dragOverField && dragOverField.sectionIdx === sIdx && dragOverField.fieldIdx === fIdx;
+                    const isDraggable = activeDragField && activeDragField.sectionIdx === sIdx && activeDragField.fieldIdx === fIdx;
+                    
                     return (
                       <div 
-                        key={fIdx}
+                        key={field.dragId || field.id || fIdx}
+                        draggable={isDraggable}
+                        onDragStart={(e) => handleDragStart(e, sIdx, fIdx)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => handleDragOver(e, sIdx, fIdx)}
+                        onDrop={(e) => handleDrop(e, sIdx, fIdx)}
                         onClick={() => handleSelectField(sIdx, fIdx)}
-                        className={`p-3 border rounded-lg flex items-center justify-between gap-4 cursor-pointer transition
+                        className={`p-3 border rounded-lg flex items-center justify-between gap-4 cursor-pointer transition-all duration-200
                           ${isSelected 
                             ? 'border-primary-blue bg-primary-blue/5 dark:bg-primary-blue/10 shadow-sm shadow-primary-blue/5' 
                             : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
                           }
+                          ${isDragging ? 'opacity-40 border-dashed border-zinc-400 dark:border-zinc-600' : ''}
+                          ${isDragOver ? 'border-primary-blue bg-primary-blue/5 dark:bg-primary-blue/10 scale-[1.01]' : ''}
                         `}
                       >
-                        <div className="space-y-0.5 min-w-0">
-                          <p className="text-xs font-bold truncate flex items-center gap-1.5">
-                            <span>{field.label || 'Untitled Field'}</span>
-                            {field.is_required && <span className="text-accent-red">*</span>}
-                          </p>
-                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-                            Type: {field.field_type}
-                          </span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <GripVertical
+                            size={14}
+                            className="text-zinc-350 dark:text-zinc-650 cursor-grab active:cursor-grabbing hover:text-zinc-500 dark:hover:text-zinc-400 shrink-0 transition-colors"
+                            onMouseEnter={() => setActiveDragField({ sectionIdx: sIdx, fieldIdx: fIdx })}
+                            onMouseLeave={() => { if (!draggingField) setActiveDragField(null); }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <p className="text-xs font-bold truncate flex items-center gap-1.5">
+                              <span>{field.label || 'Untitled Field'}</span>
+                              {field.is_required && <span className="text-accent-red">*</span>}
+                            </p>
+                            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                              Type: {field.field_type}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>

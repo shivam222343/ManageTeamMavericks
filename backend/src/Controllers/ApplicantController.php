@@ -57,7 +57,41 @@ class ApplicantController {
 
         $stmt = $db->prepare($query);
         $stmt->execute($params);
-        $applicants = $stmt->fetchAll();
+        $applicants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch all answers for these applicants to support dynamic rendering on frontend
+        if (!empty($applicants)) {
+            $applicantIds = array_column($applicants, 'id');
+            $inClause = implode(',', array_map('intval', $applicantIds));
+            
+            // Get all text answers
+            $stmtAns = $db->prepare("SELECT ans.application_id, ans.field_id, ans.answer_text 
+                FROM application_answers ans 
+                WHERE ans.application_id IN ($inClause)");
+            $stmtAns->execute();
+            $answers = $stmtAns->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Get all uploaded files
+            $stmtFiles = $db->prepare("SELECT f.application_id, f.field_id, f.file_path 
+                FROM application_files f 
+                WHERE f.application_id IN ($inClause)");
+            $stmtFiles->execute();
+            $files = $stmtFiles->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Group answers by application_id
+            $answersByApp = [];
+            foreach ($answers as $ans) {
+                $answersByApp[$ans['application_id']][$ans['field_id']] = $ans['answer_text'];
+            }
+            foreach ($files as $file) {
+                $answersByApp[$file['application_id']][$file['field_id']] = $file['file_path'];
+            }
+            
+            // Map answers back to applicants
+            foreach ($applicants as &$app) {
+                $app['answers'] = (object)($answersByApp[$app['id']] ?? []);
+            }
+        }
 
         Router::sendJson($applicants);
     }
@@ -120,6 +154,15 @@ class ApplicantController {
             ORDER BY h.changed_at DESC");
         $stmtHist->execute([$id]);
         $app['timeline'] = $stmtHist->fetchAll();
+
+        // 7. Fetch Email Logs
+        $stmtEmails = $db->prepare("SELECT el.*, u.name as sender_name 
+            FROM application_email_logs el 
+            LEFT JOIN users u ON el.sender_id = u.id 
+            WHERE el.application_id = ? 
+            ORDER BY el.sent_at DESC");
+        $stmtEmails->execute([$id]);
+        $app['email_logs'] = $stmtEmails->fetchAll();
 
         Router::sendJson($app);
     }
@@ -397,17 +440,39 @@ class ApplicantController {
                 $uniqueName = $sanitizedName . '_' . $sanitizedLabel . '_' . uniqid() . '.' . $ext;
                 $targetPath = $uploadDir . $uniqueName;
 
-                if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                $uploadedToCloud = false;
+                $dbPath = 'uploads/' . $uniqueName;
+
+                if (defined('CLOUDINARY_CLOUD_NAME') && !empty(CLOUDINARY_CLOUD_NAME)) {
+                    $cloudData = \App\Cloudinary::upload($file['tmp_name']);
+                    if ($cloudData && isset($cloudData['secure_url'])) {
+                        $dbPath = $cloudData['secure_url'];
+                        $uploadedToCloud = true;
+                    }
+                }
+
+                if ($uploadedToCloud) {
                     $stmtInsFile->execute([
                         $applicationId,
                         $fId,
                         $file['name'],
-                        'uploads/' . $uniqueName,
+                        $dbPath,
                         $file['type'],
                         $file['size']
                     ]);
                 } else {
-                    throw new \Exception("Failed to save file for field ID: " . $fId);
+                    if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                        $stmtInsFile->execute([
+                            $applicationId,
+                            $fId,
+                            $file['name'],
+                            $dbPath,
+                            $file['type'],
+                            $file['size']
+                        ]);
+                    } else {
+                        throw new \Exception("Failed to save file for field ID: " . $fId);
+                    }
                 }
             }
 
@@ -482,13 +547,13 @@ class ApplicantController {
                     'interview_datetime' => $interviewDatetime ? date('d M Y, h:i A', strtotime($interviewDatetime)) : 'TBD',
                     'interview_venue' => $interviewVenue ?: 'TBD'
                 ];
-                $this->sendTriggerEmail($id, 'interview_scheduled', $emailContext);
+                $this->sendTriggerEmail($id, 'interview_scheduled', $emailContext, $user['userId']);
             } else if ($newStatus === 'shortlisted') {
-                $this->sendTriggerEmail($id, 'shortlisted');
+                $this->sendTriggerEmail($id, 'shortlisted', [], $user['userId']);
             } else if ($newStatus === 'selected') {
-                $this->sendTriggerEmail($id, 'selected');
+                $this->sendTriggerEmail($id, 'selected', [], $user['userId']);
             } else if ($newStatus === 'rejected') {
-                $this->sendTriggerEmail($id, 'rejected');
+                $this->sendTriggerEmail($id, 'rejected', [], $user['userId']);
             }
 
             Router::sendJson(['message' => 'Status updated successfully']);
@@ -562,11 +627,16 @@ class ApplicantController {
         $stmt->execute([$campaignId]);
         $applicants = $stmt->fetchAll();
 
+        // Clear any previous output buffer to avoid prepended warnings/notices
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename=teammavericks_applicants_' . date('Y-m-d') . '.csv');
 
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['Application ID', 'Full Name', 'PRN', 'Email', 'Phone', 'Selected Domains', 'Status', 'Applied Date']);
+        fputcsv($output, ['Application ID', 'Full Name', 'PRN', 'Email', 'Phone', 'Selected Domains', 'Status', 'Applied Date'], ",", '"', "\\");
 
         foreach ($applicants as $app) {
             fputcsv($output, [
@@ -578,16 +648,29 @@ class ApplicantController {
                 $app['domains'],
                 ucfirst(str_replace('_', ' ', $app['status'])),
                 $app['applied_at']
-            ]);
+            ], ",", '"', "\\");
         }
         fclose($output);
         exit;
     }
 
     /**
+     * Log a sent email into the database
+     */
+    private function logEmail(int $applicationId, ?int $senderId, string $emailType, string $subject, string $bodyHtml, string $status, ?string $errorMessage = null): void {
+        try {
+            $db = Database::getConnection();
+            $stmt = $db->prepare("INSERT INTO application_email_logs (application_id, sender_id, email_type, subject, body_html, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$applicationId, $senderId, $emailType, $subject, $bodyHtml, $status, $errorMessage]);
+        } catch (\Exception $e) {
+            // Silently catch so email failures/DB log failures do not disrupt main flow
+        }
+    }
+
+    /**
      * Private Email Delivery helper using PHPMailer
      */
-    private function sendTriggerEmail(int $applicationId, string $triggerEvent, array $context = []): bool {
+    private function sendTriggerEmail(int $applicationId, string $triggerEvent, array $context = [], ?int $senderId = null): bool {
         $db = Database::getConnection();
 
         // 1. Fetch Template
@@ -622,7 +705,15 @@ class ApplicantController {
         ];
 
         $subject = str_replace(array_keys($replace), array_values($replace), $template['subject']);
-        $body = str_replace(array_keys($replace), array_values($replace), $template['body_html']);
+        $bodyText = str_replace(array_keys($replace), array_values($replace), $template['body_html']);
+
+        $buttonText = null;
+        $buttonUrl = null;
+        if ($triggerEvent === 'applied') {
+            $buttonText = "Learn more about Team Mavericks";
+            $buttonUrl = "https://teammavericks.org/";
+        }
+        $body = \App\EmailTemplate::getHtml($subject, $bodyText, $buttonText, $buttonUrl);
 
         // 5. Send Mail using PHPMailer
         $mail = new PHPMailer(true);
@@ -633,12 +724,25 @@ class ApplicantController {
             $mail->SMTPAuth   = true;
             $mail->Username   = SMTP_USER;
             $mail->Password   = SMTP_PASS;
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            if (SMTP_PORT == 465) {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            } else {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            }
             $mail->Port       = SMTP_PORT;
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer'       => false,
+                    'verify_peer_name'  => false,
+                    'allow_self_signed' => true,
+                ],
+            ];
 
             // Recipients
             $mail->setFrom(SMTP_FROM_EMAIL, SMTP_FROM_NAME);
             $mail->addAddress($applicant['email'], $applicant['full_name']);
+
+            // Header image now embedded via CSS gradient in EmailTemplate::getHtml() — no attachment needed
 
             // Content
             $mail->isHTML(true);
@@ -646,13 +750,117 @@ class ApplicantController {
             $mail->Body    = $body;
 
             $mail->send();
+            $this->logEmail($applicationId, $senderId, "trigger_$triggerEvent", $subject, $body, 'sent');
             return true;
         } catch (\Exception $e) {
             // Log failure to a file so we can debug SMTP configurations, but do not interrupt API responses.
             $logMsg = "[" . date('Y-m-d H:i:s') . "] Failed to send email to {$applicant['email']} for trigger '$triggerEvent': " . $mail->ErrorInfo . "\n";
             file_put_contents(__DIR__ . '/../../uploads/mail_errors.log', $logMsg, FILE_APPEND);
+            $this->logEmail($applicationId, $senderId, "trigger_$triggerEvent", $subject, $body, 'failed', $mail->ErrorInfo);
             return false;
         }
+    }
+
+    /**
+     * POST /api.php/applicants/communicate
+     * Send bulk emails to selected candidates with dynamic placeholders
+     */
+    public function communicate(): void {
+        AuthMiddleware::requireCore(); // Ensure admin/core member
+        $input = json_decode(file_get_contents('php://input'), true);
+        $applicantIds = $input['applicant_ids'] ?? [];
+        $subjectTemplate = trim($input['subject'] ?? '');
+        $bodyTemplate = trim($input['body_html'] ?? '');
+        $buttonText = trim($input['button_text'] ?? '');
+        $buttonUrl = trim($input['button_url'] ?? '');
+
+        if (empty($applicantIds)) {
+            Router::sendJson(['error' => 'No candidates selected'], 400);
+        }
+        if (empty($subjectTemplate) || empty($bodyTemplate)) {
+            Router::sendJson(['error' => 'Subject and message body cannot be empty'], 400);
+        }
+
+        $db = Database::getConnection();
+        $successCount = 0;
+        $failedCount = 0;
+
+        foreach ($applicantIds as $appId) {
+            $appId = (int)$appId;
+
+            // Fetch details
+            $stmtApp = $db->prepare("SELECT * FROM applications WHERE id = ?");
+            $stmtApp->execute([$appId]);
+            $applicant = $stmtApp->fetch();
+            if (!$applicant) continue;
+
+            // Fetch domains
+            $stmtDom = $db->prepare("SELECT GROUP_CONCAT(d.name SEPARATOR ', ') as domains_str FROM application_domains ad JOIN domains d ON ad.domain_id = d.id WHERE ad.application_id = ?");
+            $stmtDom->execute([$appId]);
+            $domains = $stmtDom->fetchColumn() ?: 'None';
+
+            // Replace placeholders
+            $replace = [
+                '{full_name}' => $applicant['full_name'],
+                '{prn}' => $applicant['prn'],
+                '{app_id}' => $applicant['registration_id'] ?: str_pad($applicant['id'], 4, '0', STR_PAD_LEFT),
+                '{domains}' => $domains,
+                '{status}' => ucfirst(str_replace('_', ' ', $applicant['status']))
+            ];
+
+            $subject = str_replace(array_keys($replace), array_values($replace), $subjectTemplate);
+            $parsedBody = str_replace(array_keys($replace), array_values($replace), $bodyTemplate);
+
+            // Wrap inside the beautiful template
+            $emailHtml = \App\EmailTemplate::getHtml($subject, $parsedBody, $buttonText ?: null, $buttonUrl ?: null);
+
+            // Send via PHPMailer
+            $mail = new PHPMailer(true);
+            try {
+                $mail->isSMTP();
+                $mail->Host       = SMTP_HOST;
+                $mail->SMTPAuth   = true;
+                $mail->Username   = SMTP_USER;
+                $mail->Password   = SMTP_PASS;
+                if (SMTP_PORT == 465) {
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+                } else {
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                }
+                $mail->Port       = SMTP_PORT;
+                $mail->SMTPOptions = [
+                    'ssl' => [
+                        'verify_peer'       => false,
+                        'verify_peer_name'  => false,
+                        'allow_self_signed' => true,
+                    ],
+                ];
+
+                $mail->setFrom(SMTP_FROM_EMAIL, SMTP_FROM_NAME);
+                $mail->addAddress($applicant['email'], $applicant['full_name']);
+
+                // Header image now embedded via CSS gradient in EmailTemplate::getHtml() — no attachment needed
+
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body    = $emailHtml;
+
+                $mail->send();
+                $this->logEmail($appId, $user['userId'], 'bulk_communicate', $subject, $emailHtml, 'sent');
+                $successCount++;
+            } catch (\Exception $e) {
+                $failedCount++;
+                $logMsg = "[" . date('Y-m-d H:i:s') . "] Communicate failed to send to {$applicant['email']}: " . $mail->ErrorInfo . "\n";
+                file_put_contents(__DIR__ . '/../../uploads/mail_errors.log', $logMsg, FILE_APPEND);
+                $this->logEmail($appId, $user['userId'], 'bulk_communicate', $subject, $emailHtml, 'failed', $mail->ErrorInfo);
+            }
+        }
+
+        Router::sendJson([
+            'message' => 'Communicate dispatches finished',
+            'success_count' => $successCount,
+            'failed_count' => $failedCount
+        ]);
     }
 
     /**
@@ -682,5 +890,141 @@ class ApplicantController {
         $stmtDel->execute([$id]);
 
         Router::sendJson(['message' => 'Applicant deleted successfully']);
+    }
+
+    /**
+     * POST /api.php/applicants/send-otp
+     * Generates and emails a 6-digit OTP for email verification before applying.
+     */
+    public function sendOtp(): void {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $email = trim($input['email'] ?? '');
+        $campaignId = (int)($input['campaign_id'] ?? 0);
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Router::sendJson(['error' => 'Invalid email address'], 400);
+        }
+        if (!$campaignId) {
+            Router::sendJson(['error' => 'Campaign ID required'], 400);
+        }
+
+        $db = Database::getConnection();
+
+        // Ensure email_otps table exists
+        $db->exec("CREATE TABLE IF NOT EXISTS email_otps (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) NOT NULL,
+            campaign_id INT NOT NULL,
+            otp_code VARCHAR(6) NOT NULL,
+            verified TINYINT(1) NOT NULL DEFAULT 0,
+            expires_at DATETIME NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_email_campaign (email, campaign_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // Delete any old OTPs for this email+campaign
+        $db->prepare("DELETE FROM email_otps WHERE email = ? AND campaign_id = ?")->execute([$email, $campaignId]);
+
+        // Generate a 6-digit OTP
+        $otp = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+        $expiresAt = date('Y-m-d H:i:s', time() + 600); // 10 minutes
+
+        $stmtIns = $db->prepare("INSERT INTO email_otps (email, campaign_id, otp_code, expires_at) VALUES (?, ?, ?, ?)");
+        $stmtIns->execute([$email, $campaignId, $otp, $expiresAt]);
+
+        // Fetch campaign name
+        $stmtC = $db->prepare("SELECT name FROM campaigns WHERE id = ?");
+        $stmtC->execute([$campaignId]);
+        $camp = $stmtC->fetch();
+        $campaignName = $camp ? $camp['name'] : 'Team Mavericks Recruitment';
+
+        // Send OTP email
+        $mail = new PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host       = SMTP_HOST;
+            $mail->SMTPAuth   = true;
+            $mail->Username   = SMTP_USER;
+            $mail->Password   = SMTP_PASS;
+            $mail->SMTPSecure = (SMTP_PORT == 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = SMTP_PORT;
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer'       => false,
+                    'verify_peer_name'  => false,
+                    'allow_self_signed' => true,
+                ],
+            ];
+            $mail->setFrom(SMTP_FROM_EMAIL, SMTP_FROM_NAME);
+            $mail->addAddress($email);
+            $mail->isHTML(true);
+            $mail->Subject = 'Your Team Mavericks Email Verification Code';
+            $mail->Body    = \App\EmailTemplate::getOtpHtml('', $otp, $campaignName);
+            $mail->send();
+            Router::sendJson(['message' => 'OTP sent successfully']);
+        } catch (\Exception $e) {
+            $logMsg = "[" . date('Y-m-d H:i:s') . "] OTP send failed to {$email}: " . $mail->ErrorInfo . "\n";
+            file_put_contents(__DIR__ . '/../../uploads/mail_errors.log', $logMsg, FILE_APPEND);
+            Router::sendJson(['error' => 'Failed to send OTP email. Please try again.'], 500);
+        }
+    }
+
+    /**
+     * POST /api.php/applicants/verify-otp
+     * Validates a submitted OTP code for email verification.
+     */
+    public function verifyOtp(): void {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $email = trim($input['email'] ?? '');
+        $campaignId = (int)($input['campaign_id'] ?? 0);
+        $otpCode = trim($input['otp'] ?? '');
+
+        if (!$email || !$campaignId || !$otpCode) {
+            Router::sendJson(['error' => 'Email, campaign ID, and OTP are required'], 400);
+        }
+
+        $db = Database::getConnection();
+        $stmt = $db->prepare("SELECT * FROM email_otps WHERE email = ? AND campaign_id = ? AND otp_code = ? AND verified = 0 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1");
+        $stmt->execute([$email, $campaignId, $otpCode]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            Router::sendJson(['error' => 'Invalid or expired OTP. Please request a new one.'], 400);
+        }
+
+        // Mark as verified
+        $db->prepare("UPDATE email_otps SET verified = 1 WHERE id = ?")->execute([$row['id']]);
+        Router::sendJson(['verified' => true, 'message' => 'Email verified successfully']);
+    }
+
+    /**
+     * GET /api.php/settings
+     */
+    public function getSettings(): void {
+        AuthMiddleware::authenticate();
+        $db = Database::getConnection();
+        $db->exec("CREATE TABLE IF NOT EXISTS settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(255) UNIQUE NOT NULL, setting_value TEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $stmt = $db->query("SELECT setting_key, setting_value FROM settings");
+        $rows = $stmt->fetchAll();
+        $out = [];
+        foreach ($rows as $r) { $out[$r['setting_key']] = $r['setting_value']; }
+        // Provide defaults if not set
+        if (!isset($out['otp_required'])) $out['otp_required'] = 'true';
+        Router::sendJson($out);
+    }
+
+    /**
+     * PUT /api.php/settings
+     */
+    public function saveSettings(): void {
+        AuthMiddleware::requireCoordinator();
+        $input = json_decode(file_get_contents('php://input'), true);
+        $db = Database::getConnection();
+        $db->exec("CREATE TABLE IF NOT EXISTS settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(255) UNIQUE NOT NULL, setting_value TEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+        foreach ($input as $key => $value) {
+            $stmt->execute([preg_replace('/[^a-z0-9_]/', '', strtolower($key)), (string)$value]);
+        }
+        Router::sendJson(['message' => 'Settings saved successfully']);
     }
 }

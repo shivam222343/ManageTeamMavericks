@@ -156,6 +156,7 @@ class FormBuilderController {
                 $stmtDelSecs->execute([$campaignId]);
             }
 
+            \App\Cache::clearAll();
             $db->commit();
             Router::sendJson(['message' => 'Form structure synced successfully']);
         } catch (\Exception $e) {

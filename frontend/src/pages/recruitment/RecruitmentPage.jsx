@@ -25,20 +25,22 @@ import {
   Edit3,
   FolderPlus,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Settings
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 // ─── Field type registry ─────────────────────────────────────────────────────
 const FIELD_TYPES = [
-  { value: 'text',      label: 'Short Text',       icon: AlignLeft   },
-  { value: 'email',     label: 'Email',             icon: Mail        },
-  { value: 'phone',     label: 'Phone / Contact',   icon: Phone       },
-  { value: 'number',    label: 'Number',            icon: Hash        },
-  { value: 'prn',       label: 'PRN / Roll No.',   icon: Hash        },
-  { value: 'paragraph', label: 'Long Text Area',    icon: FileText    },
-  { value: 'checkbox',  label: 'Checkboxes',        icon: CheckSquare },
-  { value: 'radio',     label: 'Radio (Single)',    icon: Circle      },
-  { value: 'file',      label: 'File Upload',       icon: Upload      },
+  { value: 'text', label: 'Short Text', icon: AlignLeft },
+  { value: 'email', label: 'Email', icon: Mail },
+  { value: 'phone', label: 'Phone / Contact', icon: Phone },
+  { value: 'number', label: 'Number', icon: Hash },
+  { value: 'prn', label: 'PRN / Roll No.', icon: Hash },
+  { value: 'paragraph', label: 'Long Text Area', icon: FileText },
+  { value: 'checkbox', label: 'Checkboxes', icon: CheckSquare },
+  { value: 'radio', label: 'Radio (Single)', icon: Circle },
+  { value: 'file', label: 'File Upload', icon: Upload },
 ];
 
 const blankField = (overrides = {}) => ({
@@ -101,7 +103,22 @@ const FieldPreview = ({ field }) => {
 };
 
 // ─── Field Card ───────────────────────────────────────────────────────────────
-const FieldCard = ({ field, sectionIdx, fieldIdx, isCoordinator, onUpdate, onDelete }) => {
+const FieldCard = ({
+  field,
+  sectionIdx,
+  fieldIdx,
+  isCoordinator,
+  onUpdate,
+  onDelete,
+  activeDragField,
+  setActiveDragField,
+  draggingField,
+  dragOverField,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop
+}) => {
   const [expanded, setExpanded] = useState(false);
   const TypeIcon = FIELD_TYPES.find(t => t.value === field.field_type)?.icon || AlignLeft;
   const hasOptions = ['checkbox', 'radio'].includes(field.field_type);
@@ -122,11 +139,33 @@ const FieldCard = ({ field, sectionIdx, fieldIdx, isCoordinator, onUpdate, onDel
     update('options', opts);
   };
 
+  const isDragging = draggingField && draggingField.sectionIdx === sectionIdx && draggingField.fieldIdx === fieldIdx;
+  const isDragOver = dragOverField && dragOverField.sectionIdx === sectionIdx && dragOverField.fieldIdx === fieldIdx;
+  const isDraggable = isCoordinator && activeDragField && activeDragField.sectionIdx === sectionIdx && activeDragField.fieldIdx === fieldIdx;
+
   return (
-    <div className={`border rounded-xl transition-all duration-200 bg-white dark:bg-zinc-900 overflow-hidden ${expanded ? 'border-primary-blue/40 shadow-md shadow-primary-blue/5' : 'border-zinc-200 dark:border-zinc-800'}`}>
+    <div
+      draggable={isDraggable}
+      onDragStart={(e) => onDragStart(e, sectionIdx, fieldIdx)}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => onDragOver(e, sectionIdx, fieldIdx)}
+      onDrop={(e) => onDrop(e, sectionIdx, fieldIdx)}
+      className={`border rounded-xl transition-all duration-250 bg-white dark:bg-zinc-900 overflow-hidden 
+        ${expanded ? 'border-primary-blue/40 shadow-md shadow-primary-blue/5' : 'border-zinc-200 dark:border-zinc-800'}
+        ${isDragging ? 'opacity-40 border-dashed border-zinc-400 dark:border-zinc-600' : ''}
+        ${isDragOver ? 'border-primary-blue bg-primary-blue/5 dark:bg-primary-blue/10 scale-[1.01]' : ''}
+      `}
+    >
       {/* Card header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        {isCoordinator && <GripVertical size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0 cursor-grab" />}
+        {isCoordinator && (
+          <GripVertical
+            size={14}
+            className="text-zinc-350 dark:text-zinc-650 shrink-0 cursor-grab active:cursor-grabbing hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
+            onMouseEnter={() => setActiveDragField({ sectionIdx, fieldIdx })}
+            onMouseLeave={() => { if (!draggingField) setActiveDragField(null); }}
+          />
+        )}
         <div className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
           <TypeIcon size={13} className="text-zinc-500 dark:text-zinc-400" />
         </div>
@@ -325,6 +364,10 @@ const RecruitmentPage = () => {
   const [addSectionName, setAddSectionName] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
 
+  const [activeDragField, setActiveDragField] = useState(null);
+  const [draggingField, setDraggingField] = useState(null);
+  const [dragOverField, setDragOverField] = useState(null);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -333,7 +376,16 @@ const RecruitmentPage = () => {
         axios.get('/campaigns/1/form'),
       ]);
       setCampaign(campRes.data);
-      setSections(Array.isArray(formRes.data) ? formRes.data : []);
+
+      const fetchedSections = Array.isArray(formRes.data) ? formRes.data : [];
+      const sectionsWithDragId = fetchedSections.map(s => ({
+        ...s,
+        fields: (s.fields || []).map(f => ({
+          ...f,
+          dragId: f.id || Math.random().toString(36).substring(2, 9)
+        }))
+      }));
+      setSections(sectionsWithDragId);
     } catch (err) {
       toast.error('Failed to load recruitment form configuration');
     } finally {
@@ -342,6 +394,60 @@ const RecruitmentPage = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // ── Drag & Drop Handlers ───────────────────────────────────────────────────
+  const handleDragStart = useCallback((e, sectionIdx, fieldIdx) => {
+    setDraggingField({ sectionIdx, fieldIdx });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `${sectionIdx},${fieldIdx}`);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingField(null);
+    setDragOverField(null);
+    setActiveDragField(null);
+  }, []);
+
+  const handleDragOver = useCallback((e, sectionIdx, fieldIdx) => {
+    e.preventDefault();
+    if (draggingField && (draggingField.sectionIdx !== sectionIdx || draggingField.fieldIdx !== fieldIdx)) {
+      setDragOverField({ sectionIdx, fieldIdx });
+    }
+  }, [draggingField]);
+
+  const handleDrop = useCallback((e, targetSectionIdx, targetFieldIdx) => {
+    e.preventDefault();
+    setDragOverField(null);
+
+    let sourceSectionIdx, sourceFieldIdx;
+    if (draggingField) {
+      sourceSectionIdx = draggingField.sectionIdx;
+      sourceFieldIdx = draggingField.fieldIdx;
+    } else {
+      const data = e.dataTransfer.getData('text/plain');
+      if (!data) return;
+      [sourceSectionIdx, sourceFieldIdx] = data.split(',').map(Number);
+    }
+
+    if (sourceSectionIdx === undefined || sourceFieldIdx === undefined) return;
+    if (sourceSectionIdx === targetSectionIdx && sourceFieldIdx === targetFieldIdx) return;
+
+    setSections(prev => {
+      const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
+      const fieldToMove = next[sourceSectionIdx].fields[sourceFieldIdx];
+
+      // Remove from source
+      next[sourceSectionIdx].fields.splice(sourceFieldIdx, 1);
+
+      // Insert into target
+      next[targetSectionIdx].fields.splice(targetFieldIdx, 0, fieldToMove);
+
+      return next;
+    });
+
+    setDraggingField(null);
+    setActiveDragField(null);
+  }, [draggingField]);
 
   // ── Mutators ────────────────────────────────────────────────────────────────
   const updateField = useCallback((secIdx, fldIdx, key, val) => {
@@ -355,7 +461,10 @@ const RecruitmentPage = () => {
   const addField = useCallback((secIdx, fieldType) => {
     setSections(prev => {
       const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
-      next[secIdx].fields.push(blankField({ field_type: fieldType }));
+      next[secIdx].fields.push(blankField({
+        field_type: fieldType,
+        dragId: Math.random().toString(36).substring(2, 9)
+      }));
       return next;
     });
   }, []);
@@ -443,9 +552,9 @@ const RecruitmentPage = () => {
   if (loading) return <MajorLoader fullPage />;
 
   const statusStyle = {
-    draft:  { pill: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', active: 'bg-amber-500 text-white shadow-sm' },
-    open:   { pill: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', active: 'bg-green-500 text-white shadow-sm' },
-    closed: { pill: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',         active: 'bg-red-500 text-white shadow-sm' },
+    draft: { pill: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', active: 'bg-amber-500 text-white shadow-sm' },
+    open: { pill: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', active: 'bg-green-500 text-white shadow-sm' },
+    closed: { pill: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', active: 'bg-red-500 text-white shadow-sm' },
   };
 
   return (
@@ -471,6 +580,11 @@ const RecruitmentPage = () => {
             <a href="/teammavericks/recruitment-2026" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-700 transition cursor-pointer shadow-sm">
               <Eye size={12} /> Preview
             </a>
+            {isCoordinator && (
+              <Link to="/dashboard/settings/portal" className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-lg text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-primary-blue transition cursor-pointer shadow-sm" title="Portal Settings">
+                <Settings size={12} /> Settings
+              </Link>
+            )}
             {isCanEdit && (
               <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-blue hover:bg-primary-blue-dark text-white rounded-lg text-xs font-bold shadow-md shadow-primary-blue/20 transition cursor-pointer disabled:opacity-50">
                 <Save size={12} /> {saving ? 'Saving…' : 'Save Form'}
@@ -483,7 +597,7 @@ const RecruitmentPage = () => {
         {isCanEdit && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Drive Status:</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">From Status:</span>
               <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-xl p-1 bg-zinc-50 dark:bg-zinc-950 gap-1">
                 {['draft', 'open', 'closed'].map(s => (
                   <button
@@ -602,13 +716,21 @@ const RecruitmentPage = () => {
 
               {(section.fields || []).map((field, fldIdx) => (
                 <FieldCard
-                  key={field.id || fldIdx}
+                  key={field.dragId || field.id || fldIdx}
                   field={field}
                   sectionIdx={secIdx}
                   fieldIdx={fldIdx}
                   isCoordinator={isCanEdit}
                   onUpdate={updateField}
                   onDelete={deleteField}
+                  activeDragField={activeDragField}
+                  setActiveDragField={setActiveDragField}
+                  draggingField={draggingField}
+                  dragOverField={dragOverField}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
                 />
               ))}
 

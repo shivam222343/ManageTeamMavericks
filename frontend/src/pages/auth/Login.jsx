@@ -45,7 +45,7 @@ const Login = () => {
 
       <div className="absolute top-8 left-8 flex items-center gap-3">
         <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain" />
-        <span className="font-bold text-xs uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Team Mavericks</span>
+        <span className="font-logo text-[10px] text-zinc-500 dark:text-zinc-400">Team Mavericks</span>
       </div>
 
       <motion.div

@@ -3,19 +3,19 @@ import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Settings, 
-  Mail, 
-  LogOut, 
-  Menu, 
-  X, 
-  Sun, 
-  Moon, 
-  Shield, 
-  Compass, 
-  FolderGit2, 
+import {
+  LayoutDashboard,
+  Users,
+  Settings,
+  Mail,
+  LogOut,
+  Menu,
+  X,
+  Sun,
+  Moon,
+  Shield,
+  Compass,
+  FolderGit2,
   Terminal,
   ClipboardCheck,
   Video,
@@ -41,76 +41,81 @@ const AdminLayout = () => {
   };
 
   const navItems = [
-    { 
-      path: '/dashboard', 
-      label: 'Dashboard', 
-      icon: LayoutDashboard, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      roles: ['coordinator', 'core_member', 'member']
     },
-    { 
-      path: '/dashboard/approvals', 
-      label: 'Approvals', 
-      icon: ClipboardCheck, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard/approvals',
+      label: 'Approvals',
+      icon: ClipboardCheck,
+      roles: ['coordinator', 'core_member', 'member']
     },
-    { 
-      path: '/dashboard/meetings', 
-      label: 'Meetings', 
-      icon: Video, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard/meetings',
+      label: 'Meetings',
+      icon: Video,
+      roles: ['coordinator', 'core_member', 'member']
     },
-    { 
-      path: '/dashboard/events', 
-      label: 'Events', 
-      icon: Bookmark, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard/events',
+      label: 'Events',
+      icon: Bookmark,
+      roles: ['coordinator', 'core_member', 'member']
     },
-    { 
-      path: '/dashboard/tasks', 
-      label: 'Tasks', 
-      icon: ListTodo, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard/tasks',
+      label: 'Tasks',
+      icon: ListTodo,
+      roles: ['coordinator', 'core_member', 'member']
     },
-    { 
-      path: '/dashboard/members', 
-      label: 'Members', 
-      icon: Users, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard/members',
+      label: 'Members',
+      icon: Users,
+      roles: ['coordinator', 'core_member', 'member']
     },
-    { 
-      path: '/dashboard/recruitment/form', 
-      label: 'Recruitment', 
-      icon: Briefcase, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard/recruitment/form',
+      label: 'Recruitment',
+      icon: Briefcase,
+      roles: ['coordinator', 'core_member', 'member']
     },
-    { 
-      path: '/dashboard/finance', 
-      label: 'Finance', 
-      icon: Coins, 
-      roles: ['coordinator', 'core_member', 'member'] 
+    {
+      path: '/dashboard/finance',
+      label: 'Finance',
+      icon: Coins,
+      roles: ['coordinator', 'core_member', 'member']
     },
   ];
 
   const recruitmentSubItems = [
-    { 
-      path: '/dashboard/recruitment/form', 
-      label: 'Forms', 
-      icon: FileText 
+    {
+      path: '/dashboard/recruitment/form',
+      label: 'Forms',
+      icon: FileText
     },
-    { 
-      path: '/dashboard/recruitment/applications', 
-      label: 'Applications', 
-      icon: Users 
+    {
+      path: '/dashboard/recruitment/applications',
+      label: 'Applications',
+      icon: Users
     },
-    { 
-      path: '/dashboard/recruitment/analytics', 
-      label: 'Analytics', 
-      icon: BarChart2 
+    {
+      path: '/dashboard/recruitment/analytics',
+      label: 'Analytics',
+      icon: BarChart2
     },
-    { 
-      path: '/dashboard/recruitment/faqs', 
-      label: 'FAQs', 
-      icon: HelpCircle 
+    {
+      path: '/dashboard/recruitment/faqs',
+      label: 'FAQs',
+      icon: HelpCircle
+    },
+    {
+      path: '/dashboard/recruitment/communicate',
+      label: 'Communicate',
+      icon: Mail
     }
   ];
 
@@ -124,21 +129,21 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex transition-colors duration-300">
-      
+
       {/* --- Desktop Sidebars (Conditionally Double or Single) --- */}
       {isRecruitmentSection ? (
         <>
           {/* Desktop Primary Slim Sidebar */}
-          <aside className="hidden md:flex flex-col w-20 h-screen sticky top-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-150/40 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
+          <aside className="hidden md:flex flex-col w-20 h-screen sticky top-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
             {/* Brand Logo only */}
-            <div className="p-5 border-b border-zinc-200 dark:border-zinc-850 flex justify-center shrink-0">
+            <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex justify-center shrink-0">
               <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0" />
             </div>
 
             {/* Navigation links (Large Icons, Text Underneath) */}
             <nav className="flex-1 px-1 py-6 space-y-4 overflow-y-auto">
               {filteredNavItems.map((item) => {
-                const isItemActive = item.path.startsWith('/dashboard/recruitment') 
+                const isItemActive = item.path.startsWith('/dashboard/recruitment')
                   ? window.location.pathname.startsWith('/dashboard/recruitment')
                   : window.location.pathname === item.path;
 
@@ -148,8 +153,8 @@ const AdminLayout = () => {
                     to={item.path}
                     end={item.path === '/dashboard'}
                     className={`flex flex-col items-center justify-center p-2 rounded-xl text-center transition-all duration-200 border border-transparent
-                      ${isItemActive 
-                        ? 'bg-primary-blue/10 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border-primary-blue/20 shadow-sm shadow-primary-blue/5 font-extrabold' 
+                      ${isItemActive
+                        ? 'bg-primary-blue/10 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border-primary-blue/20 shadow-sm shadow-primary-blue/5 font-extrabold'
                         : 'text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-50'
                       }
                     `}
@@ -174,7 +179,7 @@ const AdminLayout = () => {
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
               <h2 className="font-extrabold text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Recruitment</h2>
             </div>
-            
+
             <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
               {recruitmentSubItems.map((subItem) => {
                 const isSubActive = subItem.path === '/dashboard/recruitment/applications'
@@ -186,9 +191,9 @@ const AdminLayout = () => {
                     key={subItem.path}
                     to={subItem.path}
                     className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-bold transition border border-transparent
-                      ${isSubActive 
-                        ? 'bg-primary-blue text-white shadow-md shadow-primary-blue/15 font-extrabold' 
-                        : 'text-zinc-600 dark:text-zinc-405 hover:bg-zinc-100 dark:hover:bg-zinc-850 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      ${isSubActive
+                        ? 'bg-primary-blue text-white shadow-md shadow-primary-blue/15 font-extrabold'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-50'
                       }
                     `}
                   >
@@ -207,9 +212,7 @@ const AdminLayout = () => {
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 shrink-0">
             <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0" />
             <div>
-              <h1 className="font-bold text-sm leading-none tracking-tight">Team Mavericks</h1>
-              <span className="text-[10px] text-zinc-500 font-medium">Learning with Fun</span>
-            </div>
+              <h1 className="font-logo text-[11px] leading-none">Team Mavericks</h1>            </div>
           </div>
 
           {/* Navigation */}
@@ -222,8 +225,8 @@ const AdminLayout = () => {
                 end={item.path === '/dashboard'}
                 className={({ isActive }) => `
                   flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border border-transparent
-                  ${isActive 
-                    ? 'bg-primary-blue/10 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border-primary-blue/20 shadow-sm shadow-primary-blue/5 font-extrabold' 
+                  ${isActive
+                    ? 'bg-primary-blue/10 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border-primary-blue/20 shadow-sm shadow-primary-blue/5 font-extrabold'
                     : 'text-zinc-650 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-50'
                   }
                 `}
@@ -237,7 +240,7 @@ const AdminLayout = () => {
           {/* Bottom Actions & Profile */}
           <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-4 shrink-0">
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200 text-left cursor-pointer"
               >
@@ -257,13 +260,13 @@ const AdminLayout = () => {
                 {profileOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
                       className="absolute bottom-12 left-0 right-0 z-20 mt-2 p-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl shadow-zinc-950/10"
                     >
-                      <button 
+                      <button
                         onClick={handleLogout}
                         className="flex items-center gap-3 w-full px-3 py-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-accent-red text-zinc-600 dark:text-zinc-400 text-xs font-medium cursor-pointer"
                       >
@@ -275,6 +278,21 @@ const AdminLayout = () => {
                 )}
               </AnimatePresence>
             </div>
+            {user?.role === 'coordinator' && (
+              <NavLink
+                to="/dashboard/settings/portal"
+                className={({ isActive }) => `
+                  flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition
+                  ${isActive
+                    ? 'text-primary-blue bg-primary-blue/5'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }
+                `}
+              >
+                <Settings size={14} />
+                <span>Portal Settings</span>
+              </NavLink>
+            )}
           </div>
         </aside>
       )}
@@ -283,14 +301,14 @@ const AdminLayout = () => {
       <AnimatePresence>
         {mobileMenuOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileMenuOpen(false)}
               className="fixed inset-0 bg-black z-40 md:hidden"
             />
-            <motion.aside 
+            <motion.aside
               variants={sidebarVariants}
               initial="closed"
               animate="open"
@@ -300,7 +318,7 @@ const AdminLayout = () => {
               <div className="flex items-center justify-between mb-8 shrink-0">
                 <div className="flex items-center gap-3">
                   <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0" />
-                  <h1 className="font-bold text-sm leading-none">Team Mavericks</h1>
+                  <h1 className="font-logo text-[11px] leading-none">Team Mavericks</h1>
                 </div>
                 <button onClick={() => setMobileMenuOpen(false)} className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500">
                   <X size={20} />
@@ -310,7 +328,7 @@ const AdminLayout = () => {
               <nav className="flex-1 space-y-1 overflow-y-auto">
                 {filteredNavItems.map((item) => {
                   const isRecruitmentLink = item.path.startsWith('/dashboard/recruitment');
-                  
+
                   return (
                     <div key={item.path} className="space-y-1">
                       <NavLink
@@ -324,7 +342,7 @@ const AdminLayout = () => {
                         className={({ isActive }) => `
                           flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                           ${(isActive || (isRecruitmentLink && isRecruitmentSection))
-                            ? 'bg-primary-blue/15 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border border-primary-blue/20 font-extrabold' 
+                            ? 'bg-primary-blue/15 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border border-primary-blue/20 font-extrabold'
                             : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900'
                           }
                         `}
@@ -332,7 +350,7 @@ const AdminLayout = () => {
                         <item.icon size={18} />
                         <span>{item.label}</span>
                       </NavLink>
-                      
+
                       {/* Expanded sub-navigation inline on mobile if in recruitment section */}
                       {isRecruitmentLink && isRecruitmentSection && (
                         <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-zinc-200 dark:border-zinc-800 ml-5">
@@ -347,8 +365,8 @@ const AdminLayout = () => {
                                 to={sub.path}
                                 onClick={() => setMobileMenuOpen(false)}
                                 className={`flex items-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition
-                                  ${isSubActive 
-                                    ? 'text-primary-blue bg-primary-blue/5 font-extrabold' 
+                                  ${isSubActive
+                                    ? 'text-primary-blue bg-primary-blue/5 font-extrabold'
                                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
                                   }
                                 `}
@@ -366,7 +384,7 @@ const AdminLayout = () => {
               </nav>
 
               <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6 space-y-4 shrink-0">
-                <button 
+                <button
                   onClick={handleLogout}
                   className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg border border-accent-red/20 text-accent-red hover:bg-accent-red/5 font-medium text-xs shadow-sm hover:shadow"
                 >
@@ -381,11 +399,11 @@ const AdminLayout = () => {
 
       {/* --- Main Content Panel --- */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        
+
         {/* Header Bar */}
         <header className="sticky top-0 z-30 h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setMobileMenuOpen(true)}
               className="p-2 -ml-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 md:hidden cursor-pointer"
             >

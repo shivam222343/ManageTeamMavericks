@@ -10,13 +10,21 @@ define('DB_NAME', 'u714635531_MavericksDB');
 define('JWT_SECRET', 'teammavericks_rms_super_secret_key_2026');
 define('JWT_EXPIRY', 86400); // 24 hours in seconds
 
-// SMTP Configuration for PHPMailer
-define('SMTP_HOST', 'smtp.gmail.com');
-define('SMTP_PORT', 587);
-define('SMTP_USER', 'your-email@gmail.com');
-define('SMTP_PASS', 'your-app-password');
-define('SMTP_FROM_EMAIL', 'no-reply@teammavericks.org');
-define('SMTP_FROM_NAME', 'Team Mavericks Kit');
+// Cloudinary Configuration
+define('CLOUDINARY_CLOUD_NAME', '');
+define('CLOUDINARY_API_KEY', '');
+define('CLOUDINARY_API_SECRET', '');
+
+// SMTP Configuration for PHPMailer (e.g. Hostinger SMTP)
+define('SMTP_HOST', 'smtp.hostinger.com');
+define('SMTP_PORT', 465); // SSL port for Hostinger
+define('SMTP_USER', 'official@teammavericks.org');
+define('SMTP_PASS', 'MavericksOfficial@2016');
+define('SMTP_FROM_EMAIL', 'official@teammavericks.org');
+define('SMTP_FROM_NAME', 'Team Mavericks');
+
+// Frontend Host URL (for email headers and links)
+define('FRONTEND_URL', 'http://localhost:3000');
 
 // Error reporting config (set to false in production)
 define('DISPLAY_ERRORS', true);

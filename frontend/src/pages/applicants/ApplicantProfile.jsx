@@ -15,12 +15,14 @@ import {
   Send, 
   PlusCircle, 
   ChevronRight, 
+  ChevronDown,
   Download, 
   ShieldCheck, 
   Bookmark, 
   MessageSquareCode, 
   Trash2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -41,6 +43,7 @@ const ApplicantProfile = () => {
   const [noteText, setNoteText] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [expandedEmailId, setExpandedEmailId] = useState(null);
 
   // Fetch candidate details
   const fetchApplicantDetails = async () => {
@@ -265,7 +268,9 @@ const ApplicantProfile = () => {
               {applicant.files.map((file) => {
                 const isImage = file.file_type.startsWith('image/');
                 const isPdf = file.file_type === 'application/pdf';
-                const fileUrl = `http://localhost:8000/${file.file_path}`;
+                const fileUrl = file.file_path.startsWith('http://') || file.file_path.startsWith('https://') 
+                  ? file.file_path 
+                  : `http://localhost:8000/${file.file_path}`;
 
                 return (
                   <div key={file.file_id} className="p-4 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-lg flex flex-col justify-between gap-3 shadow-sm hover:shadow transition">
@@ -342,6 +347,111 @@ const ApplicantProfile = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Card 5: Email Dispatch Logs */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm space-y-4">
+            <h3 className="font-bold text-sm border-b border-zinc-100 dark:border-zinc-800 pb-3 flex items-center gap-2">
+              <Mail size={16} className="text-primary-blue" />
+              <span>Sent Email Communications</span>
+            </h3>
+
+            <div className="space-y-4">
+              {applicant.email_logs && applicant.email_logs.map((log) => {
+                const isExpanded = expandedEmailId === log.id;
+                const isSent = log.status === 'sent';
+
+                const formatEmailType = (type) => {
+                  switch (type) {
+                    case 'trigger_applied': return 'Application Received';
+                    case 'trigger_shortlisted': return 'Shortlisting Invitation';
+                    case 'trigger_interview_scheduled': return 'Interview Confirmation';
+                    case 'trigger_selected': return 'Offer Letter / Selection';
+                    case 'trigger_rejected': return 'Rejection Update';
+                    case 'bulk_communicate': return 'Bulk Campaign Outreach';
+                    default: return type.replace('trigger_', '').replace('_', ' ');
+                  }
+                };
+
+                return (
+                  <div 
+                    key={log.id} 
+                    className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-zinc-50/50 dark:bg-zinc-950/20 text-xs font-semibold"
+                  >
+                    <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-100/30 dark:bg-zinc-900/30">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100 font-sans text-xs">
+                            {log.subject}
+                          </span>
+                          <span className="px-2 py-0.5 border border-zinc-205 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded text-[9px] font-bold text-zinc-400 capitalize tracking-wide">
+                            {formatEmailType(log.email_type)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 font-medium">
+                          Sent at {new Date(log.sent_at).toLocaleString()} {log.sender_name && `by ${log.sender_name}`}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {/* Status Badge */}
+                        <span 
+                          className={`px-2 py-0.5 border rounded-full text-[9px] font-bold tracking-wider uppercase flex items-center gap-1.5
+                            ${isSent 
+                              ? 'bg-green-50 text-green-500 border-green-200 dark:bg-green-950/20 dark:border-green-900/30 dark:text-green-400' 
+                              : 'bg-red-50 text-red-500 border-red-200 dark:bg-red-950/20 dark:border-red-900/30 dark:text-red-400'
+                            }
+                          `}
+                          title={log.error_message || ''}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSent ? 'bg-green-500' : 'bg-red-500'}`} />
+                          {log.status}
+                        </span>
+
+                        {/* Expand Button */}
+                        <button
+                          onClick={() => setExpandedEmailId(isExpanded ? null : log.id)}
+                          className="p-1 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition cursor-pointer"
+                        >
+                          <ChevronDown 
+                            size={14} 
+                            className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Email body details preview */}
+                    {isExpanded && (
+                      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+                        {!isSent && log.error_message && (
+                          <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded text-[10px] text-red-600 dark:text-red-400 font-medium">
+                            <span className="font-bold uppercase tracking-wider block mb-0.5">SMTP Error Message:</span>
+                            {log.error_message}
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Email Message Output:</span>
+                          <div className="border border-zinc-100 dark:border-zinc-800 rounded-lg p-1 bg-white">
+                            <iframe
+                              srcDoc={log.body_html}
+                              title="Email Preview"
+                              className="w-full h-96 border-0 rounded"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {(!applicant.email_logs || applicant.email_logs.length === 0) && (
+                <p className="text-[11px] text-zinc-400 font-medium py-3 text-center">
+                  No automated or direct emails logged for this candidate.
+                </p>
+              )}
             </div>
           </div>
 
