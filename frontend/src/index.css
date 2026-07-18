@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Cinzel:wght@700;900&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@700,600,800,900&f[]=satoshi@500,700,900&f[]=general-sans@400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@500;700&display=swap');
 
 @import "tailwindcss";
 
@@ -8,6 +10,11 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Outfit', sans-serif;
   --font-brand: 'Cinzel', serif;
+  --font-satoshi: 'Satoshi', sans-serif;
+  --font-clash: 'Clash Display', sans-serif;
+  --font-general: 'General Sans', sans-serif;
+  --font-bebas: 'Bebas Neue', sans-serif;
+  --font-space-grotesk: 'Space Grotesk', sans-serif;
 
   --color-primary-blue: #2563eb;
   --color-primary-blue-dark: #1d4ed8;
@@ -30,7 +37,9 @@
 }
 
 @layer base {
-  html, body {
+
+  html,
+  body {
     margin: 0;
     padding: 0;
     font-family: var(--font-sans);
@@ -47,12 +56,20 @@
     color: var(--color-zinc-50);
   }
 
-  input, select, textarea, button {
+  input,
+  select,
+  textarea,
+  button {
     color: inherit;
     font-family: inherit;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
     font-weight: 600;
   }
@@ -78,18 +95,23 @@
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   @apply bg-zinc-300 rounded-full;
 }
+
 .dark ::-webkit-scrollbar-thumb {
   @apply bg-zinc-800 rounded-full;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-zinc-400;
 }
+
 .dark ::-webkit-scrollbar-thumb:hover {
   @apply bg-zinc-700;
 }
@@ -108,18 +130,22 @@
     border-right-color: #2563eb;
     transform: rotate(0deg);
   }
+
   25% {
     border-top-color: #f97316;
     border-right-color: #f97316;
   }
+
   50% {
     border-top-color: #10b981;
     border-right-color: #10b981;
   }
+
   75% {
     border-top-color: #a855f7;
     border-right-color: #a855f7;
   }
+
   100% {
     border-top-color: #2563eb;
     border-right-color: #2563eb;
@@ -128,16 +154,14 @@
 }
 
 .animate-shine-sweep {
-  background: linear-gradient(
-    120deg,
-    transparent 0%,
-    transparent 40%,
-    rgba(255, 255, 255, 0.15) 48%,
-    rgba(255, 255, 255, 0.3) 50%,
-    rgba(255, 255, 255, 0.15) 52%,
-    transparent 60%,
-    transparent 100%
-  );
+  background: linear-gradient(120deg,
+      transparent 0%,
+      transparent 40%,
+      rgba(255, 255, 255, 0.15) 48%,
+      rgba(255, 255, 255, 0.3) 50%,
+      rgba(255, 255, 255, 0.15) 52%,
+      transparent 60%,
+      transparent 100%);
   background-size: 250% 100%;
   animation: shineSweep 3.5s ease-in-out infinite;
 }
@@ -146,6 +170,7 @@
   0% {
     background-position: 200% 0;
   }
+
   100% {
     background-position: -200% 0;
   }
@@ -156,9 +181,12 @@
 }
 
 @keyframes pulseSubtle {
-  0%, 100% {
+
+  0%,
+  100% {
     filter: brightness(1) drop-shadow(0 0 0px transparent);
   }
+
   50% {
     filter: brightness(1.06) drop-shadow(0 0 6px rgba(59, 130, 246, 0.25));
   }
@@ -169,8 +197,10 @@
 /* ── Dark mode button hover fixes ─────────────────────────────────────────── */
 /* Ensure border-colored ghost buttons stay readable in dark mode on hover    */
 .dark .btn-ghost-hover:hover {
-  background-color: rgba(39, 39, 42, 0.7);  /* zinc-800/70 */
-  color: #f4f4f5;  /* zinc-100 */
+  background-color: rgba(39, 39, 42, 0.7);
+  /* zinc-800/70 */
+  color: #f4f4f5;
+  /* zinc-100 */
 }
 
 .font-logo {
@@ -178,4 +208,28 @@
   font-weight: 900;
   letter-spacing: 1.5px;
   text-transform: uppercase;
+}
+
+/* Premium Noise Grain Overlay */
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Soft Radial Glow Breathing Animation */
+@keyframes breathe {
+
+  0%,
+  100% {
+    opacity: 0.03;
+    transform: scale(1) translate(0px, 0px);
+  }
+
+  50% {
+    opacity: 0.08;
+    transform: scale(1.08) translate(10px, -10px);
+  }
+}
+
+.animate-breathe {
+  animation: breathe 12s ease-in-out infinite;
 }
