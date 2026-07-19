@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     port: 5173,
     watch: {
-      ignored: ['**/*.~tmp', '**/*.tmp', '**/public/events/**']
+      ignored: ['**/*.~tmp', '**/*.tmp', '**/public/events/**', '**/public/backgrounds/**']
     },
     proxy: {
       '/api': {

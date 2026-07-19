@@ -2,9 +2,15 @@ import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 
 const ThemeToggle = () => {
   const { theme, toggleTheme } = useTheme();
+  const location = useLocation();
+
+  if (location.pathname === '/login') {
+    return null;
+  }
 
   return (
     <motion.button
