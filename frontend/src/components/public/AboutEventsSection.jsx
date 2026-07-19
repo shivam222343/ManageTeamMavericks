@@ -165,7 +165,7 @@ const AboutEventsSection = ({ isDark }) => {
           start: "top 85%",
           toggleActions: "play none none none"
         },
-        clearProps: "all"
+        clearProps: "y,opacity"
       });
     }, containerRef);
 
@@ -176,6 +176,95 @@ const AboutEventsSection = ({ isDark }) => {
     return () => {
       ctx.revert();
       clearTimeout(timer);
+    };
+  }, []);
+
+  // GSAP Mobile Scroll Expand Animation & Desktop Hover Setup
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const mm = gsap.matchMedia();
+    const panels = containerRef.current.querySelectorAll('.event-panel');
+
+    mm.add("(max-width: 1023px)", () => {
+      // Clear any leftover desktop hover inline styles and force mobile height
+      gsap.set(panels, { clearProps: "all" });
+      gsap.set(panels, { height: "180px" });
+
+      const scrollTriggers = [];
+
+      panels.forEach((panel) => {
+        const img = panel.querySelector('.panel-bg-img');
+        const overlay = panel.querySelector('.panel-overlay');
+        const details = panel.querySelector('.panel-details');
+        const num = panel.querySelector('.panel-number');
+        const arrow = panel.querySelector('.panel-arrow');
+
+        // Create timeline for vertical expansion
+        const tl = gsap.timeline({ paused: true });
+
+        tl.to(panel, {
+          height: "360px",
+          duration: 0.5,
+          ease: "power3.out"
+        }, 0)
+          .to(img, {
+            scale: 1.08,
+            filter: "brightness(0.8)",
+            duration: 0.5,
+            ease: "power3.out"
+          }, 0)
+          .to(overlay, {
+            opacity: 0.25,
+            duration: 0.5,
+            ease: "power3.out"
+          }, 0)
+          .to(details, {
+            height: "auto",
+            opacity: 1,
+            y: 0,
+            duration: 0.4,
+            ease: "power3.out"
+          }, 0.1)
+          .to(num, {
+            y: -12,
+            scale: 1.08,
+            opacity: 0.60,
+            duration: 0.5,
+            ease: "power3.out"
+          }, 0)
+          .to(arrow, {
+            x: 6,
+            rotation: 45,
+            duration: 0.3,
+            ease: "power2.out"
+          }, 0.2);
+
+        // ScrollTrigger to play/reverse the timeline
+        const st = ScrollTrigger.create({
+          trigger: panel,
+          start: "top 50%",
+          end: "bottom 50%",
+          toggleActions: "play reverse play reverse",
+          animation: tl,
+        });
+
+        scrollTriggers.push(st);
+      });
+
+      return () => {
+        scrollTriggers.forEach(st => st.kill());
+        gsap.set(panels, { clearProps: "all" });
+      };
+    });
+
+    mm.add("(min-width: 1024px)", () => {
+      // Clear mobile heights when resizing back to desktop layout
+      gsap.set(panels, { clearProps: "all" });
+    });
+
+    return () => {
+      mm.revert();
     };
   }, []);
 
@@ -320,12 +409,12 @@ const AboutEventsSection = ({ isDark }) => {
           </div>
 
           {/* Right Panels container */}
-          <div className="flex-grow flex flex-col md:grid md:grid-cols-2 lg:flex lg:flex-row gap-4 relative z-10 w-full">
+          <div className="flex-grow flex flex-col lg:flex lg:flex-row gap-4 relative z-10 w-full">
             {EVENTS_DATA.map((evt, idx) => {
               return (
                 <div
                   key={evt.id}
-                  className={`event-panel group relative flex flex-col justify-between overflow-hidden rounded-[24px] cursor-pointer border border-zinc-200/85 dark:border-zinc-800/85 min-h-[460px] lg:min-h-0 lg:h-full lg:flex-[1.5] ${evt.borderColor}`}
+                  className={`event-panel group relative flex flex-col justify-between overflow-hidden rounded-[24px] cursor-pointer border border-zinc-200/85 dark:border-zinc-800/85 h-[180px] lg:h-full lg:min-h-0 lg:flex-[1.5] ${evt.borderColor} transition-shadow duration-300`}
                   onMouseEnter={() => setHoveredIndex(idx)}
                   onMouseLeave={() => setHoveredIndex(null)}
                   onClick={() => setSelectedEvent(evt)}
@@ -371,7 +460,7 @@ const AboutEventsSection = ({ isDark }) => {
                     </div>
 
                     {/* Animated Details block (controlled by GSAP) */}
-                    <div className="panel-details opacity-0 h-0 overflow-hidden lg:block">
+                    <div className="panel-details opacity-0 h-0 overflow-hidden">
                       <p className="text-xs text-zinc-300 font-medium leading-relaxed max-w-sm mb-4">
                         {evt.description}
                       </p>
@@ -385,17 +474,6 @@ const AboutEventsSection = ({ isDark }) => {
                       >
                         More Info
                         <ArrowRight size={12} className="panel-arrow" />
-                      </button>
-                    </div>
-
-                    {/* Non-desktop layout fallback details */}
-                    <div className="block lg:hidden space-y-3">
-                      <p className="text-xs text-zinc-350 leading-relaxed max-w-sm">
-                        {evt.description}
-                      </p>
-                      <button className="inline-flex items-center gap-2 text-[11px] font-bold tracking-wider uppercase text-white py-1">
-                        More Info
-                        <ArrowRight size={12} />
                       </button>
                     </div>
 
