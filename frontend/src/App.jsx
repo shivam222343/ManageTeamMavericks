@@ -8,8 +8,8 @@ import ThemeToggle from './components/ui/ThemeToggle';
 import AdminLayout from './components/layout/AdminLayout';
 
 // Public Pages
-import PublicLanding from './pages/public/PublicLanding';
-import SuccessPage from './pages/public/SuccessPage';
+import PublicLanding from './pages/recruitment/PublicLanding';
+import SuccessPage from './pages/recruitment/SuccessPage';
 
 // Auth Pages
 import Login from './pages/auth/Login';
