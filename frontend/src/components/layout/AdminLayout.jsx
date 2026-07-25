@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -25,7 +25,9 @@ import {
   Coins,
   BarChart2,
   FileText,
-  HelpCircle
+  HelpCircle,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 const AdminLayout = () => {
@@ -35,10 +37,58 @@ const AdminLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
+  // Accordion state for sidebars (e.g. 'recruitment')
+  const [expandedSection, setExpandedSection] = useState(() => {
+    if (window.location.pathname.startsWith('/dashboard/recruitment')) {
+      return 'recruitment';
+    }
+    return null;
+  });
+
+  // Body scroll lock on mobile when sidebar is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  const recruitmentSubItems = [
+    {
+      path: '/dashboard/recruitment/form',
+      label: 'Forms',
+      icon: FileText
+    },
+    {
+      path: '/dashboard/recruitment/applications',
+      label: 'Applications',
+      icon: Users
+    },
+    {
+      path: '/dashboard/recruitment/analytics',
+      label: 'Analytics',
+      icon: BarChart2
+    },
+    {
+      path: '/dashboard/recruitment/faqs',
+      label: 'FAQs',
+      icon: HelpCircle
+    },
+    {
+      path: '/dashboard/recruitment/communicate',
+      label: 'Communicate',
+      icon: Mail
+    }
+  ];
 
   const navItems = [
     {
@@ -81,7 +131,8 @@ const AdminLayout = () => {
       path: '/dashboard/recruitment/form',
       label: 'Recruitment',
       icon: Briefcase,
-      roles: ['coordinator', 'core_member', 'member']
+      roles: ['coordinator', 'core_member', 'member'],
+      subItems: recruitmentSubItems
     },
     {
       path: '/dashboard/finance',
@@ -89,34 +140,6 @@ const AdminLayout = () => {
       icon: Coins,
       roles: ['coordinator', 'core_member', 'member']
     },
-  ];
-
-  const recruitmentSubItems = [
-    {
-      path: '/dashboard/recruitment/form',
-      label: 'Forms',
-      icon: FileText
-    },
-    {
-      path: '/dashboard/recruitment/applications',
-      label: 'Applications',
-      icon: Users
-    },
-    {
-      path: '/dashboard/recruitment/analytics',
-      label: 'Analytics',
-      icon: BarChart2
-    },
-    {
-      path: '/dashboard/recruitment/faqs',
-      label: 'FAQs',
-      icon: HelpCircle
-    },
-    {
-      path: '/dashboard/recruitment/communicate',
-      label: 'Communicate',
-      icon: Mail
-    }
   ];
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role));
@@ -128,13 +151,13 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex transition-colors duration-300">
+    <div className="h-screen overflow-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex transition-colors duration-300">
 
       {/* --- Desktop Sidebars (Conditionally Double or Single) --- */}
       {isRecruitmentSection ? (
         <>
           {/* Desktop Primary Slim Sidebar */}
-          <aside className="hidden md:flex flex-col w-20 h-screen sticky top-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
+          <aside className="hidden md:flex flex-col w-20 h-full border-r border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
             {/* Brand Logo only */}
             <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex justify-center shrink-0">
               <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0" />
@@ -175,7 +198,7 @@ const AdminLayout = () => {
           </aside>
 
           {/* Desktop Secondary Sub-Sidebar */}
-          <aside className="hidden md:flex flex-col w-56 h-screen sticky top-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 backdrop-blur-md shrink-0">
+          <aside className="hidden md:flex flex-col w-56 h-full border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 backdrop-blur-md shrink-0">
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
               <h2 className="font-extrabold text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Recruitment</h2>
             </div>
@@ -207,7 +230,7 @@ const AdminLayout = () => {
         </>
       ) : (
         /* Regular Desktop Sidebar (Dashboard, etc.) */
-        <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
+        <aside className="hidden md:flex flex-col w-64 h-full border-r border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
           {/* Brand */}
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 shrink-0">
             <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0" />
@@ -227,7 +250,7 @@ const AdminLayout = () => {
                   flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border border-transparent
                   ${isActive
                     ? 'bg-primary-blue/10 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border-primary-blue/20 shadow-sm shadow-primary-blue/5 font-extrabold'
-                    : 'text-zinc-650 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-50'
+                    : 'text-zinc-655 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-50'
                   }
                 `}
               >
@@ -327,34 +350,56 @@ const AdminLayout = () => {
 
               <nav className="flex-1 space-y-1 overflow-y-auto">
                 {filteredNavItems.map((item) => {
-                  const isRecruitmentLink = item.path.startsWith('/dashboard/recruitment');
+                  const hasSubs = !!item.subItems;
+                  const isSectionExpanded = expandedSection === item.label.toLowerCase();
+                  const isItemActive = item.path.startsWith('/dashboard/recruitment')
+                    ? window.location.pathname.startsWith('/dashboard/recruitment')
+                    : window.location.pathname === item.path;
 
                   return (
                     <div key={item.path} className="space-y-1">
-                      <NavLink
-                        to={item.path}
-                        end={item.path === '/dashboard'}
-                        onClick={() => {
-                          if (!isRecruitmentLink) {
+                      {hasSubs ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedSection(isSectionExpanded ? null : item.label.toLowerCase())}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer border border-transparent
+                            ${(isItemActive || isSectionExpanded)
+                              ? 'bg-primary-blue/15 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border-primary-blue/20 font-extrabold'
+                              : 'text-zinc-650 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900'
+                            }
+                          `}
+                        >
+                          <div className="flex items-center gap-3">
+                            <item.icon size={18} />
+                            <span>{item.label}</span>
+                          </div>
+                          {isSectionExpanded ? <ChevronDown size={14} className="text-primary-blue dark:text-blue-400" /> : <ChevronRight size={14} />}
+                        </button>
+                      ) : (
+                        <NavLink
+                          to={item.path}
+                          end={item.path === '/dashboard'}
+                          onClick={() => {
+                            setExpandedSection(null);
                             setMobileMenuOpen(false);
-                          }
-                        }}
-                        className={({ isActive }) => `
-                          flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                          ${(isActive || (isRecruitmentLink && isRecruitmentSection))
-                            ? 'bg-primary-blue/15 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border border-primary-blue/20 font-extrabold'
-                            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900'
-                          }
-                        `}
-                      >
-                        <item.icon size={18} />
-                        <span>{item.label}</span>
-                      </NavLink>
+                          }}
+                          className={({ isActive }) => `
+                            flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium border border-transparent
+                            ${isActive
+                              ? 'bg-primary-blue/15 text-primary-blue dark:bg-primary-blue/20 dark:text-blue-400 border-primary-blue/20 font-extrabold'
+                              : 'text-zinc-650 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 hover:text-zinc-900'
+                            }
+                          `}
+                        >
+                          <item.icon size={18} />
+                          <span>{item.label}</span>
+                        </NavLink>
+                      )}
 
-                      {/* Expanded sub-navigation inline on mobile if in recruitment section */}
-                      {isRecruitmentLink && isRecruitmentSection && (
+                      {/* Expanded sub-navigation inline on mobile */}
+                      {hasSubs && isSectionExpanded && (
                         <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-zinc-200 dark:border-zinc-800 ml-5">
-                          {recruitmentSubItems.map((sub) => {
+                          {item.subItems.map((sub) => {
                             const isSubActive = sub.path === '/dashboard/recruitment/applications'
                               ? window.location.pathname.startsWith('/dashboard/recruitment/applications')
                               : window.location.pathname === sub.path;
@@ -398,10 +443,10 @@ const AdminLayout = () => {
       </AnimatePresence>
 
       {/* --- Main Content Panel --- */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto relative">
 
         {/* Header Bar */}
-        <header className="sticky top-0 z-30 h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md flex items-center justify-between px-6">
+        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -430,7 +475,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Content Outlet with smooth transition */}
-        <main className="flex-1 p-6 md:p-8">
+        <main className={`flex-1 ${isRecruitmentSection ? 'p-1 md:p-8' : 'p-6 md:p-8'}`}>
           <Outlet />
         </main>
       </div>

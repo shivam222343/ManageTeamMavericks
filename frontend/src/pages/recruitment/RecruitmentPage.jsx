@@ -160,6 +160,7 @@ const FieldCard = ({
     }
     update('options', [...existing, { option_value: 'Other', option_label: 'Other' }]);
   };
+
   const removeOption = (i) => {
     const opts = [...(field.options || [])];
     opts.splice(i, 1);
@@ -193,7 +194,7 @@ const FieldCard = ({
         {isCoordinator && (
           <GripVertical
             size={14}
-            className="text-zinc-405 dark:text-zinc-600 shrink-0 cursor-grab active:cursor-grabbing hover:text-zinc-650 dark:hover:text-zinc-300 transition-colors"
+            className="text-zinc-400 dark:text-zinc-600 shrink-0 cursor-grab active:cursor-grabbing hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             onMouseEnter={() => setActiveDragField({ sectionIdx, fieldIdx })}
             onMouseLeave={() => { if (!draggingField) setActiveDragField(null); }}
           />
@@ -213,8 +214,9 @@ const FieldCard = ({
           ) : (
             <p className="text-xs font-black truncate text-zinc-900 dark:text-white uppercase tracking-wide">
               {field.label || <span className="text-zinc-400 dark:text-zinc-600 italic font-normal normal-case">Untitled field</span>}
-              {field.is_required && <span className="text-red-500 ml-0.5">*</span>}
+              {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-red-500 ml-0.5">*</span> : null}
             </p>
+
           )}
           <span className="text-[8px] uppercase tracking-widest font-extrabold text-zinc-400 dark:text-zinc-500 font-mono mt-0.5 block">
             {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
@@ -304,12 +306,13 @@ const FieldCard = ({
           {hasOptions && (
             <div className="border border-zinc-250/60 dark:border-zinc-800/40 rounded-2xl p-4 bg-zinc-50/40 dark:bg-zinc-950/20 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-455 dark:text-zinc-500 font-mono">Options Configuration</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 font-mono">Options Configuration</span>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={addOtherOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">
                     <PlusCircle size={12} /> Add "Other"
                   </button>
-                  <button type="button" onClick={addOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-blue-550 dark:text-blue-400 hover:underline cursor-pointer">
+                  <button type="button" onClick={addOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-primary-blue dark:text-blue-400 hover:underline cursor-pointer">
                     <PlusCircle size={12} /> Add option
                   </button>
                 </div>
@@ -621,19 +624,18 @@ const RecruitmentPage = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0 text-[10px] font-extrabold uppercase tracking-widest">
-            <button onClick={copyPublicUrl} className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-650 dark:text-zinc-350 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95">
+            <button onClick={copyPublicUrl} className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95">
               <Copy size={13} /> Copy URL
             </button>
-            <a href="/teammavericks/recruitment-2026" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-650 dark:text-zinc-350 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95">
+            <a href="/teammavericks/recruitment-2026" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95">
               <Eye size={13} /> View Live
             </a>
             {isCoordinator && (
-              <Link to="/dashboard/settings/portal" className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-500 hover:text-blue-550 dark:text-zinc-400 dark:hover:text-blue-400 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95" title="Portal Settings">
+              <Link to="/dashboard/settings/portal" className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-500 hover:text-blue-500 dark:text-zinc-400 dark:hover:text-blue-400 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95" title="Portal Settings">
                 <Settings size={13} /> Settings
               </Link>
-            )}
             {isCanEdit && (
-              <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 h-10 px-5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-650 text-white rounded-xl shadow-md hover:shadow-lg hover:shadow-blue-500/25 transition duration-150 cursor-pointer disabled:opacity-50 active:scale-95">
+              <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 h-10 px-5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl shadow-md hover:shadow-lg hover:shadow-blue-500/25 transition duration-150 cursor-pointer disabled:opacity-50 active:scale-95">
                 <Save size={13} /> <span>{saving ? 'Saving…' : 'Save Form'}</span>
               </button>
             )}

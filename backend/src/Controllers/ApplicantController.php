@@ -1095,3 +1095,4 @@ class ApplicantController {
         Router::sendJson(['available' => true]);
     }
 }
+

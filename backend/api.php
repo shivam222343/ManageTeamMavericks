@@ -31,6 +31,15 @@ use App\Controllers\ApplicantController;
 use App\Controllers\AnalyticsController;
 use App\Controllers\FaqController;
 
+// --- CORS Configuration ---
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 // Get the request path info
 $pathInfo = $_SERVER['PATH_INFO'] ?? '';
@@ -87,6 +96,7 @@ $router->addRoute('DELETE', '/applicants/{id}/notes/{noteId}', [ApplicantControl
 $router->addRoute('POST', '/applicants/communicate', [ApplicantController::class, 'communicate']);
 $router->addRoute('POST', '/applicants/send-otp', [ApplicantController::class, 'sendOtp']);
 $router->addRoute('POST', '/applicants/verify-otp', [ApplicantController::class, 'verifyOtp']);
+
 
 // --- PORTAL SETTINGS ROUTES ---
 $router->addRoute('GET', '/settings', [ApplicantController::class, 'getSettings']);

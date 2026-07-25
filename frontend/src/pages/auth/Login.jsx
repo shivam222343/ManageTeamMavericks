@@ -87,119 +87,114 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Main Container - Centered Single Column */}
-      <div className="w-full max-w-md z-10">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 shadow-xl shadow-zinc-950/5 dark:shadow-zinc-950/20"
+      >
+        <div className="text-center mb-8 flex flex-col items-center">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', delay: 0.1, stiffness: 200 }}
+            className="mb-4"
+          >
+          </motion.div>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mb-2">Management Portal</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">Enter your credentials to manage the recruitment drive.</p>
+        </div>
 
-        {/* Glassmorphism Login Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full rounded-2xl p-6 md:p-8 shadow-2xl border-2 border-white/35 dark:border-white/15 bg-white/[0.08] dark:bg-zinc-950/20 backdrop-blur-sm relative overflow-hidden"
-        >
-          {/* Subtle light glow sweep */}
-          <div className="absolute -inset-[100%] bg-gradient-to-r from-transparent via-white/5 to-transparent rotate-45 translate-y-[-50%] animate-shine-sweep pointer-events-none" />
+        {authError && (
+          <div className="mb-5 p-3 rounded-lg border border-accent-red/20 bg-accent-red/10 backdrop-blur-sm text-accent-red text-xs flex items-center gap-2">
+            <AlertCircle size={16} />
+            <span className="font-semibold text-red-200">{authError}</span>
+          </div>
+        )}
 
-          <div className="text-center mb-6 flex flex-col items-center">
-            <div className="mb-2 p-2 bg-primary-blue/10 dark:bg-primary-blue/20 rounded-full border border-primary-blue/20 dark:border-primary-blue/30">
-              <Shield className="w-6 h-6 text-primary-blue dark:text-blue-400" />
-            </div>
-            <h2 className="text-2xl font-bold tracking-tight text-white mb-1 drop-shadow-sm font-display">Management Portal</h2>
-            <p className="text-xs text-zinc-300 font-medium font-sans">Enter your credentials to manage the recruitment drive.</p>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          {/* Email */}
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2 uppercase tracking-wide">Email Address</label>
+            <input
+              type="email"
+              placeholder="coordinator@teammavericks.org"
+              {...register('email', {
+                required: 'Email is required',
+                pattern: { value: /^\S+@\S+$/i, message: 'Invalid email address' }
+              })}
+              className={`w-full px-3.5 py-2 rounded-lg border bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-blue focus:border-primary-blue transition-all duration-200
+                ${errors.email ? 'border-accent-red/50 focus:ring-accent-red' : 'border-zinc-200 dark:border-zinc-800'}
+              `}
+            />
+            {errors.email && (
+              <p className="mt-1.5 text-[11px] text-accent-red flex items-center gap-1 font-medium">
+                <AlertCircle size={10} />
+                <span>{errors.email.message}</span>
+              </p>
+            )}
           </div>
 
-          {authError && (
-            <div className="mb-5 p-3 rounded-lg border border-accent-red/20 bg-accent-red/10 backdrop-blur-sm text-accent-red text-xs flex items-center gap-2">
-              <AlertCircle size={16} />
-              <span className="font-semibold text-red-200">{authError}</span>
+          {/* Password */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wide font-sans">Password</label>
+              <button
+                type="button"
+                onClick={() => toast('Please contact the Coordinator to reset your password.', { icon: '🔑' })}
+                className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+              >
+                Forgot Password?
+              </button>
             </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5 uppercase tracking-wide font-sans">Email Address</label>
+            <div className="relative">
               <input
-                type="email"
-                placeholder="coordinator@teammavericks.org"
-                {...register('email', {
-                  required: 'Email is required',
-                  pattern: { value: /^\S+@\S+$/i, message: 'Invalid email address' }
-                })}
-                className={`w-full px-3.5 py-2.5 rounded-lg border text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue/50 focus:border-primary-blue transition-all duration-200
-                  ${errors.email ? 'border-accent-red/50 bg-accent-red/5 focus:ring-accent-red/50' : 'border-white/10 bg-white/5 dark:bg-zinc-950/20'}
-                `}
-              />
-              {errors.email && (
-                <p className="mt-1.5 text-[11px] text-red-400 flex items-center gap-1 font-medium">
-                  <AlertCircle size={10} />
-                  <span>{errors.email.message}</span>
-                </p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wide font-sans">Password</label>
-                <button
-                  type="button"
-                  onClick={() => toast('Please contact the Coordinator to reset your password.', { icon: '🔑' })}
-                  className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
-                >
-                  Forgot Password?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••••••"
-                  {...register('password', { required: 'Password is required' })}
-                  className={`w-full pl-3.5 pr-10 py-2.5 rounded-lg border text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue/50 focus:border-primary-blue transition-all duration-200
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••••••"
+                {...register('password', { required: 'Password is required' })}
+                className={`w-full pl-3.5 pr-10 py-2.5 rounded-lg border text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue/50 focus:border-primary-blue transition-all duration-200
                     ${errors.password ? 'border-accent-red/50 bg-accent-red/5 focus:ring-accent-red/50' : 'border-white/10 bg-white/5 dark:bg-zinc-950/20'}
                   `}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 cursor-pointer"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1.5 text-[11px] text-red-400 flex items-center gap-1 font-medium font-sans">
-                  <AlertCircle size={10} />
-                  <span>{errors.password.message}</span>
-                </p>
-              )}
-            </div>
-
-            {/* Remember Me */}
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="checkbox"
-                id="rememberMe"
-                {...register('rememberMe')}
-                className="w-4 h-4 rounded border-white/20 bg-white/5 text-primary-blue focus:ring-primary-blue/50 focus:ring-offset-zinc-900"
               />
-              <label htmlFor="rememberMe" className="text-xs text-zinc-300 font-medium select-none cursor-pointer font-sans">
-                Remember me on this device
-              </label>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
+            {errors.password && (
+              <p className="mt-1.5 text-[11px] text-red-400 flex items-center gap-1 font-medium font-sans">
+                <AlertCircle size={10} />
+                <span>{errors.password.message}</span>
+              </p>
+            )}
+          </div>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 mt-2 rounded-lg bg-primary-blue hover:bg-primary-blue-dark text-white font-semibold text-sm transition-all duration-200 shadow-lg shadow-primary-blue/20 hover:shadow-primary-blue/35 focus:outline-none focus:ring-2 focus:ring-primary-blue/50 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-            >
-              {submitting ? 'Verifying...' : 'Sign In'}
-            </button>
-          </form>
-        </motion.div>
+          {/* Remember Me */}
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="rememberMe"
+              {...register('rememberMe')}
+              className="w-4 h-4 rounded border-white/20 bg-white/5 text-primary-blue focus:ring-primary-blue/50 focus:ring-offset-zinc-900"
+            />
+            <label htmlFor="rememberMe" className="text-xs text-zinc-300 font-medium select-none cursor-pointer font-sans">
+              Remember me on this device
+            </label>
+          </div>
 
-      </div>
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-2.5 mt-2 rounded-lg bg-primary-blue hover:bg-primary-blue-dark text-white font-semibold text-sm transition-all duration-200 shadow-lg shadow-primary-blue/20 hover:shadow-primary-blue/35 focus:outline-none focus:ring-2 focus:ring-primary-blue/50 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+          >
+            {submitting ? 'Verifying...' : 'Sign In'}
+          </button>
+        </form>
+      </motion.div>
+
     </div>
   );
 };

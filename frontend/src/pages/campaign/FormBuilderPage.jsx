@@ -282,6 +282,19 @@ const FormBuilderPage = () => {
     handleUpdateActiveField('options', [...(field.options || []), newOpt]);
   };
 
+  const handleAddOtherOption = () => {
+    if (!activeField) return;
+    const { secIndex, fieldIndex } = activeField;
+    const field = sections[secIndex].fields[fieldIndex];
+    const existing = field.options || [];
+    if (existing.some(o => (o.option_label || '').toLowerCase() === 'other' || (o.option_value || '').toLowerCase() === 'other')) {
+      toast.info("'Other' option is already added.");
+      return;
+    }
+    const newOpt = { option_value: 'Other', option_label: 'Other' };
+    handleUpdateActiveField('options', [...existing, newOpt]);
+  };
+
   const handleRemoveOption = (optIndex) => {
     if (!activeField) return;
     const { secIndex, fieldIndex } = activeField;
@@ -459,8 +472,9 @@ const FormBuilderPage = () => {
                           <div className="space-y-0.5 min-w-0 flex-1">
                             <p className="text-xs font-bold truncate flex items-center gap-1.5">
                               <span>{field.label || 'Untitled Field'}</span>
-                              {field.is_required && <span className="text-accent-red">*</span>}
+                              {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-accent-red">*</span> : null}
                             </p>
+
                             <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
                               Type: {field.field_type}
                             </span>
@@ -583,15 +597,26 @@ const FormBuilderPage = () => {
                   <div className="border-t border-zinc-100 dark:border-zinc-800/80 pt-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-zinc-400 uppercase tracking-wide font-bold">Select Options</span>
-                      <button
-                        type="button"
-                        onClick={handleAddOption}
-                        className="text-[10px] font-bold text-primary-blue flex items-center gap-0.5 cursor-pointer"
-                      >
-                        <Plus size={10} />
-                        <span>Add Option</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAddOtherOption}
+                          className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-0.5 cursor-pointer hover:underline"
+                        >
+                          <Plus size={10} />
+                          <span>Add "Other"</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddOption}
+                          className="text-[10px] font-bold text-primary-blue flex items-center gap-0.5 cursor-pointer hover:underline"
+                        >
+                          <Plus size={10} />
+                          <span>Add Option</span>
+                        </button>
+                      </div>
                     </div>
+
 
                     <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                       {activeFieldDetails.options?.map((opt, oIdx) => (
