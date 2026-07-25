@@ -128,6 +128,14 @@ const FieldCard = ({
   const addOption = () => {
     update('options', [...(field.options || []), { option_value: '', option_label: '' }]);
   };
+  const addOtherOption = () => {
+    const existing = field.options || [];
+    if (existing.some(o => (o.option_label || '').toLowerCase() === 'other' || (o.option_value || '').toLowerCase() === 'other')) {
+      return;
+    }
+    update('options', [...existing, { option_value: 'Other', option_label: 'Other' }]);
+  };
+
   const removeOption = (i) => {
     const opts = [...(field.options || [])];
     opts.splice(i, 1);
@@ -161,7 +169,7 @@ const FieldCard = ({
         {isCoordinator && (
           <GripVertical
             size={14}
-            className="text-zinc-350 dark:text-zinc-650 shrink-0 cursor-grab active:cursor-grabbing hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
+            className="text-zinc-300 dark:text-zinc-600 shrink-0 cursor-grab active:cursor-grabbing hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
             onMouseEnter={() => setActiveDragField({ sectionIdx, fieldIdx })}
             onMouseLeave={() => { if (!draggingField) setActiveDragField(null); }}
           />
@@ -181,8 +189,9 @@ const FieldCard = ({
           ) : (
             <p className="text-sm font-bold truncate text-zinc-900 dark:text-zinc-100">
               {field.label || <span className="text-zinc-400 italic font-normal">Untitled field</span>}
-              {field.is_required && <span className="text-accent-red ml-0.5">*</span>}
+              {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-accent-red ml-0.5">*</span> : null}
             </p>
+
           )}
           <span className="text-[9px] uppercase tracking-wider font-bold text-zinc-400 dark:text-zinc-500">
             {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
@@ -273,10 +282,16 @@ const FieldCard = ({
             <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 bg-zinc-50 dark:bg-zinc-950/50 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Options</span>
-                <button type="button" onClick={addOption} className="flex items-center gap-1 text-[10px] font-bold text-primary-blue hover:underline cursor-pointer">
-                  <PlusCircle size={11} /> Add option
-                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={addOtherOption} className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">
+                    <PlusCircle size={11} /> Add "Other"
+                  </button>
+                  <button type="button" onClick={addOption} className="flex items-center gap-1 text-[10px] font-bold text-primary-blue hover:underline cursor-pointer">
+                    <PlusCircle size={11} /> Add option
+                  </button>
+                </div>
               </div>
+
               <div className="space-y-1.5 max-h-36 overflow-y-auto">
                 {(field.options || []).map((opt, oi) => (
                   <div key={oi} className="flex gap-2 items-center">
@@ -574,20 +589,20 @@ const RecruitmentPage = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            <button onClick={copyPublicUrl} className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-700 transition cursor-pointer shadow-sm">
-              <Copy size={12} /> Copy Link
+            <button onClick={copyPublicUrl} className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-700 transition cursor-pointer shadow-sm" title="Copy Link">
+              <Copy size={12} /> <span className="hidden sm:inline">Copy Link</span>
             </button>
-            <a href="/teammavericks/recruitment-2026" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-700 transition cursor-pointer shadow-sm">
-              <Eye size={12} /> Preview
+            <a href="/teammavericks/recruitment-2026" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-700 transition cursor-pointer shadow-sm" title="Preview">
+              <Eye size={12} /> <span className="hidden sm:inline">Preview</span>
             </a>
             {isCoordinator && (
               <Link to="/dashboard/settings/portal" className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-lg text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-primary-blue transition cursor-pointer shadow-sm" title="Portal Settings">
-                <Settings size={12} /> Settings
+                <Settings size={12} /> <span className="hidden sm:inline">Settings</span>
               </Link>
             )}
             {isCanEdit && (
-              <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-blue hover:bg-primary-blue-dark text-white rounded-lg text-xs font-bold shadow-md shadow-primary-blue/20 transition cursor-pointer disabled:opacity-50">
-                <Save size={12} /> {saving ? 'Saving…' : 'Save Form'}
+              <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-blue hover:bg-primary-blue-dark text-white rounded-lg text-xs font-bold shadow-md shadow-primary-blue/20 transition cursor-pointer disabled:opacity-50" title="Save Form">
+                <Save size={12} /> <span className="hidden sm:inline">{saving ? 'Saving…' : 'Save Form'}</span>
               </button>
             )}
           </div>

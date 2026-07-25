@@ -8,8 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
 
-  // Setup Axios defaults
-  axios.defaults.baseURL = 'http://localhost:8000'; // Target local PHP built-in server
+  axios.defaults.baseURL = 'https://server.teammavericks.org'; // Target deployed PHP server
   
   useEffect(() => {
     if (token) {

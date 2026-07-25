@@ -24,7 +24,7 @@ define('SMTP_FROM_EMAIL', 'official@teammavericks.org');
 define('SMTP_FROM_NAME', 'Team Mavericks');
 
 // Frontend Host URL (for email headers and links)
-define('FRONTEND_URL', 'http://localhost:3000');
+define('FRONTEND_URL', 'https://manage.teammavericks.org');
 
 // Error reporting config (set to false in production)
 define('DISPLAY_ERRORS', true);

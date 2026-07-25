@@ -24,7 +24,7 @@ const CommunicatePage = () => {
   const [body, setBody] = useState('');
   const [hasButton, setHasButton] = useState(false);
   const [buttonText, setButtonText] = useState('Go to your application dashboard');
-  const [buttonUrl, setButtonUrl] = useState('http://localhost:8000/teammavericks/apply-success');
+  const [buttonUrl, setButtonUrl] = useState('https://manage.teammavericks.org');
   const [saveTargetEvent, setSaveTargetEvent] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
 
@@ -305,12 +305,12 @@ const CommunicatePage = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-zinc-500">Recruitment drive:</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <span className="text-xs font-bold text-zinc-500 shrink-0">Recruitment drive:</span>
             <select
               value={selectedCampaignId}
               onChange={e => setSelectedCampaignId(e.target.value)}
-              className="px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-xs font-bold rounded-lg focus:outline-none"
+              className="w-full sm:w-auto px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-xs font-bold rounded-lg focus:outline-none"
             >
               {campaigns.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>

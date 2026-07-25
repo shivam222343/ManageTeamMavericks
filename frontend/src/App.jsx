@@ -57,7 +57,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 function App() {
   return (
     <BrowserRouter>
-      <Toaster 
+      <Toaster
         position="top-right"
         toastOptions={{
           className: 'dark:bg-zinc-900 dark:text-zinc-50 dark:border-zinc-800 border',
@@ -73,8 +73,8 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         {/* Dashboard admin routes */}
-        <Route 
-          path="/dashboard" 
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <AdminLayout />
@@ -83,53 +83,53 @@ function App() {
         >
           {/* Main Dashboard Overview */}
           <Route index element={<DashboardHome />} />
-          
+
           {/* Applicant Management */}
           <Route path="applicants" element={<ApplicantList />} />
           <Route path="applicants/:id" element={<ApplicantProfile />} />
 
           {/* Campaign Configuration (Coordinators and Core Members) */}
-          <Route 
-            path="campaigns" 
+          <Route
+            path="campaigns"
             element={
               <ProtectedRoute allowedRoles={['coordinator', 'core_member']}>
                 <CampaignList />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="campaigns/:id/form" 
+          <Route
+            path="campaigns/:id/form"
             element={
               <ProtectedRoute allowedRoles={['coordinator', 'core_member']}>
                 <FormBuilderPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="campaigns/:id/domains" 
+          <Route
+            path="campaigns/:id/domains"
             element={
               <ProtectedRoute allowedRoles={['coordinator', 'core_member']}>
                 <DomainConfigPage />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Email Templates settings (Coordinators only) */}
-          <Route 
-            path="settings/email-templates" 
+          <Route
+            path="settings/email-templates"
             element={
               <ProtectedRoute allowedRoles={['coordinator']}>
                 <EmailTemplatesPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="settings/portal" 
+          <Route
+            path="settings/portal"
             element={
               <ProtectedRoute allowedRoles={['coordinator']}>
                 <PortalSettings />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* New navigation items placeholders */}

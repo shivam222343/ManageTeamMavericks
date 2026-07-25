@@ -270,7 +270,7 @@ const ApplicantProfile = () => {
                 const isPdf = file.file_type === 'application/pdf';
                 const fileUrl = file.file_path.startsWith('http://') || file.file_path.startsWith('https://') 
                   ? file.file_path 
-                  : `http://localhost:8000/${file.file_path}`;
+                  : `https://server.teammavericks.org/${file.file_path}`;
 
                 return (
                   <div key={file.file_id} className="p-4 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-lg flex flex-col justify-between gap-3 shadow-sm hover:shadow transition">

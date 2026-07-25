@@ -1,6 +1,16 @@
 <?php
 // api.php
 
+// --- CORS Configuration (Absolute Top to ensure preflights always pass) ---
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
 // Router fallback for PHP built-in web server to serve static files directly
 if (php_sapi_name() === 'cli-server') {
     $url = parse_url($_SERVER['REQUEST_URI']);
@@ -20,16 +30,6 @@ use App\Controllers\FormBuilderController;
 use App\Controllers\ApplicantController;
 use App\Controllers\AnalyticsController;
 use App\Controllers\FaqController;
-
-// --- CORS Configuration ---
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
 
 // Get the request path info
 $pathInfo = $_SERVER['PATH_INFO'] ?? '';
@@ -77,6 +77,7 @@ $router->addRoute('PUT', '/campaigns/{id}/faqs', [FaqController::class, 'saveFaq
 $router->addRoute('GET', '/applicants', [ApplicantController::class, 'list']);
 $router->addRoute('GET', '/applicants/export', [ApplicantController::class, 'export']);
 $router->addRoute('POST', '/applicants/apply', [ApplicantController::class, 'apply']);
+$router->addRoute('POST', '/applicants/check-credentials', [ApplicantController::class, 'checkCredentials']);
 $router->addRoute('GET', '/applicants/{id}', [ApplicantController::class, 'get']);
 $router->addRoute('PUT', '/applicants/{id}/status', [ApplicantController::class, 'updateStatus']);
 $router->addRoute('DELETE', '/applicants/{id}', [ApplicantController::class, 'delete']);
@@ -85,6 +86,7 @@ $router->addRoute('DELETE', '/applicants/{id}/notes/{noteId}', [ApplicantControl
 $router->addRoute('POST', '/applicants/communicate', [ApplicantController::class, 'communicate']);
 $router->addRoute('POST', '/applicants/send-otp', [ApplicantController::class, 'sendOtp']);
 $router->addRoute('POST', '/applicants/verify-otp', [ApplicantController::class, 'verifyOtp']);
+
 
 // --- PORTAL SETTINGS ROUTES ---
 $router->addRoute('GET', '/settings', [ApplicantController::class, 'getSettings']);

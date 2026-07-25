@@ -61,7 +61,7 @@ const Login = () => {
             className="mb-4"
           >
           </motion.div>
-          <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mb-2">Management Portal</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mb-2">Official Portal</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">Enter your credentials to manage the recruitment drive.</p>
         </div>
 
@@ -78,7 +78,7 @@ const Login = () => {
             <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2 uppercase tracking-wide">Email Address</label>
             <input
               type="email"
-              placeholder="coordinator@teammavericks.org"
+              placeholder="Enter your email"
               {...register('email', {
                 required: 'Email is required',
                 pattern: { value: /^\S+@\S+$/i, message: 'Invalid email address' }

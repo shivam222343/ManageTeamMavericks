@@ -8,6 +8,7 @@ import {
   Download,
   MoreHorizontal,
   ChevronRight,
+  ChevronDown,
   CheckCircle,
   AlertCircle,
   RefreshCw,
@@ -35,6 +36,7 @@ const ApplicantList = () => {
   const [formFields, setFormFields] = useState([]);
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState([]);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   const handleToggleColumn = (fieldId) => {
     setVisibleColumns(prev => {
@@ -204,18 +206,19 @@ const ApplicantList = () => {
         </div>
         <div className="flex gap-2.5">
           <a
-            href={`http://localhost:8000/applicants/export?token=${localStorage.getItem('token') || ''}`}
+            href={`https://server.teammavericks.org/applicants/export?token=${localStorage.getItem('token') || ''}`}
             download
             className="flex items-center gap-2 px-3.5 py-1.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
           >
             <Download size={14} />
-            <span>Export CSV</span>
+            <span className="hidden sm:inline">Export CSV</span>
           </a>
         </div>
       </div>
 
       {/* --- Filter Navigation Segment (Matches Screenshot segment controls) --- */}
-      <div className="flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-4">
+      {/* Desktop view filters */}
+      <div className="hidden sm:flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-4">
         {['all', 'applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected'].map((st) => (
           <button
             key={st}
@@ -223,13 +226,77 @@ const ApplicantList = () => {
             className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 border cursor-pointer
               ${statusFilter === st
                 ? 'bg-primary-blue text-white border-primary-blue shadow-sm shadow-primary-blue/15'
-                : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-50'
+                : 'bg-white dark:bg-zinc-900 text-zinc-550 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-50'
               }
             `}
           >
             {st.replace('_', ' ')}
           </button>
         ))}
+      </div>
+
+      {/* Mobile view collapsible filters (Accordion style) */}
+      <div className="sm:hidden flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-4 relative">
+        {['all', 'applied', 'shortlisted'].map((st) => (
+          <button
+            key={st}
+            onClick={() => {
+              setStatusFilter(st);
+              setShowMoreFilters(false);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 border cursor-pointer
+              ${statusFilter === st
+                ? 'bg-primary-blue text-white border-primary-blue shadow-sm shadow-primary-blue/15'
+                : 'bg-white dark:bg-zinc-900 text-zinc-550 border-zinc-200 dark:border-zinc-800'
+              }
+            `}
+          >
+            {st.replace('_', ' ')}
+          </button>
+        ))}
+        
+        {/* More button */}
+        <div className="relative inline-block">
+          <button
+            type="button"
+            onClick={() => setShowMoreFilters(!showMoreFilters)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 border cursor-pointer flex items-center gap-1
+              ${['under_review', 'interview', 'selected', 'rejected'].includes(statusFilter)
+                ? 'bg-primary-blue text-white border-primary-blue'
+                : 'bg-white dark:bg-zinc-900 text-zinc-550 border-zinc-200 dark:border-zinc-800'
+              }
+            `}
+          >
+            <span>
+              {['under_review', 'interview', 'selected', 'rejected'].includes(statusFilter)
+                ? statusFilter.replace('_', ' ')
+                : 'More...'}
+            </span>
+            <ChevronDown size={12} />
+          </button>
+
+          {showMoreFilters && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowMoreFilters(false)} />
+              <div className="absolute left-0 mt-1.5 z-20 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl p-1.5 space-y-0.5 text-left text-xs font-semibold">
+                {['under_review', 'interview', 'selected', 'rejected'].map(st => (
+                  <button
+                    key={st}
+                    onClick={() => {
+                      setStatusFilter(st);
+                      setShowMoreFilters(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 capitalize transition-all
+                      ${statusFilter === st ? 'text-primary-blue bg-primary-blue/5' : 'text-zinc-650 dark:text-zinc-350'}
+                    `}
+                  >
+                    {st.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* --- Search and Filters Bar (Matches Screenshot) --- */}
@@ -250,7 +317,7 @@ const ApplicantList = () => {
           <select
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
-            className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary-blue"
+            className="w-[110px] sm:w-auto px-3 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary-blue"
           >
             <option value="">All Domains</option>
             {Array.isArray(domains) && domains.map((dom) => (
@@ -268,7 +335,7 @@ const ApplicantList = () => {
             className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer flex items-center gap-1.5"
           >
             <ArrowUpDown size={12} />
-            <span>Order</span>
+            <span className="hidden sm:inline">Order</span>
           </button>
 
           <button
@@ -276,7 +343,8 @@ const ApplicantList = () => {
             onClick={handleClearFilters}
             className="px-3.5 py-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 text-xs font-bold transition cursor-pointer"
           >
-            Clear All Filters
+            <span className="hidden sm:inline">Clear All Filters</span>
+            <span className="inline sm:hidden">Clear</span>
           </button>
 
           <div className="relative">
@@ -286,7 +354,7 @@ const ApplicantList = () => {
               className="px-3.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-650 dark:text-zinc-300 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
             >
               <SlidersHorizontal size={12} />
-              <span>Columns</span>
+              <span className="hidden sm:inline">Columns</span>
             </button>
 
             {showColumnManager && (
@@ -323,7 +391,7 @@ const ApplicantList = () => {
       </form>
 
       {/* --- Applicants Data Table --- */}
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-sm">
+      <div className="-mx-6 sm:mx-0 border-x-0 sm:border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-none sm:rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <RefreshCw size={24} className="animate-spin text-primary-blue" />
@@ -381,7 +449,7 @@ const ApplicantList = () => {
                                   <div className="flex items-center gap-1.5">
                                     <span>📄 Uploaded</span>
                                     <a
-                                      href={answer.startsWith('http://') || answer.startsWith('https://') ? answer : `http://localhost:8000/${answer}`}
+                                      href={answer.startsWith('http://') || answer.startsWith('https://') ? answer : `https://server.teammavericks.org/${answer}`}
                                       target="_blank"
                                       rel="noreferrer"
                                       className="p-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-650 dark:text-zinc-300 transition cursor-pointer inline-flex items-center justify-center"
@@ -410,7 +478,7 @@ const ApplicantList = () => {
                               to={`/dashboard/applicants/${app.id}`}
                               className="px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 transition text-[11px]"
                             >
-                              <span>Details</span>
+                              <span className="hidden sm:inline">Details</span>
                               <ChevronRight size={12} />
                             </Link>
                             <button
