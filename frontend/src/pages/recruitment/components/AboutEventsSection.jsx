@@ -12,14 +12,32 @@ const EVENTS_DATA = [
     number: '01',
     title: 'BODHANTRA',
     tagline: 'LEARN WITH FUN',
-    description: 'A 5-day induction and engagement event introducing first-year students to college life through activities, creativity, learning, and fun.',
-    detailedDescription: 'Bodhantra is the official flagship induction program of Team Mavericks. Designed exclusively for first-year students, it bridges the gap between high school and college life. Spanning over five immersive days, it features a series of interactive icebreakers, creative workshops, team challenges, and talent showcases that help freshmen integrate into the campus ecosystem.',
-    objectives: ['Introduce first-year students to college culture', 'Promote cross-department collaboration', 'Identify and nurture raw talent early'],
-    activities: ['Creative ice-breaking sessions', 'Campus scavenger hunts', 'Interactive peer discussions', 'Closing cultural night'],
-    highlights: ['120+ freshers welcomed annually', 'Inter-departmental trophy', 'Mentorship from seniors'],
+    description: 'The flagship 5-day event of Team Mavericks designed exclusively for first-year students, combining technical and non-technical sessions with engaging activities.',
+    detailedDescription: 'Bodhantra is the flagship event of Team Mavericks, exclusively designed for first-year students. This five-day program combines technical and non-technical sessions with fun-filled activities, helping students learn, connect, and grow in an engaging environment.',
+    objectives: [
+      'Build confidence and communication skills',
+      'Foster teamwork and collaboration',
+      'Enhance technical and non-technical knowledge'
+    ],
+    activities: [
+      'Technical sessions',
+      'Fun games and team-building activities',
+      'Non-technical skill development sessions',
+      'Interactive competitions and networking'
+    ],
+    highlights: [
+      'Exclusive event for first-year students',
+      '5 days of learning and engagement',
+      'Technical and non-technical development'
+    ],
     duration: '5 Days',
-    audience: 'First-Year Students (Freshmen)',
-    benefits: ['Accelerated transition to college', 'Direct networking with seniors', 'Enhancement of soft skills'],
+    audience: 'Exclusively for First-Year Students',
+    benefits: [
+      'Confidence',
+      'Teamwork',
+      'Leadership',
+      'Fun Learning'
+    ],
     accentColor: 'from-purple-500 via-pink-500 to-red-500',
     borderColor: 'hover:shadow-[0_0_30px_rgba(168,85,247,0.3)]',
     textColor: 'text-purple-400',
@@ -36,15 +54,32 @@ const EVENTS_DATA = [
     id: 'invicta',
     number: '02',
     title: 'INVICTA',
-    tagline: 'Where Technology Meets Innovation',
-    description: 'Technical workshops, competitions, and innovation challenges designed to enhance practical skills and problem-solving.',
-    detailedDescription: 'Invicta is our flagship technical symposium designed to challenge and elevate students\' engineering capabilities. By combining cutting-edge tech workshops with high-stakes competitions (such as hackathons and design challenges), Invicta pushes participants to apply classroom theory to real-world problems.',
-    objectives: ['Foster a culture of practical engineering and design', 'Bridge industry-academia skill gaps', 'Promote open-source contribution and innovation'],
-    activities: ['24-hour rapid prototyping hackathon', 'Expert-led AI/ML workshops', 'UI/UX design challenge', 'Project exhibitions'],
-    highlights: ['Hands-on training by industry experts', 'Cash prizes for top innovators', 'Direct recruitment opportunities'],
-    duration: '3 Days',
-    audience: 'All Engineering & Tech Students',
-    benefits: ['Portfolio-ready projects', 'Interaction with tech leaders', 'Official participation certificates'],
+    tagline: 'FOR THE STUDENTS, BY THE STUDENTS',
+    description: 'A two-day workshop event featuring parallel technical and non-technical workshops with practical, interactive learning experiences.',
+    detailedDescription: 'Invicta is a two-day workshop event by Team Mavericks, open to all students. It features parallel technical and non-technical workshops, along with interactive academic sessions delivered through practical learning, demonstrations, and performances, making every topic engaging, insightful, and easy to understand.',
+    objectives: [
+      'Enhance technical and practical skills',
+      'Encourage interactive and experiential learning',
+      'Explore diverse domains beyond academics'
+    ],
+    activities: [
+      'Parallel technical workshops',
+      'Non-technical workshops',
+      'Academic learning through real-time implementation',
+      'Live demonstrations and performances'
+    ],
+    highlights: [
+      'Parallel workshop tracks',
+      'Hands-on practical learning',
+      'Open to students from all disciplines'
+    ],
+    duration: '2 Days',
+    audience: 'Open to All Students',
+    benefits: [
+      'Practical Learning',
+      'Skill Development',
+      'Industry Exposure'
+    ],
     accentColor: 'from-blue-500 via-cyan-500 to-teal-500',
     borderColor: 'hover:shadow-[0_0_30px_rgba(59,130,246,0.3)]',
     textColor: 'text-blue-400',
@@ -61,15 +96,32 @@ const EVENTS_DATA = [
     id: 'verbafest',
     number: '03',
     title: 'VERBAFEST',
-    tagline: 'Speak. Debate. Elevate.',
-    description: 'Communication-focused event featuring debates, public speaking, discussions, and personality development.',
-    detailedDescription: 'Verbafest is a dynamic platform for oral expression, argumentative debate, and leadership training. Aimed at cultivating persuasive communication skills, it challenges students through mock press conferences, structured debates, and public speaking modules, preparing them for corporate leadership.',
-    objectives: ['Build stage confidence and reduce public speaking anxiety', 'Cultivate critical thinking and logical reasoning', 'Enhance overall professional communication standard'],
-    activities: ['British Parliamentary style debate', 'Impromptu public speaking showdown', 'Corporate interview simulations', 'Panel discussions on current affairs'],
-    highlights: ['Eminent guest speakers & judges', 'Mock UN debate format', 'Interactive feedback loops'],
-    duration: '2 Days',
-    audience: 'Aspiring Leaders & Communicators',
-    benefits: ['Immensely improved confidence', 'Better preparation for placements', 'Networking with debate enthusiasts'],
+    tagline: 'SPEAK. DEBATE. ELEVATE.',
+    description: 'A one-day placement preparation event focused on communication, interviews, debates, and group discussions.',
+    detailedDescription: 'Verbafest is a one-day placement preparation event by Team Mavericks, open to all students. Designed to simulate real placement drives, it includes Group Discussions (GD), Debates, and Mock Interviews, helping participants build confidence, improve communication, and prepare for recruitment processes.',
+    objectives: [
+      'Strengthen communication and interview skills',
+      'Prepare students for placement rounds',
+      'Build confidence and critical thinking'
+    ],
+    activities: [
+      'Group Discussion (GD) rounds',
+      'Debate competitions',
+      'Mock personal interviews',
+      'Placement-oriented evaluation and feedback'
+    ],
+    highlights: [
+      'Placement-focused event',
+      'Real interview simulation',
+      'Expert feedback sessions'
+    ],
+    duration: '1 Day',
+    audience: 'Open to All Students',
+    benefits: [
+      'Placement Readiness',
+      'Communication Skills',
+      'Confidence'
+    ],
     accentColor: 'from-orange-500 via-red-500 to-pink-500',
     borderColor: 'hover:shadow-[0_0_30px_rgba(249,115,22,0.3)]',
     textColor: 'text-orange-400',
@@ -86,15 +138,32 @@ const EVENTS_DATA = [
     id: 'school-visit',
     number: '04',
     title: 'SCHOOL VISIT',
-    tagline: 'Inspiring the Next Generation',
-    description: 'Educational outreach initiative inspiring school students through interactive sessions, demonstrations, and career guidance.',
-    detailedDescription: 'Our School Visit program is a social responsibility initiative where Team Mavericks visits local schools to inspire younger students towards STEM fields and creative arts. Through live science demonstrations, coding sessions, and interactive career mentorship, we plant the seeds of curiosity and innovation.',
-    objectives: ['Deliver access to hands-on science and tech experiments', 'Offer career guidance and personal mentorship', 'Give back to the local community'],
-    activities: ['Live robotics and physics demonstrations', 'Introductory coding workshops', 'Interactive games and quizzes', 'Mentorship and Q&A sessions'],
-    highlights: ['10+ rural and municipal schools reached', 'Over 1500 school children inspired', 'Highly rewarding volunteer experience'],
-    duration: 'Ongoing / Single Day Visits',
-    audience: 'High School & Middle School Students',
-    benefits: ['Practical teaching experience for members', 'Direct social impact in community', 'Team collaboration outside college campus'],
+    tagline: 'INSPIRING THE NEXT GENERATION',
+    description: 'A social outreach initiative where Team Mavericks inspires school students through interactive learning, career guidance, and engaging activities.',
+    detailedDescription: 'School Visit is a social outreach initiative by Team Mavericks, where students visit schools to inspire young minds through interactive learning. The program includes educational sessions, career guidance, and engaging activities, promoting the vision of "Students for Students."',
+    objectives: [
+      'Inspire and mentor school students',
+      'Provide career guidance and awareness',
+      'Encourage interactive and practical learning'
+    ],
+    activities: [
+      'Educational and awareness sessions',
+      'Career guidance and mentorship',
+      'Fun learning activities and games',
+      'Interactive demonstrations and workshops'
+    ],
+    highlights: [
+      'Students for Students initiative',
+      'Interactive learning experience',
+      'Community outreach program'
+    ],
+    duration: '1 Day',
+    audience: 'School Students',
+    benefits: [
+      'Learning',
+      'Career Awareness',
+      'Student Mentorship'
+    ],
     accentColor: 'from-emerald-500 via-teal-500 to-blue-500',
     borderColor: 'hover:shadow-[0_0_30px_rgba(16,185,129,0.3)]',
     textColor: 'text-emerald-400',
