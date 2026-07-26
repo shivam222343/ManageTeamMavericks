@@ -1,0 +1,19 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Redirection to api.php for clean URLs
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ api.php [QSA,L]
+</IfModule>
+
+# CORS Headers for Apache
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    
+    # Handle preflight OPTIONS requests directly in Apache if needed
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [R=200,L]
+</IfModule>

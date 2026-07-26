@@ -153,6 +153,13 @@ const FieldCard = ({
   const addOption = () => {
     update('options', [...(field.options || []), { option_value: '', option_label: '' }]);
   };
+  const addOtherOption = () => {
+    const existing = field.options || [];
+    if (existing.some(o => (o.option_label || '').toLowerCase() === 'other' || (o.option_value || '').toLowerCase() === 'other')) {
+      return;
+    }
+    update('options', [...existing, { option_value: 'Other', option_label: 'Other' }]);
+  };
   const removeOption = (i) => {
     const opts = [...(field.options || [])];
     opts.splice(i, 1);
@@ -298,9 +305,14 @@ const FieldCard = ({
             <div className="border border-zinc-250/60 dark:border-zinc-800/40 rounded-2xl p-4 bg-zinc-50/40 dark:bg-zinc-950/20 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-black uppercase tracking-widest text-zinc-455 dark:text-zinc-500 font-mono">Options Configuration</span>
-                <button type="button" onClick={addOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-blue-550 dark:text-blue-400 hover:underline cursor-pointer">
-                  <PlusCircle size={12} /> Add option
-                </button>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={addOtherOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">
+                    <PlusCircle size={12} /> Add "Other"
+                  </button>
+                  <button type="button" onClick={addOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-blue-550 dark:text-blue-400 hover:underline cursor-pointer">
+                    <PlusCircle size={12} /> Add option
+                  </button>
+                </div>
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {(field.options || []).map((opt, oi) => (
