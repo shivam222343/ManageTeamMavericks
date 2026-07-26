@@ -224,6 +224,9 @@ class ApplicantController {
         if ($isPhoneRequired && empty($phone)) {
             Router::sendJson(['error' => 'Phone number is required'], 400);
         }
+        if (!empty($phone) && !preg_match('/^\d{10}$/', $phone)) {
+            Router::sendJson(['error' => 'Mobile number must be exactly 10 digits.'], 400);
+        }
 
         // Check if Campaign is active
         $stmtC = $db->prepare("SELECT status, deadline, max_applications FROM campaigns WHERE id = ?");
@@ -1026,5 +1029,69 @@ class ApplicantController {
             $stmt->execute([preg_replace('/[^a-z0-9_]/', '', strtolower($key)), (string)$value]);
         }
         Router::sendJson(['message' => 'Settings saved successfully']);
+    }
+
+    /**
+     * POST /api.php/applicants/check-credentials
+     * Check if email, PRN, or phone already exists in DB for a campaign
+     */
+    public function checkCredentials(): void {
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true) ?: $_POST;
+
+        $campaignId = isset($input['campaign_id']) ? (int)$input['campaign_id'] : 1;
+        $prn = strtoupper(trim($input['prn'] ?? ''));
+        $email = strtolower(trim($input['email'] ?? ''));
+        $phone = trim($input['phone'] ?? '');
+
+        // 1. Phone number format validation (10 digits) if provided
+        if (!empty($phone) && !preg_match('/^\d{10}$/', $phone)) {
+            Router::sendJson(['error' => 'Mobile number must be exactly 10 digits.', 'field' => 'phone'], 400);
+            return;
+        }
+
+        if (empty($prn) && empty($email) && empty($phone)) {
+            Router::sendJson(['available' => true]);
+            return;
+        }
+
+        $db = Database::getConnection();
+        $checkQuery = "SELECT prn, email, phone FROM applications WHERE campaign_id = ? AND (1=0";
+        $checkParams = [$campaignId];
+
+        if (!empty($prn)) {
+            $checkQuery .= " OR prn = ?";
+            $checkParams[] = $prn;
+        }
+        if (!empty($email)) {
+            $checkQuery .= " OR email = ?";
+            $checkParams[] = $email;
+        }
+        if (!empty($phone)) {
+            $checkQuery .= " OR phone = ?";
+            $checkParams[] = $phone;
+        }
+        $checkQuery .= ")";
+
+        $stmtCheck = $db->prepare($checkQuery);
+        $stmtCheck->execute($checkParams);
+        $duplicate = $stmtCheck->fetch();
+
+        if ($duplicate) {
+            if (!empty($prn) && strtoupper($duplicate['prn']) === $prn) {
+                Router::sendJson(['error' => 'An application has already been submitted with this PRN.', 'field' => 'prn'], 400);
+                return;
+            }
+            if (!empty($email) && strtolower($duplicate['email']) === $email) {
+                Router::sendJson(['error' => 'An application has already been submitted with this Email.', 'field' => 'email'], 400);
+                return;
+            }
+            if (!empty($phone) && $duplicate['phone'] === $phone) {
+                Router::sendJson(['error' => 'An application has already been submitted with this Phone number.', 'field' => 'phone'], 400);
+                return;
+            }
+        }
+
+        Router::sendJson(['available' => true]);
     }
 }

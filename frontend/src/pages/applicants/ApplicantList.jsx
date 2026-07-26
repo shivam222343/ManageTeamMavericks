@@ -8,6 +8,7 @@ import {
   Download,
   MoreHorizontal,
   ChevronRight,
+  ChevronDown,
   CheckCircle,
   AlertCircle,
   RefreshCw,
@@ -28,6 +29,7 @@ const ApplicantList = () => {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected'
   const [domainFilter, setDomainFilter] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   const [domains, setDomains] = useState([]);
   const [sortField, setSortField] = useState('applied_at');
@@ -215,7 +217,7 @@ const ApplicantList = () => {
       </div>
 
       {/* --- Filter Navigation Segment (Matches Screenshot segment controls) --- */}
-      <div className="flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-4">
+      <div className="hidden sm:flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-4">
         {['all', 'applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected'].map((st) => (
           <button
             key={st}
@@ -223,13 +225,77 @@ const ApplicantList = () => {
             className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 border cursor-pointer
               ${statusFilter === st
                 ? 'bg-primary-blue text-white border-primary-blue shadow-sm shadow-primary-blue/15'
-                : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-50'
+                : 'bg-white dark:bg-zinc-900 text-zinc-550 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-50'
               }
             `}
           >
             {st.replace('_', ' ')}
           </button>
         ))}
+      </div>
+
+      {/* Mobile view collapsible filters (Accordion style) */}
+      <div className="sm:hidden flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-4 relative">
+        {['all', 'applied', 'shortlisted'].map((st) => (
+          <button
+            key={st}
+            onClick={() => {
+              setStatusFilter(st);
+              setShowMoreFilters(false);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 border cursor-pointer
+              ${statusFilter === st
+                ? 'bg-primary-blue text-white border-primary-blue shadow-sm shadow-primary-blue/15'
+                : 'bg-white dark:bg-zinc-900 text-zinc-550 border-zinc-200 dark:border-zinc-800'
+              }
+            `}
+          >
+            {st.replace('_', ' ')}
+          </button>
+        ))}
+        
+        {/* More button */}
+        <div className="relative inline-block">
+          <button
+            type="button"
+            onClick={() => setShowMoreFilters(!showMoreFilters)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200 border cursor-pointer flex items-center gap-1
+              ${['under_review', 'interview', 'selected', 'rejected'].includes(statusFilter)
+                ? 'bg-primary-blue text-white border-primary-blue'
+                : 'bg-white dark:bg-zinc-900 text-zinc-550 border-zinc-200 dark:border-zinc-800'
+              }
+            `}
+          >
+            <span>
+              {['under_review', 'interview', 'selected', 'rejected'].includes(statusFilter)
+                ? statusFilter.replace('_', ' ')
+                : 'More...'}
+            </span>
+            <ChevronDown size={12} />
+          </button>
+
+          {showMoreFilters && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowMoreFilters(false)} />
+              <div className="absolute left-0 mt-1.5 z-20 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl p-1.5 space-y-0.5 text-left text-xs font-semibold">
+                {['under_review', 'interview', 'selected', 'rejected'].map(st => (
+                  <button
+                    key={st}
+                    onClick={() => {
+                      setStatusFilter(st);
+                      setShowMoreFilters(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 capitalize transition-all
+                      ${statusFilter === st ? 'text-primary-blue bg-primary-blue/5' : 'text-zinc-650 dark:text-zinc-350'}
+                    `}
+                  >
+                    {st.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* --- Search and Filters Bar (Matches Screenshot) --- */}
