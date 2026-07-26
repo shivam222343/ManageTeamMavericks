@@ -33,6 +33,7 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import Footer from '../../components/layout/Footer';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -1188,20 +1189,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- Footer --- */}
-      <footer className="py-16 border-t text-center px-6 backdrop-blur-xl relative z-10 bg-white/60 border-blue-100/40 dark:bg-[#06040f]/60 dark:border-zinc-900/60 footer-main">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-3.5">
-            <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 object-contain shrink-0 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.2)]" />
-            <div className="text-left">
-              <span className="font-extrabold text-sm tracking-tight uppercase block text-zinc-900 dark:text-white">Team Mavericks</span>
-              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest font-mono mt-0.5">Stay Updated!! Stay Ahead!!</p>
-            </div>
-          </div>
-          <div className="text-[10px] text-zinc-550 font-bold uppercase tracking-widest leading-normal font-mono">
-            &copy; {new Date().getFullYear()} Team Mavericks KIT CoEK Kolhapur.
-          </div>
-        </div>
-      </footer>
+      <Footer />
 
     </div>
   );
