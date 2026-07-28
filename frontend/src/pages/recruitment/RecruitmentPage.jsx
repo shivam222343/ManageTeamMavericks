@@ -306,7 +306,6 @@ const FieldCard = ({
           {hasOptions && (
             <div className="border border-zinc-250/60 dark:border-zinc-800/40 rounded-2xl p-4 bg-zinc-50/40 dark:bg-zinc-950/20 space-y-3">
               <div className="flex items-center justify-between">
-              <div className="flex items-center justify-between">
                 <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 font-mono">Options Configuration</span>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={addOtherOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">
@@ -634,6 +633,7 @@ const RecruitmentPage = () => {
               <Link to="/dashboard/settings/portal" className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-500 hover:text-blue-500 dark:text-zinc-400 dark:hover:text-blue-400 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95" title="Portal Settings">
                 <Settings size={13} /> Settings
               </Link>
+            )}
             {isCanEdit && (
               <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 h-10 px-5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl shadow-md hover:shadow-lg hover:shadow-blue-500/25 transition duration-150 cursor-pointer disabled:opacity-50 active:scale-95">
                 <Save size={13} /> <span>{saving ? 'Saving…' : 'Save Form'}</span>
