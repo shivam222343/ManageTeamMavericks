@@ -26,8 +26,12 @@ class ApplicantController {
         $db = Database::getConnection();
 
         $query = "SELECT a.*, 
-            (SELECT GROUP_CONCAT(d.name SEPARATOR ', ') FROM application_domains ad JOIN domains d ON ad.domain_id = d.id WHERE ad.application_id = a.id) as domains,
-            (SELECT ans.answer_text FROM application_answers ans JOIN form_fields f ON ans.field_id = f.id WHERE ans.application_id = a.id AND f.field_type = 'dropdown' AND f.label LIKE '%Department%' LIMIT 1) as department
+            COALESCE(
+                (SELECT GROUP_CONCAT(d.name SEPARATOR ', ') FROM application_domains ad JOIN domains d ON ad.domain_id = d.id WHERE ad.application_id = a.id),
+                (SELECT ans.answer_text FROM application_answers ans JOIN form_fields f ON ans.field_id = f.id WHERE ans.application_id = a.id AND (f.label LIKE '%Domain%' OR f.label LIKE '%Preferred%') AND ans.answer_text IS NOT NULL AND ans.answer_text != '' LIMIT 1),
+                'General'
+            ) as domains,
+            (SELECT ans.answer_text FROM application_answers ans JOIN form_fields f ON ans.field_id = f.id WHERE ans.application_id = a.id AND (f.field_type = 'dropdown' OR f.label LIKE '%Department%' OR f.label LIKE '%Branch%') LIMIT 1) as department
             FROM applications a 
             WHERE a.campaign_id = :campaign_id";
 
@@ -44,8 +48,19 @@ class ApplicantController {
         }
 
         if ($domainId) {
-            $query .= " AND a.id IN (SELECT ad.application_id FROM application_domains ad WHERE ad.domain_id = :domain_id)";
+            // Find domain name if numeric ID passed
+            $stmtDName = $db->prepare("SELECT name FROM domains WHERE id = ?");
+            $stmtDName->execute([$domainId]);
+            $dName = $stmtDName->fetchColumn();
+
+            $query .= " AND (a.id IN (SELECT ad.application_id FROM application_domains ad WHERE ad.domain_id = :domain_id)";
             $params[':domain_id'] = $domainId;
+
+            if ($dName) {
+                $query .= " OR a.id IN (SELECT ans.application_id FROM application_answers ans JOIN form_fields f ON ans.field_id = f.id WHERE (f.label LIKE '%Domain%' OR f.label LIKE '%Preferred%') AND ans.answer_text LIKE :dname)";
+                $params[':dname'] = '%' . $dName . '%';
+            }
+            $query .= ")";
         }
 
         $allowedSortColumns = ['applied_at', 'full_name', 'status', 'prn'];

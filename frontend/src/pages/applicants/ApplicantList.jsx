@@ -89,34 +89,31 @@ const ApplicantList = () => {
     }
   };
 
-  // Fetch campaign domains
+  // Fetch campaign domains & dynamic domain options
   useEffect(() => {
     const fetchDomains = async () => {
       try {
-        const res = await axios.get('/campaigns/1/domains');
-        if (Array.isArray(res.data)) {
-          setDomains(res.data);
-        } else {
-          setDomains([]);
-        }
-      } catch (err) {
-        console.error('Failed to load campaign domains');
-        setDomains([]);
-      }
-    };
-    fetchDomains();
-  }, []);
-  // Fetch campaign form fields for table columns
-  useEffect(() => {
-    const fetchFormFields = async () => {
-      try {
-        const res = await axios.get('/campaigns/1/form');
-        if (Array.isArray(res.data)) {
-          // Flatten all fields across sections
-          const fields = res.data.reduce((acc, sec) => {
-            return [...acc, ...(sec.fields || [])];
-          }, []);
+        const resDom = await axios.get('/campaigns/1/domains');
+        let domList = Array.isArray(resDom.data) ? [...resDom.data] : [];
+        
+        // Also inspect form fields for dynamic domain options
+        const resForm = await axios.get('/campaigns/1/form');
+        if (Array.isArray(resForm.data)) {
+          const fields = resForm.data.reduce((acc, sec) => [...acc, ...(sec.fields || [])], []);
           setFormFields(fields);
+
+          const domainFields = fields.filter(f => 
+            (f.label.toLowerCase().includes('domain') || f.label.toLowerCase().includes('preferred')) && f.options && f.options.length > 0
+          );
+
+          domainFields.forEach(df => {
+            df.options.forEach(opt => {
+              const optName = opt.option_label || opt.option_value || opt;
+              if (optName && !domList.some(d => d.name.toLowerCase() === String(optName).toLowerCase())) {
+                domList.push({ id: opt.id || opt.option_value || optName, name: optName });
+              }
+            });
+          });
 
           // Initialize visible columns
           const savedCols = localStorage.getItem('visible_applicant_columns');
@@ -127,7 +124,6 @@ const ApplicantList = () => {
               setVisibleColumns(fields.map(f => f.id));
             }
           } else {
-            // Default: show first 4 fields to keep layout clean, or all if less than 4
             if (fields.length > 4) {
               setVisibleColumns(fields.slice(0, 4).map(f => f.id));
             } else {
@@ -135,11 +131,12 @@ const ApplicantList = () => {
             }
           }
         }
+        setDomains(domList);
       } catch (err) {
-        console.error('Failed to load campaign form fields for headers:', err);
+        console.error('Failed to load campaign domains', err);
       }
     };
-    fetchFormFields();
+    fetchDomains();
   }, []);
   // Trigger search on filter changes
   useEffect(() => {

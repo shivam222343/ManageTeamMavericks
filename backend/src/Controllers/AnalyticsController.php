@@ -88,6 +88,98 @@ class AnalyticsController {
         $stmtTrend->execute([$campaignId]);
         $trend = $stmtTrend->fetchAll();
 
+        // 7. Dynamic Field Analytics for ALL dynamic questionnaire form fields
+        $stmtFields = $db->prepare("SELECT f.id, f.label, f.field_type 
+            FROM form_fields f 
+            JOIN form_sections s ON f.section_id = s.id 
+            WHERE s.campaign_id = ? AND f.field_type NOT IN ('file', 'image', 'resume', 'pdf', 'id_card')
+            ORDER BY s.display_order ASC, f.display_order ASC");
+        $stmtFields->execute([$campaignId]);
+        $formFields = $stmtFields->fetchAll(PDO::FETCH_ASSOC);
+
+        $fieldAnalytics = [];
+
+        foreach ($formFields as $field) {
+            $fId = $field['id'];
+            $label = $field['label'];
+            $fType = $field['field_type'];
+
+            // Skip primary personal details if redundant
+            $lblLower = strtolower($label);
+            if (in_array($lblLower, ['full name', 'permanent registration number (prn)', 'email address', 'phone number', 'email', 'prn', 'contact number', 'name'])) {
+                continue;
+            }
+
+            $stmtAns = $db->prepare("SELECT ans.answer_text, COUNT(*) as count 
+                FROM application_answers ans 
+                JOIN applications a ON ans.application_id = a.id
+                WHERE a.campaign_id = ? AND ans.field_id = ? AND ans.answer_text IS NOT NULL AND ans.answer_text != ''
+                GROUP BY ans.answer_text");
+            $stmtAns->execute([$campaignId, $fId]);
+            $rawAnswers = $stmtAns->fetchAll(PDO::FETCH_ASSOC);
+
+            $countsMap = [];
+            foreach ($rawAnswers as $ra) {
+                $rawText = trim($ra['answer_text']);
+                $cnt = (int)$ra['count'];
+
+                $parsed = [];
+                if (str_starts_with($rawText, '[') && str_ends_with($rawText, ']')) {
+                    $jsonArr = json_decode($rawText, true);
+                    if (is_array($jsonArr)) {
+                        $parsed = $jsonArr;
+                    } else {
+                        $parsed = [$rawText];
+                    }
+                } elseif (str_contains($rawText, ',') && !str_contains($rawText, "\n")) {
+                    $parsed = explode(',', $rawText);
+                } else {
+                    $parsed = [$rawText];
+                }
+
+                foreach ($parsed as $item) {
+                    $itemClean = trim(str_replace('_', ' ', $item));
+                    if (empty($itemClean)) continue;
+
+                    // Clean acronyms or write-ins
+                    if (str_starts_with(strtolower($itemClean), 'other:')) {
+                        $key = 'Other Write-ins';
+                    } else {
+                        $key = ucwords(strtolower($itemClean));
+                        if (strtolower($key) === 'cse') $key = 'CSE';
+                        if (strtolower($key) === 'ece') $key = 'ECE';
+                        if (strtolower($key) === 'sy') $key = 'SY (Second Year)';
+                        if (strtolower($key) === 'fy') $key = 'FY (First Year)';
+                        if (strtolower($key) === 'ty') $key = 'TY (Third Year)';
+                    }
+
+                    if (!isset($countsMap[$key])) {
+                        $countsMap[$key] = 0;
+                    }
+                    $countsMap[$key] += $cnt;
+                }
+            }
+
+            $breakdown = [];
+            foreach ($countsMap as $opt => $cnt) {
+                $breakdown[] = [
+                    'option' => $opt,
+                    'count' => $cnt
+                ];
+            }
+
+            usort($breakdown, fn($a, $b) => $b['count'] <=> $a['count']);
+
+            if (!empty($breakdown)) {
+                $fieldAnalytics[] = [
+                    'field_id' => $fId,
+                    'label' => $label,
+                    'field_type' => $fType,
+                    'breakdown' => array_slice($breakdown, 0, 10)
+                ];
+            }
+        }
+
         Router::sendJson([
             'summary' => [
                 'total_applications' => $total,
@@ -100,7 +192,8 @@ class AnalyticsController {
             'departments' => $depts,
             'domains' => $domains,
             'genderRatio' => $gender,
-            'applicationTrend' => $trend
+            'applicationTrend' => $trend,
+            'fieldAnalytics' => $fieldAnalytics
         ]);
     }
 }

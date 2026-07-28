@@ -222,6 +222,38 @@ const ApplicantProfile = () => {
             </div>
           </div>
 
+          {/* Card 1.5: Selected Domains */}
+          {((applicant.selected_domains && applicant.selected_domains.length > 0) || applicant.domains) && (
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm space-y-3">
+              <h3 className="font-bold text-sm border-b border-zinc-100 dark:border-zinc-800 pb-3 flex items-center gap-2">
+                <Bookmark size={16} className="text-primary-blue" />
+                <span>Preferred Application Domains</span>
+              </h3>
+              <div className="flex flex-wrap gap-2.5 pt-1">
+                {applicant.selected_domains && applicant.selected_domains.length > 0 ? (
+                  applicant.selected_domains.map((dom) => (
+                    <div 
+                      key={dom.id} 
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold shadow-xs"
+                      style={{ 
+                        borderColor: dom.color ? `${dom.color}40` : '#2563eb40',
+                        backgroundColor: dom.color ? `${dom.color}15` : '#2563eb15',
+                        color: dom.color || '#2563eb'
+                      }}
+                    >
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: dom.color || '#2563eb' }}></span>
+                      <span>{dom.name}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 text-xs font-bold">
+                    {applicant.domains}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Card 2: Custom Questionnaire answers */}
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm space-y-4">
             <h3 className="font-bold text-sm border-b border-zinc-100 dark:border-zinc-800 pb-3 flex items-center gap-2">
@@ -231,26 +263,105 @@ const ApplicantProfile = () => {
 
             <div className="space-y-5">
               {applicant.answers.map((ans, idx) => {
-                // Skip displaying system primary values to avoid clutter
-                if (['Full Name', 'Permanent Registration Number (PRN)', 'Email Address', 'Phone Number', 'Preferred Domains'].includes(ans.label)) {
+                // Skip primary duplicate labels
+                if (['Full Name', 'Permanent Registration Number (PRN)', 'Email Address', 'Phone Number'].includes(ans.label)) {
                   return null;
                 }
-                return (
-                  <div key={idx} className="space-y-1.5 border-b border-zinc-50 dark:border-zinc-850 pb-4 last:border-0 last:pb-0">
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">{ans.label}</span>
-                    {ans.field_type === 'rating' ? (
-                      <div className="flex gap-1 text-amber-500">
+
+                const raw = ans.answer_text ? ans.answer_text.trim() : '';
+                if (!raw) return null;
+
+                // Format clean text helper
+                const formatCleanText = (str) => {
+                  if (typeof str !== 'string' || !str) return '';
+                  let cleaned = str.replace(/_/g, ' ');
+                  const acronyms = {
+                    'cse': 'CSE', 'ece': 'ECE', 'mech': 'Mechanical', 'civil': 'Civil', 'entc': 'E&TC',
+                    'sy': 'SY (Second Year)', 'fy': 'FY (First Year)', 'ty': 'TY (Third Year)', 'btech': 'B.Tech (Final Year)'
+                  };
+                  const lower = cleaned.toLowerCase().trim();
+                  if (acronyms[lower]) return acronyms[lower];
+
+                  return cleaned.split(' ').map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1)) : '').join(' ');
+                };
+
+                // Helper to render formatted answer
+                const renderFormattedAnswer = () => {
+                  let items = [];
+                  if (raw.startsWith('[') && raw.endsWith(']')) {
+                    try {
+                      items = JSON.parse(raw);
+                    } catch (e) {
+                      items = raw.split(',').map(s => s.trim());
+                    }
+                  } else if (raw.includes(',') && !raw.includes('\n')) {
+                    items = raw.split(',').map(s => s.trim());
+                  } else {
+                    items = [raw];
+                  }
+
+                  if (ans.field_type === 'rating') {
+                    const val = parseInt(raw) || 0;
+                    return (
+                      <div className="flex items-center gap-1.5 text-amber-500">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <span key={i} className="text-sm">
-                            {i < parseInt(ans.answer_text) ? '★' : '☆'}
+                          <span key={i} className="text-base font-bold">
+                            {i < val ? '★' : '☆'}
                           </span>
                         ))}
+                        <span className="text-xs text-zinc-500 font-semibold ml-1">({val}/5)</span>
                       </div>
-                    ) : (
-                      <p className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed font-medium whitespace-pre-wrap">
-                        {ans.answer_text || 'No response provided.'}
-                      </p>
-                    )}
+                    );
+                  }
+
+                  if (items.length > 1 || ans.field_type === 'checkbox' || ans.field_type === 'multiselect' || raw.includes('_')) {
+                    return (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {items.map((item, iIdx) => {
+                          const itemStr = String(item);
+                          const isOther = itemStr.toLowerCase().startsWith('other:');
+                          if (isOther) {
+                            return (
+                              <div key={iIdx} className="w-full mt-1 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200">
+                                <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400 block mb-0.5">Other Details:</span>
+                                {itemStr.replace(/^other:/i, '').trim()}
+                              </div>
+                            );
+                          }
+                          return (
+                            <span 
+                              key={iIdx} 
+                              className="px-3 py-1 rounded-md text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs"
+                            >
+                              {formatCleanText(itemStr)}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+
+                  const isOther = raw.toLowerCase().startsWith('other:');
+                  if (isOther) {
+                    return (
+                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 font-medium">
+                        <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400 block mb-1">Other Details:</span>
+                        {raw.replace(/^other:/i, '').trim()}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <p className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed font-medium whitespace-pre-wrap bg-zinc-50/50 dark:bg-zinc-950/40 p-3 rounded-lg border border-zinc-100 dark:border-zinc-850">
+                      {formatCleanText(raw)}
+                    </p>
+                  );
+                };
+
+                return (
+                  <div key={idx} className="space-y-1.5 border-b border-zinc-100 dark:border-zinc-800/60 pb-4 last:border-0 last:pb-0">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">{ans.label}</span>
+                    {renderFormattedAnswer()}
                   </div>
                 );
               })}
