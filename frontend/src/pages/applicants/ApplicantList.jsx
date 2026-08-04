@@ -14,11 +14,17 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 const ApplicantList = () => {
+  const { user } = useAuth();
+  const isCoordinator = user?.role === 'coordinator';
+  const canApplicants = isCoordinator || user?.permissions?.applicants !== false;
+
   const [loading, setLoading] = useState(true);
   const [applicants, setApplicants] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null); // stores applicant object to delete
@@ -190,7 +196,19 @@ const ApplicantList = () => {
     );
   };
 
-  const activeFields = formFields.filter(field => visibleColumns.includes(field.id));
+  if (!canApplicants) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6">
+        <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+          <Lock className="text-zinc-500" />
+        </div>
+        <h2 className="text-xl font-bold">Access Restricted</h2>
+        <p className="text-zinc-500 mt-2 max-w-sm">You do not have the necessary permissions to access candidate applications.</p>
+      </div>
+    );
+  }
+
+  const activeFields = (formFields || []).filter(field => (visibleColumns || []).includes(field.id));
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -203,7 +221,7 @@ const ApplicantList = () => {
         </div>
         <div className="flex gap-2.5">
           <a
-            href={`https://server.teammavericks.org/applicants/export?token=${localStorage.getItem('token') || ''}`}
+            href={`${axios.defaults.baseURL}/applicants/export?token=${localStorage.getItem('token') || ''}`}
             download
             className="flex items-center gap-2 px-3.5 py-1.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
           >
@@ -415,7 +433,7 @@ const ApplicantList = () => {
                 {Array.isArray(applicants) && applicants.length > 0 ? (
                   applicants.map((app) => {
                     return (
-                      <tr key={app.id} className="hover:bg-zinc-50/30 dark:hover:bg-zinc-900/20 align-middle">
+                      <tr key={app.id} className="hover:bg-zinc-100/70 dark:hover:bg-zinc-800/60 align-middle transition">
                         {/* Student ID */}
                         <td className="py-4 px-6 text-zinc-500 font-mono">
                           {app.registration_id || `TM-${String(app.id).padStart(4, '0')}`}
@@ -478,13 +496,15 @@ const ApplicantList = () => {
                               <span className="hidden sm:inline">Details</span>
                               <ChevronRight size={12} />
                             </Link>
-                            <button
-                              onClick={() => setDeleteTarget(app)}
-                              className="p-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 transition cursor-pointer"
-                              title="Delete applicant entry"
-                            >
-                              <Trash2 size={12} />
-                            </button>
+                            {isCoordinator && (
+                              <button
+                                onClick={() => setDeleteTarget(app)}
+                                className="p-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 transition cursor-pointer"
+                                title="Delete applicant entry"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

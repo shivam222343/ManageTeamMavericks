@@ -226,18 +226,22 @@ class ApplicantController {
             }
         }
 
-        // Validate only if configured as required in the form
-        if ($isNameRequired && empty($full_name)) {
-            Router::sendJson(['error' => 'Full Name is required'], 400);
-        }
-        if ($isPrnRequired && empty($prn)) {
-            Router::sendJson(['error' => 'PRN is required'], 400);
-        }
-        if ($isEmailRequired && empty($email)) {
-            Router::sendJson(['error' => 'Email is required'], 400);
-        }
-        if ($isPhoneRequired && empty($phone)) {
-            Router::sendJson(['error' => 'Phone number is required'], 400);
+        $isPrnPortal = isset($_POST['is_prn_portal']) && ($_POST['is_prn_portal'] === 'true' || $_POST['is_prn_portal'] === '1');
+
+        // Validate basic fields only if configured as required in the form (and not PRN portal)
+        if (!$isPrnPortal) {
+            if ($isNameRequired && empty($full_name)) {
+                Router::sendJson(['error' => 'Full Name is required'], 400);
+            }
+            if ($isPrnRequired && empty($prn)) {
+                Router::sendJson(['error' => 'PRN is required'], 400);
+            }
+            if ($isEmailRequired && empty($email)) {
+                Router::sendJson(['error' => 'Email is required'], 400);
+            }
+            if ($isPhoneRequired && empty($phone)) {
+                Router::sendJson(['error' => 'Phone number is required'], 400);
+            }
         }
         if (!empty($phone) && !preg_match('/^\d{10}$/', $phone)) {
             Router::sendJson(['error' => 'Mobile number must be exactly 10 digits.'], 400);
@@ -268,8 +272,10 @@ class ApplicantController {
             }
         }
 
-        // Check Duplicates only for non-empty unique keys
-        if (!empty($prn) || !empty($email) || !empty($phone)) {
+        $isPrnPortal = isset($_POST['is_prn_portal']) && ($_POST['is_prn_portal'] === 'true' || $_POST['is_prn_portal'] === '1');
+
+        // Check Duplicates only for main form submissions
+        if (!$isPrnPortal && (!empty($prn) || !empty($email) || !empty($phone))) {
             $checkQuery = "SELECT prn, email, phone FROM applications WHERE campaign_id = ? AND (1=0";
             $checkParams = [$campaignId];
             if (!empty($prn)) {
@@ -291,10 +297,10 @@ class ApplicantController {
             $duplicate = $stmtCheck->fetch();
 
             if ($duplicate) {
-                if (!empty($prn) && $duplicate['prn'] === $prn) {
+                if (!empty($prn) && strtoupper($duplicate['prn']) === $prn) {
                     Router::sendJson(['error' => 'An application has already been submitted with this PRN.'], 400);
                 }
-                if (!empty($email) && $duplicate['email'] === $email) {
+                if (!empty($email) && strtolower($duplicate['email']) === $email) {
                     Router::sendJson(['error' => 'An application has already been submitted with this Email.'], 400);
                 }
                 if (!empty($phone) && $duplicate['phone'] === $phone) {
@@ -308,7 +314,15 @@ class ApplicantController {
             JOIN form_sections s ON f.section_id = s.id 
             WHERE s.campaign_id = ? AND f.is_hidden = 0");
         $stmtFields->execute([$campaignId]);
-        $fields = $stmtFields->fetchAll();
+        $allFields = $stmtFields->fetchAll();
+
+        // If submitting via PRN Portal, process ONLY fields flagged as is_prn_verify_only = 1
+        if ($isPrnPortal) {
+            $hasPrnOnly = array_filter($allFields, fn($f) => !empty($f['is_prn_verify_only']));
+            $fields = !empty($hasPrnOnly) ? array_values($hasPrnOnly) : $allFields;
+        } else {
+            $fields = $allFields;
+        }
 
         $answers = [];
         $filesToUpload = [];
@@ -320,7 +334,7 @@ class ApplicantController {
             $rules = !empty($field['validation_rules']) ? json_decode($field['validation_rules'], true) : [];
 
             // Skip primary values (name, email, phone, prn, domains) as we handle them directly
-            if ($type === 'prn' || $type === 'email' || $type === 'phone' || $type === 'checkbox' && $label === 'Preferred Domains') {
+            if ($type === 'prn' || $type === 'email' || $type === 'phone' || ($type === 'checkbox' && $label === 'Preferred Domains')) {
                 continue;
             }
 
@@ -383,43 +397,80 @@ class ApplicantController {
             $domainIds = json_decode($domainIds, true) ?: [];
         }
 
+        // Check existing application by PRN or email
+        $existingApp = null;
+        if (!empty($prn) || !empty($email)) {
+            $checkQuery = "SELECT id, registration_id, prn, email, phone, full_name FROM applications WHERE campaign_id = ? AND (1=0";
+            $checkParams = [$campaignId];
+            if (!empty($prn)) {
+                $checkQuery .= " OR prn = ?";
+                $checkParams[] = $prn;
+            }
+            if (!empty($email)) {
+                $checkQuery .= " OR email = ?";
+                $checkParams[] = $email;
+            }
+            $checkQuery .= ")";
+
+            $stmtCheck = $db->prepare($checkQuery);
+            $stmtCheck->execute($checkParams);
+            $existingApp = $stmtCheck->fetch();
+        }
+
         // Start Transaction
         $db->beginTransaction();
 
         try {
-            // 1. Insert Application with a random registration_id
-            $registrationId = 'TM-26-' . strtoupper(substr(md5(uniqid()), 0, 4));
-            
-            $stmtInsApp = $db->prepare("INSERT INTO applications (campaign_id, prn, email, phone, full_name, status, registration_id) VALUES (?, ?, ?, ?, ?, 'applied', ?)");
-            $stmtInsApp->execute([$campaignId, $prn, $email, $phone, $full_name, $registrationId]);
-            $applicationId = (int)$db->lastInsertId();
+            if ($existingApp) {
+                $applicationId = (int)$existingApp['id'];
+                $registrationId = $existingApp['registration_id'];
+                if (empty($full_name)) {
+                    $full_name = $existingApp['full_name'];
+                }
 
-            // 2. Associate Domains
-            $stmtInsDom = $db->prepare("INSERT INTO application_domains (application_id, domain_id) VALUES (?, ?)");
-            foreach ($domainIds as $dId) {
-                $stmtInsDom->execute([$applicationId, (int)$dId]);
+                // Update application core fields if updated
+                $updateName = !empty($full_name) ? $full_name : $existingApp['full_name'];
+                $updatePhone = !empty($phone) ? $phone : $existingApp['phone'];
+                $stmtUpdateApp = $db->prepare("UPDATE applications SET full_name = ?, phone = ? WHERE id = ?");
+                $stmtUpdateApp->execute([$updateName, $updatePhone, $applicationId]);
+            } else {
+                // 1. Insert New Application
+                $registrationId = 'TM-26-' . strtoupper(substr(md5(uniqid()), 0, 4));
+                
+                $stmtInsApp = $db->prepare("INSERT INTO applications (campaign_id, prn, email, phone, full_name, status, registration_id) VALUES (?, ?, ?, ?, ?, 'applied', ?)");
+                $stmtInsApp->execute([$campaignId, $prn, $email, $phone, $full_name, $registrationId]);
+                $applicationId = (int)$db->lastInsertId();
             }
 
-            // 3. Store Answers
-            $stmtInsAns = $db->prepare("INSERT INTO application_answers (application_id, field_id, answer_text) VALUES (?, ?, ?)");
+            // 2. Associate Domains
+            if (!empty($domainIds)) {
+                $stmtDelDom = $db->prepare("DELETE FROM application_domains WHERE application_id = ?");
+                $stmtDelDom->execute([$applicationId]);
+                $stmtInsDom = $db->prepare("INSERT INTO application_domains (application_id, domain_id) VALUES (?, ?)");
+                foreach ($domainIds as $dId) {
+                    $stmtInsDom->execute([$applicationId, (int)$dId]);
+                }
+            }
+
+            // 3. Store / Update Answers
+            $stmtUpsertAns = $db->prepare("INSERT INTO application_answers (application_id, field_id, answer_text) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE answer_text = VALUES(answer_text)");
             foreach ($answers as $fId => $ansText) {
-                $stmtInsAns->execute([$applicationId, $fId, $ansText]);
+                $stmtUpsertAns->execute([$applicationId, $fId, $ansText]);
             }
 
             // Write also primary form fields mapping to answers for easy visualization
-            // Fetch default fields to match
-            $prnField = array_filter($fields, fn($f) => $f['field_type'] === 'prn')[0] ?? null;
-            if ($prnField) { $stmtInsAns->execute([$applicationId, $prnField['id'], $prn]); }
+            $prnField = array_filter($allFields, fn($f) => $f['field_type'] === 'prn')[0] ?? null;
+            if ($prnField) { $stmtUpsertAns->execute([$applicationId, $prnField['id'], $prn]); }
 
-            $emailField = array_filter($fields, fn($f) => $f['field_type'] === 'email')[0] ?? null;
-            if ($emailField) { $stmtInsAns->execute([$applicationId, $emailField['id'], $email]); }
+            $emailField = array_filter($allFields, fn($f) => $f['field_type'] === 'email')[0] ?? null;
+            if ($emailField) { $stmtUpsertAns->execute([$applicationId, $emailField['id'], $email]); }
 
-            $phoneField = array_filter($fields, fn($f) => $f['field_type'] === 'phone')[0] ?? null;
-            if ($phoneField) { $stmtInsAns->execute([$applicationId, $phoneField['id'], $phone]); }
+            $phoneField = array_filter($allFields, fn($f) => $f['field_type'] === 'phone')[0] ?? null;
+            if ($phoneField) { $stmtUpsertAns->execute([$applicationId, $phoneField['id'], $phone]); }
 
-            $domainsField = array_filter($fields, fn($f) => $f['field_type'] === 'checkbox' && $f['label'] === 'Preferred Domains')[0] ?? null;
+            $domainsField = array_filter($allFields, fn($f) => $f['field_type'] === 'checkbox' && $f['label'] === 'Preferred Domains')[0] ?? null;
             if ($domainsField) { 
-                $stmtInsAns->execute([$applicationId, $domainsField['id'], implode(', ', $domainIds)]); 
+                $stmtUpsertAns->execute([$applicationId, $domainsField['id'], implode(', ', $domainIds)]); 
             }
 
             // 4. Handle File Uploads
@@ -431,16 +482,17 @@ class ApplicantController {
             }
 
             // Sanitise candidate name (e.g. "Shiva Kumar" -> "shiva_kumar")
-            $sanitizedName = preg_replace('/[^a-z0-9]/', '_', strtolower($full_name));
+            $sanitizedName = preg_replace('/[^a-z0-9]/', '_', strtolower($full_name ?: 'candidate'));
             $sanitizedName = preg_replace('/_+/', '_', trim($sanitizedName, '_'));
 
+            $stmtDelFile = $db->prepare("DELETE FROM application_files WHERE application_id = ? AND field_id = ?");
             $stmtInsFile = $db->prepare("INSERT INTO application_files (application_id, field_id, file_name, file_path, file_type, file_size) VALUES (?, ?, ?, ?, ?, ?)");
             foreach ($filesToUpload as $fId => $file) {
                 $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
                 
                 // Find matching field label
                 $fieldLabel = 'file';
-                foreach ($fields as $fld) {
+                foreach ($allFields as $fld) {
                     if ($fld['id'] == $fId) {
                         $fieldLabel = $fld['label'];
                         break;
@@ -469,6 +521,9 @@ class ApplicantController {
                     }
                 }
 
+                // Delete old file entry for this field if re-uploading
+                $stmtDelFile->execute([$applicationId, $fId]);
+
                 if ($uploadedToCloud) {
                     $stmtInsFile->execute([
                         $applicationId,
@@ -480,6 +535,13 @@ class ApplicantController {
                     ]);
                 } else {
                     if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                        // Also backup to frontend public uploads directory
+                        $frontendUploadDir = __DIR__ . '/../../../frontend/public/uploads/';
+                        if (!is_dir($frontendUploadDir)) {
+                            @mkdir($frontendUploadDir, 0755, true);
+                        }
+                        @copy($targetPath, $frontendUploadDir . $uniqueName);
+
                         $stmtInsFile->execute([
                             $applicationId,
                             $fId,
@@ -558,21 +620,8 @@ class ApplicantController {
 
             $db->commit();
 
-            // Trigger corresponding emails
-            $emailContext = [];
-            if ($newStatus === 'interview') {
-                $emailContext = [
-                    'interview_datetime' => $interviewDatetime ? date('d M Y, h:i A', strtotime($interviewDatetime)) : 'TBD',
-                    'interview_venue' => $interviewVenue ?: 'TBD'
-                ];
-                $this->sendTriggerEmail($id, 'interview_scheduled', $emailContext, $user['userId']);
-            } else if ($newStatus === 'shortlisted') {
-                $this->sendTriggerEmail($id, 'shortlisted', [], $user['userId']);
-            } else if ($newStatus === 'selected') {
-                $this->sendTriggerEmail($id, 'selected', [], $user['userId']);
-            } else if ($newStatus === 'rejected') {
-                $this->sendTriggerEmail($id, 'rejected', [], $user['userId']);
-            }
+            // Note: Automated emails on candidate status changes have been disabled as per requirements.
+            // Emails will be dispatched manually from the communication module.
 
             Router::sendJson(['message' => 'Status updated successfully']);
         } catch (\Exception $e) {
@@ -1028,6 +1077,7 @@ class ApplicantController {
         foreach ($rows as $r) { $out[$r['setting_key']] = $r['setting_value']; }
         // Provide defaults if not set
         if (!isset($out['otp_required'])) $out['otp_required'] = 'true';
+        if (!isset($out['prn_otp_required'])) $out['prn_otp_required'] = 'true';
         Router::sendJson($out);
     }
 
@@ -1108,6 +1158,124 @@ class ApplicantController {
         }
 
         Router::sendJson(['available' => true]);
+    }
+
+    /**
+     * GET /api.php/applicants/verify-prn?prn=XYZ&campaign_id=1
+     * Verify registered candidate by PRN and return enabled form fields
+     */
+    public function verifyPrn(): void {
+        $inputVal = trim($_GET['prn'] ?? $_GET['identifier'] ?? '');
+        $campaignId = isset($_GET['campaign_id']) ? (int)$_GET['campaign_id'] : null;
+
+        if (empty($inputVal)) {
+            Router::sendJson(['error' => 'Please enter a registered PRN or Email address.'], 400);
+            return;
+        }
+
+        $db = Database::getConnection();
+        $prnUpper = strtoupper($inputVal);
+        $emailLower = strtolower($inputVal);
+
+        // 1. Check candidate existence in applications table by PRN or Email
+        if ($campaignId) {
+            $stmtApp = $db->prepare("SELECT a.*, c.name as campaign_name, c.slug as campaign_slug, c.status as campaign_status 
+                FROM applications a 
+                JOIN campaigns c ON a.campaign_id = c.id 
+                WHERE (UPPER(a.prn) = ? OR LOWER(a.email) = ?) AND a.campaign_id = ?");
+            $stmtApp->execute([$prnUpper, $emailLower, $campaignId]);
+        } else {
+            $stmtApp = $db->prepare("SELECT a.*, c.name as campaign_name, c.slug as campaign_slug, c.status as campaign_status 
+                FROM applications a 
+                JOIN campaigns c ON a.campaign_id = c.id 
+                WHERE (UPPER(a.prn) = ? OR LOWER(a.email) = ?) ORDER BY a.id DESC LIMIT 1");
+            $stmtApp->execute([$prnUpper, $emailLower]);
+        }
+
+        $candidate = $stmtApp->fetch();
+
+        if (!$candidate) {
+            Router::sendJson(['error' => 'PRN or Email not found in registered candidates list. Form submission is disabled.'], 440);
+            return;
+        }
+
+        $targetCampaignId = (int)$candidate['campaign_id'];
+
+        // 2. Fetch campaign details and enabled form sections & fields (is_hidden = 0)
+        $stmtSec = $db->prepare("SELECT * FROM form_sections WHERE campaign_id = ? AND is_hidden = 0 ORDER BY display_order ASC");
+        $stmtSec->execute([$targetCampaignId]);
+        $sections = $stmtSec->fetchAll();
+
+        // Check if any field in campaign is specifically flagged as PRN Verify Only (is_prn_verify_only = 1)
+        $stmtCheckPrnOnly = $db->prepare("SELECT COUNT(*) FROM form_fields f JOIN form_sections s ON f.section_id = s.id WHERE s.campaign_id = ? AND f.is_prn_verify_only = 1 AND f.is_hidden = 0");
+        $stmtCheckPrnOnly->execute([$targetCampaignId]);
+        $hasPrnOnlyFields = ((int)$stmtCheckPrnOnly->fetchColumn()) > 0;
+
+        if ($hasPrnOnlyFields) {
+            $stmtFields = $db->prepare("SELECT * FROM form_fields WHERE section_id = ? AND is_hidden = 0 AND is_prn_verify_only = 1 ORDER BY display_order ASC");
+        } else {
+            $stmtFields = $db->prepare("SELECT * FROM form_fields WHERE section_id = ? AND is_hidden = 0 ORDER BY display_order ASC");
+        }
+        $stmtOpts = $db->prepare("SELECT * FROM field_options WHERE field_id = ? ORDER BY display_order ASC");
+
+        $formStructure = [];
+        foreach ($sections as $sec) {
+            $stmtFields->execute([$sec['id']]);
+            $fields = $stmtFields->fetchAll();
+            $fieldsWithOpts = [];
+
+            foreach ($fields as $field) {
+                $field['is_required'] = (bool)$field['is_required'];
+                $field['is_hidden'] = (bool)$field['is_hidden'];
+                $field['validation_rules'] = !empty($field['validation_rules']) ? json_decode($field['validation_rules'], true) : null;
+                $field['conditional_visibility'] = !empty($field['conditional_visibility']) ? json_decode($field['conditional_visibility'], true) : null;
+
+                $stmtOpts->execute([$field['id']]);
+                $field['options'] = $stmtOpts->fetchAll();
+
+                $fieldsWithOpts[] = $field;
+            }
+
+            // Omit sections that have no matching fields enabled
+            if (!empty($fieldsWithOpts)) {
+                $sec['is_hidden'] = (bool)$sec['is_hidden'];
+                $sec['fields'] = $fieldsWithOpts;
+                $formStructure[] = $sec;
+            }
+        }
+
+        // 3. Fetch PRN OTP setting
+        $prnOtpRequired = true;
+        try {
+            $stmtPrnSet = $db->query("SELECT setting_value FROM settings WHERE setting_key = 'prn_otp_required' LIMIT 1");
+            $prnRow = $stmtPrnSet ? $stmtPrnSet->fetch() : null;
+            if ($prnRow) {
+                $prnOtpRequired = ($prnRow['setting_value'] === 'true' || $prnRow['setting_value'] === '1');
+            }
+        } catch (\Throwable $e) {}
+
+        // 4. Fetch candidate's previous answers if any
+        $stmtAns = $db->prepare("SELECT field_id, answer_text FROM application_answers WHERE application_id = ?");
+        $stmtAns->execute([$candidate['id']]);
+        $answers = $stmtAns->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        Router::sendJson([
+            'verified' => true,
+            'prn_otp_required' => $prnOtpRequired,
+            'candidate' => [
+                'id' => $candidate['id'],
+                'full_name' => $candidate['full_name'],
+                'prn' => $candidate['prn'],
+                'email' => $candidate['email'],
+                'phone' => $candidate['phone'],
+                'status' => $candidate['status'],
+                'campaign_id' => $candidate['campaign_id'],
+                'campaign_name' => $candidate['campaign_name'],
+                'campaign_slug' => $candidate['campaign_slug']
+            ],
+            'answers' => $answers,
+            'formStructure' => $formStructure
+        ]);
     }
 }
 

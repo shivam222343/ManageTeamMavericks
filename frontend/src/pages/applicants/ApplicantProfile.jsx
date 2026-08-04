@@ -26,8 +26,12 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 
 const ApplicantProfile = () => {
+  const { user } = useAuth();
+  const isCoordinator = user?.role === 'coordinator';
+
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -153,7 +157,8 @@ const ApplicantProfile = () => {
         <div className="flex items-center gap-4">
           <Link 
             to="/dashboard/applicants" 
-            className="p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-850 transition"
+            className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-xl transition cursor-pointer flex items-center justify-center shadow-xs"
+            title="Back to Applicants List"
           >
             <ArrowLeft size={16} />
           </Link>
@@ -169,14 +174,16 @@ const ApplicantProfile = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 transition rounded-lg text-xs font-bold cursor-pointer"
-            title="Delete student record"
-          >
-            <Trash2 size={13} />
-            <span className="hidden sm:inline">Delete Entry</span>
-          </button>
+          {isCoordinator && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 transition rounded-lg text-xs font-bold cursor-pointer"
+              title="Delete student record"
+            >
+              <Trash2 size={13} />
+              <span className="hidden sm:inline">Delete Entry</span>
+            </button>
+          )}
           <span className={`px-3 py-1 border rounded-lg text-xs font-bold uppercase tracking-wider ${getStatusColor(applicant.status)}`}>
             {applicant.status.replace('_', ' ')}
           </span>
@@ -287,19 +294,6 @@ const ApplicantProfile = () => {
 
                 // Helper to render formatted answer
                 const renderFormattedAnswer = () => {
-                  let items = [];
-                  if (raw.startsWith('[') && raw.endsWith(']')) {
-                    try {
-                      items = JSON.parse(raw);
-                    } catch (e) {
-                      items = raw.split(',').map(s => s.trim());
-                    }
-                  } else if (raw.includes(',') && !raw.includes('\n')) {
-                    items = raw.split(',').map(s => s.trim());
-                  } else {
-                    items = [raw];
-                  }
-
                   if (ans.field_type === 'rating') {
                     const val = parseInt(raw) || 0;
                     return (
@@ -314,20 +308,46 @@ const ApplicantProfile = () => {
                     );
                   }
 
-                  if (items.length > 1 || ans.field_type === 'checkbox' || ans.field_type === 'multiselect' || raw.includes('_')) {
+                  const isOther = raw.toLowerCase().startsWith('other:');
+                  if (isOther) {
+                    return (
+                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 font-medium">
+                        <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400 block mb-1">Other Details:</span>
+                        {raw.replace(/^other:/i, '').trim()}
+                      </div>
+                    );
+                  }
+
+                  // Determine if answer is long paragraph text or textarea
+                  const isParagraph = ['textarea', 'paragraph', 'text'].includes(ans.field_type) || raw.length > 50 || raw.includes('\n');
+
+                  if (isParagraph) {
+                    return (
+                      <p className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed font-medium whitespace-pre-wrap bg-zinc-50/50 dark:bg-zinc-950/40 p-3 rounded-lg border border-zinc-200/60 dark:border-zinc-800/60">
+                        {raw}
+                      </p>
+                    );
+                  }
+
+                  // Handle choice / multiselect items
+                  let items = [];
+                  if (raw.startsWith('[') && raw.endsWith(']')) {
+                    try {
+                      items = JSON.parse(raw);
+                    } catch (e) {
+                      items = [raw];
+                    }
+                  } else if (ans.field_type === 'checkbox' || ans.field_type === 'multiselect') {
+                    items = raw.split(',').map(s => s.trim());
+                  } else {
+                    items = [raw];
+                  }
+
+                  if (items.length > 1 || ans.field_type === 'checkbox' || ans.field_type === 'multiselect') {
                     return (
                       <div className="flex flex-wrap gap-2 pt-1">
                         {items.map((item, iIdx) => {
                           const itemStr = String(item);
-                          const isOther = itemStr.toLowerCase().startsWith('other:');
-                          if (isOther) {
-                            return (
-                              <div key={iIdx} className="w-full mt-1 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200">
-                                <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400 block mb-0.5">Other Details:</span>
-                                {itemStr.replace(/^other:/i, '').trim()}
-                              </div>
-                            );
-                          }
                           return (
                             <span 
                               key={iIdx} 
@@ -341,18 +361,8 @@ const ApplicantProfile = () => {
                     );
                   }
 
-                  const isOther = raw.toLowerCase().startsWith('other:');
-                  if (isOther) {
-                    return (
-                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 font-medium">
-                        <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400 block mb-1">Other Details:</span>
-                        {raw.replace(/^other:/i, '').trim()}
-                      </div>
-                    );
-                  }
-
                   return (
-                    <p className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed font-medium whitespace-pre-wrap bg-zinc-50/50 dark:bg-zinc-950/40 p-3 rounded-lg border border-zinc-100 dark:border-zinc-850">
+                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                       {formatCleanText(raw)}
                     </p>
                   );
@@ -379,9 +389,13 @@ const ApplicantProfile = () => {
               {applicant.files.map((file) => {
                 const isImage = file.file_type.startsWith('image/');
                 const isPdf = file.file_type === 'application/pdf';
+                const apiBase = axios.defaults.baseURL || '';
+                const baseHost = apiBase.endsWith('/api.php') 
+                  ? apiBase.replace(/\/api\.php$/, '') 
+                  : 'http://localhost:8000';
                 const fileUrl = file.file_path.startsWith('http://') || file.file_path.startsWith('https://') 
                   ? file.file_path 
-                  : `https://server.teammavericks.org/${file.file_path}`;
+                  : `${baseHost}/${file.file_path.replace(/^\//, '')}`;
 
                 return (
                   <div key={file.file_id} className="p-4 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-lg flex flex-col justify-between gap-3 shadow-sm hover:shadow transition">

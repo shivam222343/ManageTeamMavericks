@@ -1,6 +1,8 @@
 <?php
 // config/database.php
 
+date_default_timezone_set('Asia/Kolkata');
+
 define('DB_HOST', 'srv1001.hstgr.io');
 define('DB_PORT', 3306);
 define('DB_USER', 'u714635531_teammavericks');

@@ -194,6 +194,7 @@ const FormBuilderPage = () => {
       default_value: '',
       help_text: '',
       is_hidden: false,
+      show_in_analytics: true,
       options: [],
       dragId: Math.random().toString(36).substring(2, 9)
     };
@@ -248,6 +249,15 @@ const FormBuilderPage = () => {
           return { ...f, [key]: value };
         })
       };
+    }));
+  };
+
+  const handleToggleFieldAnalytics = (secIndex, fieldIndex, checked) => {
+    setSections(prev => prev.map((s, idx) => {
+      if (idx !== secIndex) return s;
+      const arr = [...s.fields];
+      arr[fieldIndex] = { ...arr[fieldIndex], show_in_analytics: checked };
+      return { ...s, fields: arr };
     }));
   };
 
@@ -353,7 +363,8 @@ const FormBuilderPage = () => {
         <div className="flex items-center gap-4">
           <Link 
             to="/dashboard/campaigns" 
-            className="p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-150 transition"
+            className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-xl transition cursor-pointer flex items-center justify-center shadow-xs"
+            title="Back to Campaigns List"
           >
             <ArrowLeft size={16} />
           </Link>
@@ -475,9 +486,29 @@ const FormBuilderPage = () => {
                               {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-accent-red">*</span> : null}
                             </p>
 
-                            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-                              Type: {field.field_type}
-                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                                Type: {field.field_type}
+                              </span>
+                              {field.is_prn_verify_only && (
+                                <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[9px] font-extrabold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
+                                  PRN Verify Only
+                                </span>
+                              )}
+                              <label 
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
+                                title="Show breakdown graph in Recruitment Analytics"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input 
+                                  type="checkbox"
+                                  checked={field.show_in_analytics !== false}
+                                  onChange={(e) => handleToggleFieldAnalytics(sIdx, fIdx, e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-700 text-primary-blue focus:ring-primary-blue cursor-pointer"
+                                />
+                                <span>Show in Analytics</span>
+                              </label>
+                            </div>
                           </div>
                         </div>
 
@@ -578,19 +609,47 @@ const FormBuilderPage = () => {
                   />
                 </div>
 
-                {/* Required switch */}
-                <div className="flex items-center justify-between p-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-lg">
-                  <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Mandatory Response</span>
-                  <label className="relative inline-flex items-center cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={activeFieldDetails.is_required}
-                      onChange={(e) => handleUpdateActiveField('is_required', e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-zinc-200 dark:bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-zinc-600 peer-checked:bg-primary-blue"></div>
-                  </label>
-                </div>
+                {/* Required Checkbox */}
+                <label className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl cursor-pointer select-none hover:border-zinc-300 dark:hover:border-zinc-700 transition">
+                  <div>
+                    <span className="text-xs font-extrabold text-zinc-800 dark:text-zinc-200 block">Mandatory Response</span>
+                    <span className="text-[10px] text-zinc-400 font-normal">Require candidate to answer this question</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={activeFieldDetails.is_required}
+                    onChange={(e) => handleUpdateActiveField('is_required', e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-primary-blue focus:ring-primary-blue cursor-pointer shrink-0 ml-2"
+                  />
+                </label>
+
+                {/* Include in Analytics Checkbox */}
+                <label className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl cursor-pointer select-none hover:border-zinc-300 dark:hover:border-zinc-700 transition">
+                  <div>
+                    <span className="text-xs font-extrabold text-zinc-800 dark:text-zinc-200 block">Show in Analytics</span>
+                    <span className="text-[10px] text-zinc-400 font-normal">Display breakdown chart in Analytics dashboard</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={activeFieldDetails.show_in_analytics !== false}
+                    onChange={(e) => handleUpdateActiveField('show_in_analytics', e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-primary-blue focus:ring-primary-blue cursor-pointer shrink-0 ml-2"
+                  />
+                </label>
+
+                {/* PRN Verification Portal Only Checkbox */}
+                <label className="flex items-center justify-between p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 rounded-xl cursor-pointer select-none hover:border-blue-300 transition">
+                  <div>
+                    <span className="text-xs font-extrabold text-blue-900 dark:text-blue-200 block">PRN Verify Portal Only</span>
+                    <span className="text-[10px] text-blue-600/80 dark:text-blue-400 font-normal">Show only this field in candidate PRN verification form</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={activeFieldDetails.is_prn_verify_only === true}
+                    onChange={(e) => handleUpdateActiveField('is_prn_verify_only', e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-primary-blue focus:ring-primary-blue cursor-pointer shrink-0 ml-2"
+                  />
+                </label>
 
                 {/* Options configurator for drop/radio/checkbox */}
                 {['dropdown', 'radio', 'checkbox'].includes(activeFieldDetails.field_type) && (

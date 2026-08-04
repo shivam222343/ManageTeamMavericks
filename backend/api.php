@@ -22,6 +22,7 @@ if (php_sapi_name() === 'cli-server') {
 
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/config/database.php';
+date_default_timezone_set('Asia/Kolkata');
 
 use App\Router;
 use App\Controllers\AuthController;
@@ -30,6 +31,8 @@ use App\Controllers\FormBuilderController;
 use App\Controllers\ApplicantController;
 use App\Controllers\AnalyticsController;
 use App\Controllers\FaqController;
+use App\Controllers\MemberController;
+use App\Controllers\PanelController;
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: *");
@@ -63,6 +66,9 @@ $router = new Router();
 // --- AUTHENTICATION ROUTES ---
 $router->addRoute('POST', '/auth/login', [AuthController::class, 'login']);
 $router->addRoute('GET', '/auth/me', [AuthController::class, 'me']);
+$router->addRoute('POST', '/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+$router->addRoute('POST', '/auth/reset-password', [AuthController::class, 'resetPassword']);
+$router->addRoute('POST', '/auth/change-password', [AuthController::class, 'changePassword']);
 
 // --- CAMPAIGN CONFIGURATION ROUTES ---
 $router->addRoute('GET', '/campaigns', [CampaignController::class, 'list']);
@@ -88,6 +94,7 @@ $router->addRoute('GET', '/applicants', [ApplicantController::class, 'list']);
 $router->addRoute('GET', '/applicants/export', [ApplicantController::class, 'export']);
 $router->addRoute('POST', '/applicants/apply', [ApplicantController::class, 'apply']);
 $router->addRoute('POST', '/applicants/check-credentials', [ApplicantController::class, 'checkCredentials']);
+$router->addRoute('GET', '/applicants/verify-prn', [ApplicantController::class, 'verifyPrn']);
 $router->addRoute('GET', '/applicants/{id}', [ApplicantController::class, 'get']);
 $router->addRoute('PUT', '/applicants/{id}/status', [ApplicantController::class, 'updateStatus']);
 $router->addRoute('DELETE', '/applicants/{id}', [ApplicantController::class, 'delete']);
@@ -98,10 +105,37 @@ $router->addRoute('POST', '/applicants/send-otp', [ApplicantController::class, '
 $router->addRoute('POST', '/applicants/verify-otp', [ApplicantController::class, 'verifyOtp']);
 
 
+// --- MEMBERS MANAGEMENT ROUTES ---
+$router->addRoute('GET', '/members', [MemberController::class, 'list']);
+$router->addRoute('GET', '/members/invitations', [MemberController::class, 'listInvitations']);
+$router->addRoute('POST', '/members/invite', [MemberController::class, 'invite']);
+$router->addRoute('POST', '/members/invitations/{id}/resend', [MemberController::class, 'resendInvitation']);
+$router->addRoute('GET', '/members/templates', [MemberController::class, 'getTemplates']);
+$router->addRoute('POST', '/members/templates', [MemberController::class, 'saveTemplate']);
+$router->addRoute('DELETE', '/members/templates/{id}', [MemberController::class, 'deleteTemplate']);
+$router->addRoute('POST', '/members/communicate', [MemberController::class, 'communicate']);
+$router->addRoute('GET', '/members/permissions', [MemberController::class, 'getPermissions']);
+$router->addRoute('PUT', '/members/{id}/permissions', [MemberController::class, 'updatePermissions']);
+$router->addRoute('PUT', '/members/{id}/role', [MemberController::class, 'updateRole']);
+$router->addRoute('DELETE', '/members/{id}', [MemberController::class, 'deleteMember']);
+$router->addRoute('GET', '/members/{id}', [MemberController::class, 'get']);
+
 // --- PORTAL SETTINGS ROUTES ---
 $router->addRoute('GET', '/settings', [ApplicantController::class, 'getSettings']);
 $router->addRoute('PUT', '/settings', [ApplicantController::class, 'saveSettings']);
 
+
+// --- PANELS & EVALUATION ROUTES ---
+$router->addRoute('GET', '/panels', [PanelController::class, 'list']);
+$router->addRoute('POST', '/panels', [PanelController::class, 'create']);
+$router->addRoute('GET', '/panels/{id}', [PanelController::class, 'getDetail']);
+$router->addRoute('PUT', '/panels/{id}', [PanelController::class, 'update']);
+$router->addRoute('DELETE', '/panels/{id}', [PanelController::class, 'delete']);
+$router->addRoute('POST', '/panels/{id}/evaluate', [PanelController::class, 'submitEvaluation']);
+$router->addRoute('POST', '/panels/{id}/interview-status', [PanelController::class, 'updateInterviewStatus']);
+$router->addRoute('POST', '/panels/{id}/attendance', [PanelController::class, 'updateAttendance']);
+$router->addRoute('GET', '/evaluation-criteria', [PanelController::class, 'getCriteria']);
+$router->addRoute('POST', '/evaluation-criteria', [PanelController::class, 'saveCriteria']);
 
 // --- ANALYTICS INSIGHTS ROUTES ---
 $router->addRoute('GET', '/analytics', [AnalyticsController::class, 'getStats']);
@@ -130,8 +164,24 @@ $router->addRoute('GET', '/seed', function() {
             "CREATE TABLE IF NOT EXISTS email_templates (id INT AUTO_INCREMENT PRIMARY KEY, campaign_id INT NOT NULL, trigger_event ENUM('applied','shortlisted','interview_scheduled','selected','rejected') NOT NULL, subject VARCHAR(255) NOT NULL, body_html TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE, CONSTRAINT unique_campaign_trigger UNIQUE (campaign_id,trigger_event)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(255) UNIQUE NOT NULL, setting_value TEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS application_email_logs (id INT AUTO_INCREMENT PRIMARY KEY, application_id INT NOT NULL, sender_id INT NULL, email_type VARCHAR(100) NOT NULL, subject VARCHAR(255) NOT NULL, body_html TEXT NOT NULL, status ENUM('sent', 'failed') NOT NULL DEFAULT 'sent', error_message TEXT NULL, sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE, FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS member_invitations (id INT AUTO_INCREMENT PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, role ENUM('coordinator', 'core_member', 'member') NOT NULL DEFAULT 'member', temp_password VARCHAR(255) NOT NULL, status ENUM('sent', 'accepted', 'failed') NOT NULL DEFAULT 'sent', sent_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (sent_by) REFERENCES users(id) ON DELETE SET NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS member_templates (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL, subject VARCHAR(255) NOT NULL, body_html TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS member_email_logs (id INT AUTO_INCREMENT PRIMARY KEY, recipient_email VARCHAR(255) NOT NULL, recipient_name VARCHAR(255) NULL, sender_id INT NULL, subject VARCHAR(255) NOT NULL, body_html TEXT NOT NULL, status ENUM('sent', 'failed') NOT NULL DEFAULT 'sent', error_message TEXT NULL, sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS password_resets (id INT AUTO_INCREMENT PRIMARY KEY, email VARCHAR(255) NOT NULL, token VARCHAR(255) UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME NOT NULL, INDEX(email), INDEX(token)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ];
         foreach ($stmts as $s) { $db->exec($s); }
+
+        // Alter users table to add permissions and must_change_password columns if missing
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN permissions JSON DEFAULT NULL");
+        } catch (\Exception $ex) {}
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT FALSE");
+        } catch (\Exception $ex) {}
+        try {
+            $db->exec("ALTER TABLE form_fields ADD COLUMN show_in_analytics TINYINT(1) NOT NULL DEFAULT 1");
+        } catch (\Exception $ex) {}
+
         echo "All tables created/verified.\n";
 
         // Users

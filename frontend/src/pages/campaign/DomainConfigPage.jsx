@@ -90,7 +90,8 @@ const DomainConfigPage = () => {
         <div className="flex items-center gap-4">
           <Link 
             to="/dashboard/campaigns" 
-            className="p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-150 transition"
+            className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-xl transition cursor-pointer flex items-center justify-center shadow-xs"
+            title="Back to Campaigns List"
           >
             <ArrowLeft size={16} />
           </Link>

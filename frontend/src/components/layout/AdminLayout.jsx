@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
+  User,
   Settings,
   Mail,
   LogOut,
@@ -27,7 +28,9 @@ import {
   FileText,
   HelpCircle,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  UserPlus,
+  Layers
 } from 'lucide-react';
 
 const AdminLayout = () => {
@@ -62,31 +65,64 @@ const AdminLayout = () => {
     navigate('/login');
   };
 
+  const isCoordinator = user?.role === 'coordinator';
+  const canForms = isCoordinator || user?.permissions?.forms !== false;
+  const canApplicants = isCoordinator || user?.permissions?.applicants !== false;
+  const canAnalytics = isCoordinator || user?.permissions?.analytics !== false;
+  const canCommunicate = isCoordinator || user?.permissions?.communicate === true;
+  const canPanels = isCoordinator || user?.permissions?.panels !== false;
+
   const recruitmentSubItems = [
-    {
+    ...(canForms ? [{
       path: '/dashboard/recruitment/form',
       label: 'Forms',
       icon: FileText
-    },
-    {
+    }] : []),
+    ...(canApplicants ? [{
       path: '/dashboard/recruitment/applications',
       label: 'Applications',
       icon: Users
-    },
-    {
+    }] : []),
+    ...(canPanels ? [{
+      path: '/dashboard/recruitment/panels',
+      label: 'Panels',
+      icon: Layers
+    }] : []),
+    ...(canAnalytics ? [{
       path: '/dashboard/recruitment/analytics',
       label: 'Analytics',
       icon: BarChart2
-    },
+    }] : []),
     {
       path: '/dashboard/recruitment/faqs',
       label: 'FAQs',
       icon: HelpCircle
     },
-    {
+    ...(canCommunicate ? [{
       path: '/dashboard/recruitment/communicate',
       label: 'Communicate',
       icon: Mail
+    }] : [])
+  ];
+
+  const memberSubItems = [
+    {
+      path: '/dashboard/members/mavericks',
+      label: 'Mavericks',
+      icon: Users,
+      roles: ['coordinator', 'core_member', 'member']
+    },
+    ...(canCommunicate ? [{
+      path: '/dashboard/members/communicate',
+      label: 'Communicate',
+      icon: Mail,
+      roles: ['coordinator', 'core_member', 'member']
+    }] : []),
+    {
+      path: '/dashboard/members/add',
+      label: 'Add Members',
+      icon: UserPlus,
+      roles: ['coordinator']
     }
   ];
 
@@ -122,10 +158,11 @@ const AdminLayout = () => {
       roles: ['coordinator', 'core_member', 'member']
     },
     {
-      path: '/dashboard/members',
+      path: '/dashboard/members/mavericks',
       label: 'Members',
       icon: Users,
-      roles: ['coordinator', 'core_member', 'member']
+      roles: ['coordinator', 'core_member', 'member'],
+      subItems: memberSubItems
     },
     {
       path: '/dashboard/recruitment/form',
@@ -144,6 +181,16 @@ const AdminLayout = () => {
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role));
   const isRecruitmentSection = window.location.pathname.startsWith('/dashboard/recruitment');
+  const isMembersSection = window.location.pathname.startsWith('/dashboard/members');
+  const isDoubleSidebar = isRecruitmentSection || isMembersSection;
+
+  const currentSubItems = isRecruitmentSection
+    ? recruitmentSubItems
+    : isMembersSection
+    ? memberSubItems.filter(sub => sub.roles.includes(user?.role))
+    : [];
+
+  const subSidebarTitle = isRecruitmentSection ? 'Recruitment' : isMembersSection ? 'Members' : '';
 
   const sidebarVariants = {
     open: { x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
@@ -154,7 +201,7 @@ const AdminLayout = () => {
     <div className="h-screen overflow-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex transition-colors duration-300">
 
       {/* --- Desktop Sidebars (Conditionally Double or Single) --- */}
-      {isRecruitmentSection ? (
+      {isDoubleSidebar ? (
         <>
           {/* Desktop Primary Slim Sidebar */}
           <aside className="hidden md:flex flex-col w-20 h-full border-r border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/50 backdrop-blur-md shrink-0">
@@ -168,6 +215,8 @@ const AdminLayout = () => {
               {filteredNavItems.map((item) => {
                 const isItemActive = item.path.startsWith('/dashboard/recruitment')
                   ? window.location.pathname.startsWith('/dashboard/recruitment')
+                  : item.path.startsWith('/dashboard/members')
+                  ? window.location.pathname.startsWith('/dashboard/members')
                   : window.location.pathname === item.path;
 
                 return (
@@ -190,21 +239,24 @@ const AdminLayout = () => {
             </nav>
 
             {/* Profile slim */}
-            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-center shrink-0">
-              <div className="w-9 h-9 rounded-full bg-primary-blue/10 dark:bg-primary-blue/20 border border-primary-blue/30 text-primary-blue dark:text-blue-400 flex items-center justify-center font-bold text-sm shadow-inner uppercase">
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-center shrink-0 relative">
+              <button
+                onClick={() => setProfileOpen(!profileOpen)}
+                className="w-9 h-9 rounded-full bg-primary-blue/10 dark:bg-primary-blue/20 border border-primary-blue/30 text-primary-blue dark:text-blue-400 flex items-center justify-center font-bold text-sm shadow-inner uppercase cursor-pointer hover:scale-105 transition"
+              >
                 {user?.name?.charAt(0)}
-              </div>
+              </button>
             </div>
           </aside>
 
           {/* Desktop Secondary Sub-Sidebar */}
           <aside className="hidden md:flex flex-col w-56 h-full border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 backdrop-blur-md shrink-0">
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
-              <h2 className="font-extrabold text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Recruitment</h2>
+              <h2 className="font-extrabold text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{subSidebarTitle}</h2>
             </div>
 
             <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-              {recruitmentSubItems.map((subItem) => {
+              {currentSubItems.map((subItem) => {
                 const isSubActive = subItem.path === '/dashboard/recruitment/applications'
                   ? window.location.pathname.startsWith('/dashboard/recruitment/applications')
                   : window.location.pathname === subItem.path;
@@ -287,11 +339,38 @@ const AdminLayout = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
-                      className="absolute bottom-12 left-0 right-0 z-20 mt-2 p-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl shadow-zinc-950/10"
+                      className="absolute bottom-14 left-0 right-0 z-20 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl space-y-1"
                     >
                       <button
-                        onClick={handleLogout}
-                        className="flex items-center gap-3 w-full px-3 py-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-accent-red text-zinc-600 dark:text-zinc-400 text-xs font-medium cursor-pointer"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          navigate(`/dashboard/members/mavericks/${user?.id}`);
+                        }}
+                        className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold cursor-pointer"
+                      >
+                        <User size={14} className="text-primary-blue" />
+                        <span>Profile</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setProfileOpen(false);
+                          navigate('/dashboard/settings/portal');
+                        }}
+                        className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold cursor-pointer"
+                      >
+                        <Settings size={14} className="text-zinc-500" />
+                        <span>Settings</span>
+                      </button>
+
+                      <div className="border-t border-zinc-100 dark:border-zinc-800 my-1" />
+
+                      <button
+                        onClick={() => {
+                          setProfileOpen(false);
+                          handleLogout();
+                        }}
+                        className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-accent-red text-xs font-semibold cursor-pointer"
                       >
                         <LogOut size={14} />
                         <span>Log Out</span>

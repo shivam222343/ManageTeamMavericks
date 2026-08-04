@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import ChangePasswordModal from '../components/ui/ChangePasswordModal';
 
 const AuthContext = createContext();
 
@@ -8,7 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
 
-  axios.defaults.baseURL = 'https://server.teammavericks.org'; // Target deployed PHP server
+  axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'https://server.teammavericks.org/api.php';
   
   useEffect(() => {
     if (token) {
@@ -57,9 +58,20 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
   };
 
+  const clearMustChangePassword = () => {
+    setUser((prev) => (prev ? { ...prev, mustChangePassword: false } : prev));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, login, logout, clearMustChangePassword, loading, isAuthenticated: !!user }}>
       {children}
+      {user?.mustChangePassword && (
+        <ChangePasswordModal
+          isOpen={true}
+          isFirstLogin={true}
+          onClose={clearMustChangePassword}
+        />
+      )}
     </AuthContext.Provider>
   );
 };

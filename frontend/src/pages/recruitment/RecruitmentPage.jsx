@@ -31,7 +31,8 @@ import {
   CheckCircle,
   AlertCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -57,6 +58,7 @@ const blankField = (overrides = {}) => ({
   placeholder: '',
   field_type: 'text',
   is_required: false,
+  show_in_analytics: true,
   description: '',
   help_text: '',
   options: [],
@@ -218,9 +220,21 @@ const FieldCard = ({
             </p>
 
           )}
-          <span className="text-[8px] uppercase tracking-widest font-extrabold text-zinc-400 dark:text-zinc-500 font-mono mt-0.5 block">
-            {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
-          </span>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[8px] uppercase tracking-widest font-extrabold text-zinc-400 dark:text-zinc-500 font-mono">
+              {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
+            </span>
+            {field.show_in_analytics !== false && (
+              <span className="text-[8px] px-1.5 py-0.2 bg-blue-500/10 text-blue-500 rounded font-bold font-mono">
+                Analytics
+              </span>
+            )}
+            {field.is_prn_verify_only && (
+              <span className="text-[8px] px-1.5 py-0.2 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 rounded font-bold font-mono uppercase tracking-wider">
+                PRN Verify Only
+              </span>
+            )}
+          </div>
         </div>
         {isCoordinator && (
           <div className="flex items-center gap-1.5 shrink-0">
@@ -251,53 +265,73 @@ const FieldCard = ({
 
       {/* Editor panel (expanded) */}
       {expanded && isCoordinator && (
-        <div className="px-5 pb-5 border-t border-zinc-200/60 dark:border-zinc-800/40 pt-4 space-y-4 bg-zinc-50/25 dark:bg-zinc-955/5 text-xs font-semibold">
-          {/* Row: type + required toggle */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+        <div className="px-5 pb-5 border-t border-zinc-200/60 dark:border-zinc-800/60 pt-4 space-y-4 bg-zinc-50/50 dark:bg-zinc-950/80 text-xs font-semibold">
+          {/* Row: type + required, analytics & PRN verify checkboxes */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
             <div>
-              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-500 mb-1.5 font-mono">Field Type</label>
+              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1.5 font-mono">Field Type</label>
               <select
                 value={field.field_type}
                 onChange={e => update('field_type', e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-550 transition duration-200"
+                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200"
               >
                 {FIELD_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
               </select>
             </div>
-            <label className="flex items-center gap-3 cursor-pointer select-none pb-2 hover:opacity-90 transition">
-              <button
-                type="button"
-                onClick={() => update('is_required', !field.is_required)}
-                className={`relative w-10 h-6 rounded-full flex items-center transition-colors duration-200 ${field.is_required ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-800'}`}
-              >
-                <span className={`w-4.5 h-4.5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ml-0.5 ${field.is_required ? 'translate-x-4.5' : 'translate-x-0'}`} />
-              </button>
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-455 dark:text-zinc-500 font-mono">Required Field</span>
+
+            <label className="flex items-center gap-2.5 cursor-pointer select-none pb-3 hover:opacity-90 transition">
+              <input
+                type="checkbox"
+                checked={!!(field.is_required === 1 || field.is_required === '1' || field.is_required === true)}
+                onChange={e => update('is_required', e.target.checked)}
+                className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+              />
+              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-mono">Required Field</span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer select-none pb-3 hover:opacity-90 transition">
+              <input
+                type="checkbox"
+                checked={field.show_in_analytics !== false}
+                onChange={e => update('show_in_analytics', e.target.checked)}
+                className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+              />
+              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-mono">Show in Analytics</span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer select-none pb-3 hover:opacity-90 transition">
+              <input
+                type="checkbox"
+                checked={field.is_prn_verify_only === true}
+                onChange={e => update('is_prn_verify_only', e.target.checked)}
+                className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+              />
+              <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 font-mono">PRN Verify Only</span>
             </label>
           </div>
 
           {/* Placeholder + description */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-500 mb-1.5 font-mono">Placeholder Text</label>
+              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1.5 font-mono">Placeholder Text</label>
               <input
                 type="text"
                 value={field.placeholder || ''}
                 onChange={e => update('placeholder', e.target.value)}
                 placeholder="e.g. Enter your portfolio link…"
-                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-955 text-zinc-900 dark:text-white rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-550 transition duration-200 placeholder:text-zinc-400"
+                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
               />
             </div>
             <div>
-              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-500 mb-1.5 font-mono">Field Description</label>
+              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1.5 font-mono">Field Description</label>
               <input
                 type="text"
                 value={field.description || ''}
                 onChange={e => update('description', e.target.value)}
                 placeholder="e.g. Include full URL starting with https://"
-                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-955 text-zinc-900 dark:text-white rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-550 focus:border-blue-550 transition duration-200 placeholder:text-zinc-400"
+                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
               />
             </div>
           </div>
@@ -324,7 +358,7 @@ const FieldCard = ({
                       value={opt.option_label}
                       onChange={e => updateOption(oi, e.target.value)}
                       placeholder={`Option Label (e.g. Option ${oi + 1})`}
-                      className="flex-1 px-3.5 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-550 transition duration-200"
+                      className="flex-1 px-3.5 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200"
                     />
                     <button type="button" onClick={() => removeOption(oi)} className="p-2 text-zinc-400 hover:text-red-550 hover:bg-red-550/10 rounded-xl transition cursor-pointer">
                       <X size={13} />
@@ -586,20 +620,34 @@ const RecruitmentPage = () => {
     toast.success('Public form URL copied!', { icon: '📋' });
   };
 
+  const canForms = user?.role === 'coordinator' || user?.permissions?.forms !== false;
+
   if (loading) return <MajorLoader fullPage />;
 
+  if (!canForms) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6">
+        <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+          <Lock className="text-zinc-500" />
+        </div>
+        <h2 className="text-xl font-bold">Access Restricted</h2>
+        <p className="text-zinc-500 mt-2 max-w-sm">You do not have the necessary permissions to access recruitment form management.</p>
+      </div>
+    );
+  }
+
   const statusStyle = {
-    draft: { 
-      pill: 'bg-amber-500/10 text-amber-500 border border-amber-500/20', 
-      active: 'bg-gradient-to-r from-amber-550 to-orange-500 text-white shadow-lg shadow-amber-500/20 font-bold border border-amber-400/20' 
+    draft: {
+      pill: 'bg-amber-500/10 text-amber-500 border border-amber-500/20',
+      active: 'bg-gradient-to-r from-amber-550 to-orange-500 text-white shadow-lg shadow-amber-500/20 font-bold border border-amber-400/20'
     },
-    open: { 
-      pill: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20', 
-      active: 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/20 font-bold border border-emerald-400/20' 
+    open: {
+      pill: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20',
+      active: 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/20 font-bold border border-emerald-400/20'
     },
-    closed: { 
-      pill: 'bg-red-500/10 text-red-500 border border-red-500/20', 
-      active: 'bg-gradient-to-r from-rose-500 to-red-655 text-white shadow-lg shadow-rose-500/20 font-bold border border-red-400/20' 
+    closed: {
+      pill: 'bg-red-500/10 text-red-500 border border-red-500/20',
+      active: 'bg-gradient-to-r from-rose-500 to-red-655 text-white shadow-lg shadow-rose-500/20 font-bold border border-red-400/20'
     },
   };
 
@@ -618,9 +666,6 @@ const RecruitmentPage = () => {
                 {campaign?.status || 'draft'}
               </span>
             </div>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-455 mt-1.5 font-medium leading-relaxed max-w-xl">
-              Construct candidate registration fields using sections. Updates auto-save on change in your local state. Click <strong className="text-zinc-800 dark:text-zinc-200">Save Form to Database</strong> to deploy live to candidates.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0 text-[10px] font-extrabold uppercase tracking-widest">
             <button onClick={copyPublicUrl} className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95">

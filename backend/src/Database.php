@@ -22,6 +22,7 @@ class Database {
                     PDO::ATTR_PERSISTENT => true,
                 ];
                 self::$instance = new PDO($dsn, DB_USER, DB_PASS, $options);
+                self::$instance->exec("SET time_zone = '+05:30'");
                 
                 // Ensure email logs table exists
                 self::$instance->exec("CREATE TABLE IF NOT EXISTS application_email_logs (

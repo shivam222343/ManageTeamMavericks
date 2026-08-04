@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { Mail, Search, RefreshCw, Send, AlertCircle, Play, Sparkles, Check, CheckSquare, Square, FileText, Bold, Italic, Underline, Link as LinkIcon, Heading, Save } from 'lucide-react';
+import { Mail, Search, RefreshCw, Send, AlertCircle, Play, Sparkles, Check, CheckSquare, Square, FileText, Bold, Italic, Underline, Link as LinkIcon, Heading, Save, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useAuth } from '../../context/AuthContext';
 
 const CommunicatePage = () => {
   const { user } = useAuth();
+  const canCommunicate = user?.role === 'coordinator' || user?.permissions?.communicate === true;
   const isCanEdit = user?.role === 'coordinator' || user?.role === 'core_member';
 
   const [campaigns, setCampaigns] = useState([]);
@@ -287,6 +288,20 @@ const CommunicatePage = () => {
 </body>
 </html>`;
   };
+
+  if (!canCommunicate) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto text-center py-24 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+          <Lock size={28} />
+        </div>
+        <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Communication Access Restricted</h2>
+        <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed">
+          Email dispatch and candidate communication features are reserved for Coordinators or members with explicit communication permissions. Please contact your Coordinator to enable this feature in Settings.
+        </p>
+      </div>
+    );
+  }
 
   if (loading && campaigns.length === 0) return <MajorLoader fullPage />;
 

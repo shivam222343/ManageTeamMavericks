@@ -32,32 +32,32 @@ const Footer = () => {
     {
       name: 'Instagram',
       icon: InstagramIcon,
-      url: 'https://instagram.com/teammavericks',
+      url: 'https://www.instagram.com/teammavericks.kit/',
       hoverColor: 'hover:border-pink-500/60 hover:text-pink-400 hover:shadow-[0_0_20px_rgba(236,72,153,0.35)]'
     },
     {
       name: 'LinkedIn',
       icon: LinkedinIcon,
-      url: 'https://linkedin.com/company/teammavericks',
+      url: 'https://www.linkedin.com/in/teammavericks/',
       hoverColor: 'hover:border-blue-500/60 hover:text-blue-400 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)]'
     },
     {
       name: 'YouTube',
       icon: YoutubeIcon,
-      url: 'https://youtube.com/@teammavericks',
+      url: 'https://www.youtube.com/@teammavericks1145',
       hoverColor: 'hover:border-red-500/60 hover:text-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.35)]'
     },
     {
       name: 'Mail',
       icon: Mail,
-      url: 'mailto:mavericksbodhantra@gmail.com',
+      url: 'mailto:contact@teammavericks.org',
       hoverColor: 'hover:border-amber-500/60 hover:text-amber-400 hover:shadow-[0_0_20px_rgba(245,158,11,0.35)]'
     }
   ];
 
   return (
     <footer className="w-full bg-[#040408] text-white relative z-10 overflow-hidden select-none font-sans border-t border-zinc-900/80 pt-8 sm:pt-12 md:pt-16">
-      
+
       {/* ─── 1. TOP SECTION: CONNECT WITH US, Social Icons & Motto Line ─────── */}
       <div className="relative z-20 max-w-4xl mx-auto px-6 mb-8 sm:mb-12 md:mb-14 text-center">
         {/* Header with Divider Lines */}

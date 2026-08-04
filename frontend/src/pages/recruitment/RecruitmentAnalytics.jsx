@@ -26,8 +26,10 @@ import {
   BarChart2,
   PieChart as PieIcon,
   Layers,
-  CheckCircle2
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const COLORS = [
   '#2563eb', '#f97316', '#10b981', '#a855f7', '#ec4899', 
@@ -35,6 +37,9 @@ const COLORS = [
 ];
 
 const RecruitmentAnalytics = () => {
+  const { user } = useAuth();
+  const canAnalytics = user?.role === 'coordinator' || user?.permissions?.analytics !== false;
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -56,11 +61,27 @@ const RecruitmentAnalytics = () => {
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (canAnalytics) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [canAnalytics]);
 
   if (loading) {
     return <MajorLoader fullPage={true} />;
+  }
+
+  if (!canAnalytics) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6">
+        <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+          <Lock className="text-zinc-500" />
+        </div>
+        <h2 className="text-xl font-bold">Access Restricted</h2>
+        <p className="text-zinc-500 mt-2 max-w-sm">You do not have the necessary permissions to view recruitment analytics.</p>
+      </div>
+    );
   }
 
   const summary = stats?.summary || {};
@@ -128,7 +149,7 @@ const RecruitmentAnalytics = () => {
             <span>Refresh Stats</span>
           </button>
           <a
-            href={`https://server.teammavericks.org/applicants/export?token=${localStorage.getItem('token') || ''}`}
+            href={`${axios.defaults.baseURL}/applicants/export?token=${localStorage.getItem('token') || ''}`}
             download
             className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-bold hover:shadow transition cursor-pointer shadow-xs"
           >
@@ -307,12 +328,14 @@ const RecruitmentAnalytics = () => {
                     <span className="text-[10px] text-zinc-400 font-semibold capitalize">Field Type: {field_type}</span>
                   </div>
                   <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-700/80">
-                    {totalFieldAnswers} Responses
+                    {(field_type === 'checkbox' || field_type === 'multiselect') 
+                      ? `${fieldItem.total_respondents || stats?.summary?.total_applications || 0} Candidates` 
+                      : `${totalFieldAnswers} Responses`}
                   </span>
                 </div>
 
                 {isPieChart ? (
-                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="flex flex-col sm:flex-row items-center gap-4 min-w-0 overflow-hidden">
                     <div className="h-44 w-44 shrink-0 relative">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -335,16 +358,19 @@ const RecruitmentAnalytics = () => {
                       </ResponsiveContainer>
                     </div>
 
-                    <div className="flex-1 space-y-2 w-full">
+                    <div className="flex-1 space-y-2 min-w-0 w-full overflow-hidden">
                       {breakdown.map((item, idx) => {
-                        const pct = totalFieldAnswers > 0 ? Math.round((item.count / totalFieldAnswers) * 100) : 0;
+                        const baseTotal = (field_type === 'checkbox' || field_type === 'multiselect')
+                          ? (fieldItem.total_respondents || stats?.summary?.total_applications || 1)
+                          : totalFieldAnswers;
+                        const pct = baseTotal > 0 ? Math.round((item.count / baseTotal) * 100) : 0;
                         return (
-                          <div key={idx} className="flex items-center justify-between text-xs font-semibold">
-                            <div className="flex items-center gap-2 min-w-0">
+                          <div key={idx} className="flex items-center justify-between text-xs font-semibold gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span>
-                              <span className="truncate text-zinc-700 dark:text-zinc-300">{item.option}</span>
+                              <span className="truncate text-zinc-700 dark:text-zinc-300 block min-w-0" title={item.option}>{item.option}</span>
                             </div>
-                            <span className="font-bold text-zinc-900 dark:text-zinc-100 ml-2 shrink-0">{item.count} ({pct}%)</span>
+                            <span className="font-bold text-zinc-900 dark:text-zinc-100 shrink-0 text-right">{item.count} ({pct}%)</span>
                           </div>
                         );
                       })}
@@ -361,8 +387,9 @@ const RecruitmentAnalytics = () => {
                           tickLine={false} 
                           axisLine={false}
                           interval={0}
-                          angle={-15}
+                          angle={-20}
                           textAnchor="end"
+                          tickFormatter={(val) => (typeof val === 'string' && val.length > 12 ? `${val.substring(0, 12)}…` : val)}
                         />
                         <YAxis stroke="#888888" fontSize={9} tickLine={false} axisLine={false} />
                         <ChartTooltip 

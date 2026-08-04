@@ -89,10 +89,16 @@ class AnalyticsController {
         $trend = $stmtTrend->fetchAll();
 
         // 7. Dynamic Field Analytics for ALL dynamic questionnaire form fields
+        try {
+            $db->exec("ALTER TABLE form_fields ADD COLUMN show_in_analytics TINYINT(1) NOT NULL DEFAULT 1");
+        } catch (\Exception $ex) {}
+
         $stmtFields = $db->prepare("SELECT f.id, f.label, f.field_type 
             FROM form_fields f 
             JOIN form_sections s ON f.section_id = s.id 
-            WHERE s.campaign_id = ? AND f.field_type NOT IN ('file', 'image', 'resume', 'pdf', 'id_card')
+            WHERE s.campaign_id = ? 
+              AND (f.show_in_analytics IS NULL OR f.show_in_analytics = 1)
+              AND f.field_type NOT IN ('file', 'image', 'resume', 'pdf', 'id_card')
             ORDER BY s.display_order ASC, f.display_order ASC");
         $stmtFields->execute([$campaignId]);
         $formFields = $stmtFields->fetchAll(PDO::FETCH_ASSOC);
@@ -110,6 +116,26 @@ class AnalyticsController {
                 continue;
             }
 
+            $stmtTotalResp = $db->prepare("SELECT COUNT(DISTINCT ans.application_id) 
+                FROM application_answers ans 
+                JOIN applications a ON ans.application_id = a.id
+                WHERE a.campaign_id = ? AND ans.field_id = ? AND ans.answer_text IS NOT NULL AND ans.answer_text != ''");
+            $stmtTotalResp->execute([$campaignId, $fId]);
+            $totalRespondents = (int)$stmtTotalResp->fetchColumn();
+
+            // Fetch configured options for this field to accurately map write-ins
+            $stmtOpts = $db->prepare("SELECT option_label, option_value FROM field_options WHERE field_id = ? ORDER BY display_order ASC");
+            $stmtOpts->execute([$fId]);
+            $configuredOpts = $stmtOpts->fetchAll(PDO::FETCH_ASSOC);
+
+            $allowedLabelsMap = [];
+            foreach ($configuredOpts as $co) {
+                $lbl = trim($co['option_label'] ?? '');
+                $val = trim($co['option_value'] ?? '');
+                if ($lbl !== '') $allowedLabelsMap[strtolower($lbl)] = $lbl;
+                if ($val !== '') $allowedLabelsMap[strtolower($val)] = $lbl ?: $val;
+            }
+
             $stmtAns = $db->prepare("SELECT ans.answer_text, COUNT(*) as count 
                 FROM application_answers ans 
                 JOIN applications a ON ans.application_id = a.id
@@ -124,15 +150,19 @@ class AnalyticsController {
                 $cnt = (int)$ra['count'];
 
                 $parsed = [];
-                if (str_starts_with($rawText, '[') && str_ends_with($rawText, ']')) {
-                    $jsonArr = json_decode($rawText, true);
-                    if (is_array($jsonArr)) {
-                        $parsed = $jsonArr;
+                // Only split by JSON array or commas if the field is explicitly a choice group (checkbox / multiselect)
+                if (in_array($fType, ['checkbox', 'multiselect'])) {
+                    if (str_starts_with($rawText, '[') && str_ends_with($rawText, ']')) {
+                        $jsonArr = json_decode($rawText, true);
+                        $parsed = is_array($jsonArr) ? $jsonArr : [$rawText];
+                    } else if (str_contains($rawText, ',')) {
+                        $parsed = explode(',', $rawText);
                     } else {
                         $parsed = [$rawText];
                     }
-                } elseif (str_contains($rawText, ',') && !str_contains($rawText, "\n")) {
-                    $parsed = explode(',', $rawText);
+                } else if (str_starts_with($rawText, '[') && str_ends_with($rawText, ']')) {
+                    $jsonArr = json_decode($rawText, true);
+                    $parsed = is_array($jsonArr) ? $jsonArr : [$rawText];
                 } else {
                     $parsed = [$rawText];
                 }
@@ -141,16 +171,28 @@ class AnalyticsController {
                     $itemClean = trim(str_replace('_', ' ', $item));
                     if (empty($itemClean)) continue;
 
-                    // Clean acronyms or write-ins
-                    if (str_starts_with(strtolower($itemClean), 'other:')) {
-                        $key = 'Other Write-ins';
+                    $lowerItem = strtolower($itemClean);
+                    if (str_starts_with($lowerItem, 'other:') || $lowerItem === 'other') {
+                        $key = 'Other';
+                    } elseif (isset($allowedLabelsMap[$lowerItem])) {
+                        $key = $allowedLabelsMap[$lowerItem];
                     } else {
-                        $key = ucwords(strtolower($itemClean));
-                        if (strtolower($key) === 'cse') $key = 'CSE';
-                        if (strtolower($key) === 'ece') $key = 'ECE';
-                        if (strtolower($key) === 'sy') $key = 'SY (Second Year)';
-                        if (strtolower($key) === 'fy') $key = 'FY (First Year)';
-                        if (strtolower($key) === 'ty') $key = 'TY (Third Year)';
+                        // Acronyms check
+                        if ($lowerItem === 'cse') $key = 'CSE';
+                        elseif ($lowerItem === 'ece') $key = 'ECE';
+                        elseif ($lowerItem === 'mech') $key = 'Mechanical';
+                        elseif ($lowerItem === 'civil') $key = 'Civil';
+                        elseif ($lowerItem === 'entc') $key = 'E&TC';
+                        elseif ($lowerItem === 'aiml' || $lowerItem === 'ai & ml') $key = 'AIML';
+                        elseif ($lowerItem === 'sy') $key = 'SY (Second Year)';
+                        elseif ($lowerItem === 'fy') $key = 'FY (First Year)';
+                        elseif ($lowerItem === 'ty') $key = 'TY (Third Year)';
+                        elseif (strlen($itemClean) > 28 || (str_contains($itemClean, ' ') && count($configuredOpts) > 0)) {
+                            // Map unconfigured long write-in sentences to 'Other'
+                            $key = 'Other';
+                        } else {
+                            $key = $itemClean;
+                        }
                     }
 
                     if (!isset($countsMap[$key])) {
@@ -175,6 +217,7 @@ class AnalyticsController {
                     'field_id' => $fId,
                     'label' => $label,
                     'field_type' => $fType,
+                    'total_respondents' => $totalRespondents,
                     'breakdown' => array_slice($breakdown, 0, 10)
                 ];
             }
