@@ -13,16 +13,60 @@ import {
   AlertCircle,
   ChevronRight,
   ChevronLeft,
-  RefreshCw
+  RefreshCw,
+  ArrowUpRight,
+  Sparkles,
+  Code2,
+  Palette,
+  Calendar,
+  Megaphone,
+  Share2,
+  MapPin,
+  Clock,
+  Building2,
+  Users,
+  Trophy,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import AboutEventsSection from './components/AboutEventsSection';
 import Footer from '../../components/layout/Footer';
 
 gsap.registerPlugin(ScrollTrigger);
 
+const DOMAIN_ICONS = {
+  'Technical': Code2,
+  'Design & Editing': Palette,
+  'Event Management': Calendar,
+  'Public Relations & Marketing': Megaphone,
+  'Social Media & Content': Share2
+};
+
+const DEFAULT_FAQS = [
+  {
+    q: "Who is eligible to apply for Team Mavericks Recruitment 2026?",
+    a: "All engineering students currently studying in First Year (FY), Second Year (SY), and Third Year (TY) at KIT's College of Engineering, Kolhapur across any department are eligible to apply."
+  },
+  {
+    q: "Can I apply for more than one domain?",
+    a: "Yes! You can select multiple preferred domains in the application form (e.g., Technical + Design & Editing). You will be evaluated based on your primary domain interest and skillsets."
+  },
+  {
+    q: "Do I need prior experience or technical projects to apply?",
+    a: "Not necessarily! We look for enthusiasm, problem-solving mindset, and eagerness to learn. Having personal projects or portfolio is a great bonus, especially for Technical and Design roles."
+  },
+  {
+    q: "What is the selection process after submitting the application?",
+    a: "The selection consists of: (1) Online Application Screening, (2) Domain Task / Screening Assignment, and (3) Personal Interview with Domain Leads and Core Panelists."
+  },
+  {
+    q: "What are the key benefits of joining Team Mavericks?",
+    a: "Hands-on project experience, mentorship from seniors, opportunity to lead flagship events (Bodhantra, Invicta), networking with alumni, and representation at national hackathons."
+  }
+];
+
 const PublicLanding = () => {
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -30,11 +74,11 @@ const PublicLanding = () => {
   const [campaign, setCampaign] = useState(null);
   const [domains, setDomains] = useState([]);
   const [formStructure, setFormStructure] = useState([]);
-  const [activeStep, setActiveStep] = useState(0); // For multi-step sections
+  const [activeStep, setActiveStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [checkingNextStep, setCheckingNextStep] = useState(false);
 
-  // OTP verification state — modal shown at submit time
+  // OTP verification state
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
@@ -44,28 +88,24 @@ const PublicLanding = () => {
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(0);
-  const [pendingFormData, setPendingFormData] = useState(null); // held until OTP verified
+  const [pendingFormData, setPendingFormData] = useState(null);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
 
-  // FAQ state and toggles
+  // FAQ state
   const [faqs, setFaqs] = useState([]);
-  const [openFaq, setOpenFaq] = useState(null);
+  const [openFaq, setOpenFaq] = useState(0);
 
   // Countdown timer state
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [campaignClosed, setCampaignClosed] = useState(false);
 
-  // GSAP Refs
+  // Refs for animations
   const heroRef = useRef(null);
-  const titleRef = useRef(null);
-  const descRef = useRef(null);
-  const timerRef = useRef(null);
 
   // Form initialization
   const {
     register,
     handleSubmit,
-    control,
     setValue,
     watch,
     setError,
@@ -74,7 +114,6 @@ const PublicLanding = () => {
     formState: { errors }
   } = useForm();
 
-  // Watch fields for local auto-save and duplicate checks
   const formValues = watch();
 
   // Fetch campaign structure
@@ -83,34 +122,34 @@ const PublicLanding = () => {
       try {
         const res = await axios.get(`/campaigns/public/${slug}`);
         setCampaign(res.data.campaign);
-        setDomains(res.data.domains);
-        setFormStructure(res.data.formStructure);
+        setDomains(res.data.domains || []);
+        setFormStructure(res.data.formStructure || []);
         setOtpRequired(res.data.otp_required === 'true' || res.data.otp_required === true);
 
         // Fetch FAQs
         try {
           const faqRes = await axios.get(`/campaigns/${res.data.campaign.id}/faqs`);
-          if (Array.isArray(faqRes.data)) {
+          if (Array.isArray(faqRes.data) && faqRes.data.length > 0) {
             setFaqs(faqRes.data);
+          } else {
+            setFaqs(DEFAULT_FAQS);
           }
         } catch (faqErr) {
-          console.error("Failed to load campaign FAQs:", faqErr);
+          setFaqs(DEFAULT_FAQS);
         }
 
         // Load auto-saved draft
-        const draftKey = `draft_form_${res.data.campaign.id}`;
-        const savedDraft = localStorage.getItem(draftKey);
-        if (savedDraft) {
-          const parsed = JSON.parse(savedDraft);
-          Object.keys(parsed).forEach(key => {
-            if (key !== 'resume' && key !== 'id_card') { // Don't auto-fill files
-              setValue(key, parsed[key]);
-            }
-          });
-          toast.success('Restored your draft registration data!', { icon: '📝' });
+        const draft = localStorage.getItem(`draft_form_${res.data.campaign.id}`);
+        if (draft) {
+          try {
+            const parsed = JSON.parse(draft);
+            Object.keys(parsed).forEach(k => setValue(k, parsed[k]));
+          } catch (e) {
+            // invalid json
+          }
         }
       } catch (err) {
-        toast.error(err.response?.data?.error || 'Recruitment campaign is currently inactive.');
+        console.error('Failed to load campaign structure:', err);
       } finally {
         setLoading(false);
       }
@@ -118,90 +157,28 @@ const PublicLanding = () => {
     fetchCampaign();
   }, [slug, setValue]);
 
-  // Autosave progress draft
+  // Auto-save form draft on change
   useEffect(() => {
-    if (campaign && Object.keys(formValues).length > 0) {
-      const draftKey = `draft_form_${campaign.id}`;
-      // Clean file references from draft
-      const sanitised = { ...formValues };
-      Object.keys(sanitised).forEach(k => {
-        if (sanitised[k] instanceof FileList || sanitised[k] instanceof File) {
-          delete sanitised[k];
+    if (!campaign || Object.keys(formValues).length === 0) return;
+    const timeout = setTimeout(() => {
+      const serializable = {};
+      Object.keys(formValues).forEach(k => {
+        const val = formValues[k];
+        if (!(val instanceof FileList) && !(val instanceof File)) {
+          serializable[k] = val;
         }
       });
-      localStorage.setItem(draftKey, JSON.stringify(sanitised));
-    }
+      localStorage.setItem(`draft_form_${campaign.id}`, JSON.stringify(serializable));
+    }, 800);
+    return () => clearTimeout(timeout);
   }, [formValues, campaign]);
 
-  const handleClearDraft = () => {
-    if (!campaign) return;
-    setShowClearConfirmModal(true);
-  };
-
-  const confirmClearDraft = () => {
-    const draftKey = `draft_form_${campaign.id}`;
-    localStorage.removeItem(draftKey);
-    reset();
-    setShowClearConfirmModal(false);
-    toast.success('Form fields cleared!');
-  };
-
-  // OTP countdown timer
+  // Countdown timer calculation
   useEffect(() => {
-    if (otpCountdown <= 0) return;
-    const t = setInterval(() => setOtpCountdown(c => c - 1), 1000);
-    return () => clearInterval(t);
-  }, [otpCountdown]);
-
-  const handleSendOtp = async () => {
-    if (!otpEmail || !/\S+@\S+\.\S+/.test(otpEmail)) {
-      toast.error('Please enter a valid email address'); return;
-    }
-    setOtpSending(true);
-    try {
-      await axios.post('/applicants/send-otp', { email: otpEmail, campaign_id: campaign.id });
-      setOtpSent(true);
-      setOtpCountdown(60);
-      toast.success('OTP sent! Check your email inbox.');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to send OTP. Try again.');
-    } finally {
-      setOtpSending(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpCode || otpCode.length !== 6) {
-      toast.error('Please enter the 6-digit OTP'); return;
-    }
-    setOtpVerifying(true);
-    try {
-      await axios.post('/applicants/verify-otp', { email: otpEmail, campaign_id: campaign.id, otp: otpCode });
-      setOtpModalOpen(false);
-      setOtpVerified(true);
-      toast.success('Email verified! Submitting your application…', { icon: '✅' });
-      // Pre-fill email field in form if found
-      formStructure.forEach(sec => sec.fields.forEach(f => {
-        if (f.field_type === 'email') setValue(`field_${f.id}`, otpEmail);
-      }));
-      // Auto-submit with the held form data
-      if (pendingFormData) {
-        doSubmit(pendingFormData, otpEmail);
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Invalid OTP. Please try again.');
-    } finally {
-      setOtpVerifying(false);
-    }
-  };
-
-  // Countdown timer routine
-  useEffect(() => {
-    if (!campaign) return;
+    if (!campaign?.deadline) return;
 
     const timer = setInterval(() => {
       const difference = +new Date(campaign.deadline) - +new Date();
-
       if (difference <= 0) {
         clearInterval(timer);
         setCampaignClosed(true);
@@ -219,50 +196,94 @@ const PublicLanding = () => {
     return () => clearInterval(timer);
   }, [campaign]);
 
-  // GSAP Intro animation
+  // OTP Countdown timer
   useEffect(() => {
-    if (!loading && campaign) {
-      gsap.fromTo(titleRef.current,
-        { opacity: 0, y: 30 },
-        { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out', delay: 0.2 }
-      );
-      gsap.fromTo(descRef.current,
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out', delay: 0.4 }
-      );
-      gsap.fromTo(timerRef.current,
-        { opacity: 0, scale: 0.95 },
-        { opacity: 1, scale: 1, duration: 0.8, ease: 'back.out(1.7)', delay: 0.6 }
-      );
-
-      const timer = setTimeout(() => {
-        ScrollTrigger.refresh();
-      }, 500);
-      return () => clearTimeout(timer);
+    let t;
+    if (otpCountdown > 0) {
+      t = setTimeout(() => setOtpCountdown(c => c - 1), 1000);
     }
-  }, [loading, campaign]);
+    return () => clearTimeout(t);
+  }, [otpCountdown]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
-        <MajorLoader fullPage />
-      </div>
-    );
-  }
+  const handleSendOtp = async () => {
+    if (!otpEmail || !/\S+@\S+\.\S+/.test(otpEmail)) {
+      toast.error('Please provide a valid email address.');
+      return;
+    }
+    setOtpSending(true);
+    try {
+      await axios.post('/applicants/send-otp', {
+        email: otpEmail,
+        campaign_id: campaign.id
+      });
+      setOtpSent(true);
+      setOtpCountdown(60);
+      toast.success(`OTP sent to ${otpEmail}! Check your inbox/spam.`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send OTP. Please try again.');
+    } finally {
+      setOtpSending(false);
+    }
+  };
 
-  if (!campaign) {
-    return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6 text-center">
-        <div className="space-y-4 max-w-md p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow">
-          <AlertCircle className="mx-auto text-red-500" size={32} />
-          <h2 className="text-xl font-bold">Campaign Inactive</h2>
-          <p className="text-xs text-zinc-500">This recruitment drive is either closed or does not exist.</p>
-        </div>
-      </div>
-    );
-  }
+  const handleVerifyOtp = async () => {
+    if (!otpCode || otpCode.length !== 6) {
+      toast.error('Please enter the 6-digit verification code.');
+      return;
+    }
+    setOtpVerifying(true);
+    try {
+      await axios.post('/applicants/verify-otp', {
+        email: otpEmail,
+        campaign_id: campaign.id,
+        otp: otpCode
+      });
+      setOtpVerified(true);
+      setOtpModalOpen(false);
+      toast.success('Email verified successfully! Submitting application...');
+      if (pendingFormData) {
+        await doSubmit(pendingFormData, otpEmail);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Invalid or expired OTP. Please try again.');
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
 
-  // ── Build FormData from react-hook-form data ───────────────────────────────
+  const handleClearDraft = () => {
+    setShowClearConfirmModal(true);
+  };
+
+  const confirmClearDraft = () => {
+    if (campaign) {
+      localStorage.removeItem(`draft_form_${campaign.id}`);
+    }
+    reset();
+    setShowClearConfirmModal(false);
+    toast.success('Form data cleared successfully.');
+  };
+
+  const handleSelectDomainFromCard = (domainId) => {
+    const current = watch('preferred_domains') || [];
+    const strId = String(domainId);
+    let updated;
+    if (Array.isArray(current)) {
+      updated = current.includes(strId) ? current : [...current, strId];
+    } else {
+      updated = [strId];
+    }
+    setValue('preferred_domains', updated);
+    
+    // Find section with domain field or go to form
+    const applyElement = document.getElementById('apply-form');
+    if (applyElement) {
+      applyElement.scrollIntoView({ behavior: 'smooth' });
+    }
+    toast.success('Domain selected! Continue your registration below.', { icon: '🎯' });
+  };
+
+  // Build FormData from form values
   const buildFormData = (data) => {
     let fullNameVal = data.full_name;
     let prnVal = data.prn;
@@ -315,7 +336,7 @@ const PublicLanding = () => {
     return { fd, emailVal };
   };
 
-  // ── Actual submit (called after OTP verified or directly if OTP not required) ─
+  // Actual submit
   const doSubmit = async (formDataObj, resolvedEmail) => {
     setSubmitting(true);
     const loader = toast.loading('Submitting your registration form...');
@@ -357,23 +378,11 @@ const PublicLanding = () => {
           if (mapped) break;
         }
       }
-      if (!mapped) {
-        for (const sec of formStructure) {
-          for (const field of sec.fields) {
-            if (lowerErr.includes(field.label.toLowerCase())) {
-              setError(`field_${field.id}`, { type: 'server', message: errMsg });
-              mapped = true; break;
-            }
-          }
-          if (mapped) break;
-        }
-      }
       if (!mapped) toast.error(errMsg);
       else toast.error('Please correct the highlighted errors in the form.');
     }
   };
 
-  // ── Form submission gate: OTP intercept ───────────────────────────────────
   const onSubmitForm = async (data) => {
     const { fd, emailVal } = buildFormData(data);
 
@@ -386,7 +395,6 @@ const PublicLanding = () => {
     await doSubmit(fd, emailVal);
   };
 
-  // Stepper triggers with section field validation & DB duplicate credential checks
   const nextStep = async () => {
     const currentSection = formStructure[activeStep];
     const sectionFields = currentSection ? currentSection.fields : [];
@@ -402,7 +410,7 @@ const PublicLanding = () => {
 
     const isValid = await trigger(fieldKeysToValidate);
     if (!isValid) {
-      toast.error('Please fix the highlighted errors before proceeding.');
+      toast.error('Please fill in all required fields before proceeding.');
       return;
     }
 
@@ -447,320 +455,671 @@ const PublicLanding = () => {
 
     if (activeStep < formStructure.length - 1) {
       setActiveStep(prev => prev + 1);
-      window.scrollTo({ top: document.getElementById('apply-form').offsetTop - 100, behavior: 'smooth' });
+      const applyFormEl = document.getElementById('apply-form');
+      if (applyFormEl) {
+        window.scrollTo({ top: applyFormEl.offsetTop - 80, behavior: 'smooth' });
+      }
     }
   };
 
   const prevStep = () => {
     if (activeStep > 0) {
       setActiveStep(prev => prev - 1);
-      window.scrollTo({ top: document.getElementById('apply-form').offsetTop - 100, behavior: 'smooth' });
+      const applyFormEl = document.getElementById('apply-form');
+      if (applyFormEl) {
+        window.scrollTo({ top: applyFormEl.offsetTop - 80, behavior: 'smooth' });
+      }
     }
   };
 
-  const renderDigit = (value, label) => (
-    <div className="flex flex-col items-center min-w-[70px] sm:min-w-[105px] md:min-w-[125px]">
-      <span className={`font-bebas font-bold text-[54px] sm:text-[80px] md:text-[96px] leading-none tracking-tight transition-colors duration-300 ${isDark ? 'text-white' : 'text-[#0B0F2B]'}`}>
-        <motion.span
-          key={value}
-          initial={{ opacity: 0.7, scale: 0.98, filter: isDark ? 'drop-shadow(0 0 10px rgba(91,125,255,0))' : 'none' }}
-          animate={{
-            opacity: [0.7, 1, 1],
-            scale: [0.98, 1, 1],
-            filter: isDark ? [
-              'drop-shadow(0 0 12px rgba(91,125,255,0.7))',
-              'drop-shadow(0 0 4px rgba(91,125,255,0.2))',
-              'drop-shadow(0 0 1px rgba(255,255,255,0.05))'
-            ] : [
-              'drop-shadow(0 0 0px transparent)',
-              'drop-shadow(0 0 0px transparent)',
-              'drop-shadow(0 0 0px transparent)'
-            ]
-          }}
-          transition={{ duration: 0.25, ease: "easeOut" }}
-          className="inline-block"
-        >
-          {String(value).padStart(2, '0')}
-        </motion.span>
-      </span>
-      <span className={`font-sans text-[9px] sm:text-[11px] md:text-[14px] font-semibold tracking-[4px] uppercase mt-2 transition-colors duration-300 ${isDark ? 'text-white/45' : 'text-[#0B0F2B]/60'}`}>
-        {label}
-      </span>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#070C18] flex items-center justify-center">
+        <MajorLoader fullPage />
+      </div>
+    );
+  }
+
+  if (!campaign) {
+    return (
+      <div className="min-h-screen bg-[#070C18] text-white flex items-center justify-center p-6 text-center">
+        <div className="max-w-md p-8 bg-[#0C152B] border border-blue-900/50 rounded-none shadow-2xl space-y-4">
+          <AlertCircle className="mx-auto text-blue-400" size={36} />
+          <h2 className="text-2xl font-black uppercase font-['Syne',sans-serif]">Campaign Inactive</h2>
+          <p className="text-xs text-slate-400">This recruitment drive is either closed or does not exist.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`min-h-screen flex flex-col relative overflow-hidden transition-all duration-500 selection:bg-blue-600/30 selection:text-white ${isDark ? 'bg-[#04040C] text-white' : 'bg-[#FFFFFF] text-zinc-900'}`}
-      style={{
-        background: isDark
-          ? 'radial-gradient(circle at top, #11183A 0%, #090A18 35%, #04040C 100%)'
-          : 'radial-gradient(circle at top, #F3F6FF 0%, #F8FAFC 50%, #FFFFFF 100%)'
-      }}
-    >
+    <div className={`min-h-screen w-full transition-colors duration-300 font-sans selection:bg-blue-600 selection:text-white ${
+      isDark ? 'bg-[#070C18] text-[#F8FAFC]' : 'bg-[#F8FAFC] text-[#0A1128]'
+    }`}>
+      
+      {/* Custom Styles for Flat Display Typography */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
-        .font-handwritten {
-          font-family: 'Caveat', cursive, sans-serif;
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        .font-display-heavy {
+          font-family: 'Syne', sans-serif;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+          line-height: 0.92;
+        }
+
+        .font-display-condensed {
+          font-family: 'Bebas Neue', sans-serif;
+          letter-spacing: 0.02em;
+          line-height: 0.9;
+        }
+
+        .font-mono-tag {
+          font-family: 'Space Grotesk', monospace;
+        }
+
+        .flat-card {
+          border-radius: 0px;
+          transition: all 0.2s ease-in-out;
         }
       `}</style>
 
-      {/* Grain overlay */}
-      <div className={`absolute inset-0 bg-noise pointer-events-none z-0 transition-opacity duration-500 ${isDark ? 'opacity-[0.02]' : 'opacity-[0.012]'}`} />
-
-      {/* Ambient background glows */}
-      <div className={`absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full blur-[120px] pointer-events-none z-0 animate-breathe transition-colors duration-500 ${isDark ? 'bg-[#8B5CF6]/5' : 'bg-[#8B5CF6]/3'}`} />
-      <div className={`absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[140px] pointer-events-none z-0 animate-breathe transition-colors duration-500 ${isDark ? 'bg-[#3B82FF]/5' : 'bg-[#3B82FF]/3'}`} style={{ animationDelay: '4s' }} />
-
-      {/* --- Public Header Navigation --- */}
-      <header className={`sticky top-0 z-40 h-[76px] border-b bg-transparent backdrop-blur-[18px] flex items-center justify-between px-4 sm:px-6 md:px-12 transition-all duration-300 ${isDark ? 'border-white/4' : 'border-zinc-200/50'}`}>
-        <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6 min-w-0">
-          <img
-            src="/Logos/Mavericks_Logo.png"
-            alt="Team Mavericks Logo"
-            className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0"
-            style={{ filter: isDark ? 'brightness(0) invert(1)' : 'none' }}
-          />
-          <h1 className={`font-satoshi font-bold text-[13px] sm:text-[16px] md:text-[18px] tracking-[1.5px] sm:tracking-[2px] md:tracking-[3px] uppercase transition-colors duration-300 whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+      {/* --- TOP FLAT NAVIGATION --- */}
+      <header className={`sticky top-0 z-40 h-[72px] border-b flex items-center justify-between px-5 sm:px-8 md:px-14 backdrop-blur-md transition-colors duration-200 ${
+        isDark ? 'bg-[#070C18]/95 border-[#1E293B]' : 'bg-[#F8FAFC]/95 border-[#E2E8F0]'
+      }`}>
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-none border flex items-center justify-center font-mono-tag font-black text-xs ${
+            isDark ? 'border-blue-500 bg-blue-950/60 text-blue-400' : 'border-blue-700 bg-blue-50 text-blue-800'
+          }`}>
+            TM
+          </div>
+          <span className="font-display-heavy text-base sm:text-lg tracking-tight uppercase">
             Team Mavericks
-          </h1>
+          </span>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Navigation Links */}
+        <nav className="hidden md:flex items-center gap-8 text-xs font-mono-tag uppercase font-bold tracking-wider">
+          <a href="#domains" className={`transition-colors hover:text-blue-500 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+            Domains
+          </a>
+          <a href="#about" className={`transition-colors hover:text-blue-500 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+            About
+          </a>
+          <a href="#venue" className={`transition-colors hover:text-blue-500 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+            Venue &amp; Dates
+          </a>
+          <a href="#faqs" className={`transition-colors hover:text-blue-500 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+            FAQs
+          </a>
+        </nav>
+
+        {/* Action button & Theme toggle */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            className={`w-9 h-9 flex items-center justify-center border transition-colors ${
+              isDark ? 'border-[#1E293B] hover:bg-slate-800 text-slate-300' : 'border-[#CBD5E1] hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            {isDark ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
           <a
             href="#apply-form"
-            className="h-[40px] sm:h-[48px] px-4 sm:px-[28px] bg-gradient-to-r from-[#2B5CFF] to-[#8C3AFF] text-white rounded-[12px] sm:rounded-[14px] text-xs sm:text-sm font-satoshi font-semibold flex items-center justify-center transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_10px_30px_rgba(85,105,255,0.4)] whitespace-nowrap"
+            className={`h-10 px-5 sm:px-6 font-mono-tag text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${
+              isDark
+                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.35)]'
+                : 'bg-[#0A1128] hover:bg-blue-900 text-white'
+            }`}
           >
-            Apply
+            Apply Now <ChevronRight size={14} />
           </a>
         </div>
       </header>
 
-      {/* --- Hero Section --- */}
-      <section ref={heroRef} className="py-16 md:py-24 px-6 text-center w-full relative z-10 flex flex-col items-center max-w-[1400px] mx-auto min-h-[calc(100vh-76px)] justify-center">
+      {/* --- HERO SECTION (EDITORIAL BRUTALIST STYLE) --- */}
+      <section ref={heroRef} className="relative z-10 px-5 sm:px-8 md:px-14 pt-12 md:pt-20 pb-16 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-14 items-center">
+          
+          {/* Left Column - Large Editorial Headline */}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 text-[11px] font-mono-tag font-bold tracking-widest uppercase border border-blue-500/40 bg-blue-500/10 text-blue-400">
+              <span className="w-2 h-2 bg-blue-500 inline-block animate-pulse"></span>
+              KIT College of Engineering, Kolhapur • Recruitment 2026
+            </div>
 
-        {/* Background Eagle Logo */}
-        <img
-          src="/Logos/Mavericks_Logo.png"
-          alt="Mavericks Eagle Logo"
-          className="absolute right-[-12%] top-[5%] w-[65%] max-w-[850px] h-auto pointer-events-none select-none blur-[2px] z-0 transition-all duration-500"
-          style={{
-            opacity: isDark ? 0.08 : 0.07,
-            filter: isDark ? 'brightness(0) invert(1)' : 'none'
-          }}
-        />
+            <h1 className="font-display-heavy text-6xl sm:text-7xl md:text-8xl lg:text-[96px] text-left uppercase leading-[0.9]">
+              RUN THE <br />
+              <span className={isDark ? 'text-[#F3EFE6]' : 'text-[#0B132B]'}>
+                FUTURE.
+              </span>
+            </h1>
 
-        {/* Cinematic lighting radial glow */}
-        <div className={`absolute top-[20%] left-1/2 -translate-x-1/2 w-[70vw] h-[35vw] max-w-[800px] rounded-full blur-[180px] pointer-events-none z-0 transition-colors duration-500 ${isDark ? 'bg-[#3B74FF]/14' : 'bg-[#3B74FF]/8'}`} />
+            <div className="space-y-3 pt-2 max-w-xl">
+              <p className="font-mono-tag text-xs font-black tracking-widest uppercase text-blue-500">
+                Team Mavericks • Premier Student Organization
+              </p>
+              <p className={`text-sm md:text-base leading-relaxed font-normal ${
+                isDark ? 'text-slate-300' : 'text-slate-700'
+              }`}>
+                {campaign.description || 'Join Team Mavericks, the premier student organization of KIT College of Engineering, Kolhapur! Multiple domains open across Technical, Design, Event Management, PR & Marketing, and Content.'}
+              </p>
+            </div>
 
-        {/* Floating comments absolute block */}
-        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden hidden md:block w-full">
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 5.2, repeat: Infinity, ease: "easeInOut", delay: 0 }}
-            className={`absolute top-[18%] left-[3vw] lg:left-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten -rotate-3 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
-          >
-            Only a couple of days left until the big reveal! 🚀
-          </motion.div>
+            {/* CTA Buttons */}
+            <div className="flex flex-wrap items-center gap-4 pt-4">
+              <a
+                href="#apply-form"
+                className={`h-12 px-7 font-mono-tag text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${
+                  isDark
+                    ? 'bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-lg'
+                    : 'bg-[#0A1128] hover:bg-blue-950 text-white'
+                }`}
+              >
+                Register For Drive <ChevronRight size={15} />
+              </a>
 
-          <motion.div
-            animate={{ y: [0, -12, 0] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-            className={`absolute top-[52%] left-[1.5vw] lg:left-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten rotate-2 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
-          >
-            Just a few more days! The excitement is real! ✨
-          </motion.div>
+              <a
+                href="#domains"
+                className={`h-12 px-7 font-mono-tag text-xs font-black uppercase tracking-wider flex items-center gap-2 border transition-all ${
+                  isDark
+                    ? 'border-[#1E293B] hover:border-blue-500 bg-[#0C152B] text-slate-200'
+                    : 'border-slate-300 hover:border-slate-800 bg-white text-slate-900'
+                }`}
+              >
+                Explore Domains <ArrowUpRight size={15} />
+              </a>
+            </div>
 
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-            className={`absolute top-[80%] left-[3vw] lg:left-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten -rotate-2 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
-          >
-            The countdown is on! Who else can't wait? ⏳
-          </motion.div>
-
-          <motion.div
-            animate={{ y: [0, -11, 0] }}
-            transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-            className={`absolute top-[22%] right-[3vw] lg:right-[6vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten rotate-4 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
-          >
-            Only a few days to go. I'm so ready for this! 💪
-          </motion.div>
-
-          <motion.div
-            animate={{ y: [0, -9, 0] }}
-            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 2.2 }}
-            className={`absolute top-[56%] right-[1.5vw] lg:right-[3vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten -rotate-3 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
-          >
-            Just a couple of days to go! 📓✨
-          </motion.div>
-
-          <motion.div
-            animate={{ y: [0, -13, 0] }}
-            transition={{ duration: 6.4, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-            className={`absolute top-[82%] right-[3vw] lg:right-[5vw] max-w-[220px] text-left text-lg md:text-xl lg:text-2xl font-bold font-handwritten rotate-3 underline decoration-2 underline-offset-4 transition-colors duration-300 ${isDark ? 'text-white opacity-90 decoration-[#3B82FF]/60' : 'text-[#0B0F2B] decoration-[#3B82FF]/40'}`}
-          >
-            So excited for the announcement! 🚀
-          </motion.div>
-        </div>
-
-        {/* Central Content */}
-        <div className="max-w-4xl mx-auto flex flex-col items-center text-center relative z-10 w-full">
-          <h1
-            ref={titleRef}
-            className={`font-bebas text-[56px] sm:text-[104px] md:text-[140px] tracking-normal sm:tracking-wide leading-[0.88] uppercase mb-[32px] select-none transition-colors duration-300 ${isDark ? 'text-white' : 'text-[#0B0F2B]'}`}
-          >
-            WE ARE <br />
-            <span
-              className={`text-transparent bg-clip-text bg-gradient-to-r ${isDark ? 'from-[#4E8DFF] via-[#7D5BFF] to-[#C15DFF]' : 'from-[#1D4ED8] via-[#3B82F6] to-[#60A5FA]'}`}
-              style={{ textShadow: isDark ? '0 0 40px rgba(125,91,255,0.25)' : 'none' }}
-            >
-              HIRING!
-            </span>
-          </h1>
-
-          <p
-            ref={descRef}
-            className={`font-satoshi text-base sm:text-xl md:text-2xl max-w-2xl leading-relaxed mb-12 font-medium transition-colors duration-300 ${isDark ? 'text-white/70' : 'text-zinc-600'}`}
-          >
-            {campaign.description || 'Join Team Mavericks, the premier student organization of KIT College of Engineering, Kolhapur!'}
-          </p>
-
-          {/* Countdown Clock Display */}
-          <div ref={timerRef} className="flex items-center justify-center gap-2 sm:gap-6 md:gap-8 mb-16 select-none">
-            {renderDigit(timeLeft.days, 'Days')}
-            <span className={`font-bebas text-[36px] sm:text-[60px] md:text-[72px] font-bold leading-none -mt-4 transition-colors duration-300 ${isDark ? 'text-white/30' : 'text-zinc-300'}`}>:</span>
-            {renderDigit(timeLeft.hours, 'Hours')}
-            <span className={`font-bebas text-[36px] sm:text-[60px] md:text-[72px] font-bold leading-none -mt-4 transition-colors duration-300 ${isDark ? 'text-white/30' : 'text-zinc-300'}`}>:</span>
-            {renderDigit(timeLeft.minutes, 'Mins')}
-            <span className={`font-bebas text-[36px] sm:text-[60px] md:text-[72px] font-bold leading-none -mt-4 transition-colors duration-300 ${isDark ? 'text-white/30' : 'text-zinc-300'}`}>:</span>
-            {renderDigit(timeLeft.seconds, 'Secs')}
+            {/* Countdown Micro-Bar */}
+            <div className={`mt-8 pt-6 border-t grid grid-cols-4 gap-3 max-w-md ${
+              isDark ? 'border-[#1E293B]' : 'border-slate-200'
+            }`}>
+              {[
+                { val: timeLeft.days, label: 'DAYS' },
+                { val: timeLeft.hours, label: 'HOURS' },
+                { val: timeLeft.minutes, label: 'MINS' },
+                { val: timeLeft.seconds, label: 'SECS' }
+              ].map((item, i) => (
+                <div key={i} className="text-left">
+                  <div className="font-display-heavy text-2xl sm:text-3xl text-blue-500">
+                    {String(item.val).padStart(2, '0')}
+                  </div>
+                  <div className="font-mono-tag text-[9px] font-bold tracking-widest text-slate-500 uppercase">
+                    {item.label}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <motion.a
-            href="#apply-form"
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className={`w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-md cursor-pointer transition-all duration-300 ${isDark ? 'bg-white/5 border border-white/10 shadow-[0_0_20px_rgba(0,224,255,0.25)] hover:bg-white/10' : 'bg-white border border-zinc-200 shadow-md hover:bg-zinc-50'}`}
-          >
-            <ChevronDown size={24} className={isDark ? 'text-[#00E0FF]' : 'text-blue-600'} />
-          </motion.a>
+          {/* Right Column - 3D Metallic Ribbon Graphic */}
+          <div className="lg:col-span-5 flex justify-center items-center relative">
+            <div className={`relative w-full max-w-[420px] aspect-square border p-3 ${
+              isDark ? 'border-[#1E293B] bg-[#0A1128]/50' : 'border-slate-300 bg-slate-100/50'
+            }`}>
+              {/* Corner crosshairs */}
+              <div className="absolute -top-1.5 -left-1.5 w-3 h-3 border-t-2 border-l-2 border-blue-500"></div>
+              <div className="absolute -top-1.5 -right-1.5 w-3 h-3 border-t-2 border-r-2 border-blue-500"></div>
+              <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 border-b-2 border-l-2 border-blue-500"></div>
+              <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 border-b-2 border-r-2 border-blue-500"></div>
+
+              <img
+                src="/backgrounds/hero_ribbon.jpg"
+                alt="Team Mavericks Centerpiece"
+                className="w-full h-full object-cover select-none filter contrast-105"
+              />
+
+              {/* Floating metadata tag */}
+              <div className={`absolute bottom-6 left-6 right-6 p-3 border backdrop-blur-md flex items-center justify-between ${
+                isDark ? 'bg-[#070C18]/90 border-blue-900/60 text-white' : 'bg-white/90 border-slate-300 text-slate-900'
+              }`}>
+                <div>
+                  <p className="font-mono-tag text-[10px] font-bold uppercase tracking-wider text-blue-500">DRIVE STATUS</p>
+                  <p className="font-display-heavy text-xs uppercase tracking-tight">Active Recruitment • 2026</p>
+                </div>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
-      {/* --- About / Motto Section --- */}
-      <AboutEventsSection isDark={isDark} />
+      {/* --- DOMAIN HIGHLIGHT STRIP (FULL WIDTH TICKER) --- */}
+      <section className="w-full border-y border-[#1E293B] bg-[#2563EB] text-white py-3.5 px-4 overflow-hidden select-none">
+        <div className="flex items-center justify-between gap-8 text-xs sm:text-sm font-mono-tag font-black tracking-widest uppercase overflow-x-auto whitespace-nowrap">
+          <span>TECH</span>
+          <span className="opacity-40">/</span>
+          <span>CREATIVITY &amp; DESIGN</span>
+          <span className="opacity-40">/</span>
+          <span>EVENT OPERATIONS</span>
+          <span className="opacity-40">/</span>
+          <span>PR &amp; MARKETING</span>
+          <span className="opacity-40">/</span>
+          <span>SOCIAL MEDIA &amp; CONTENT</span>
+          <span className="opacity-40">/</span>
+          <span>LEADERSHIP</span>
+        </div>
+      </section>
 
-      {/* --- Dynamic Registration Form (Shivam's Original Form UI Structure) --- */}
-      <section id="apply-form" className="py-24 px-6 bg-blue-50/10 dark:bg-zinc-950/10 border-t border-blue-50/40 dark:border-zinc-900/40 relative z-10">
-        <div className="max-w-2xl mx-auto space-y-10">
-          {campaign.status === 'closed' || campaignClosed ? (
-            <div className="p-8 border rounded-3xl shadow-2xl space-y-5 text-center bg-white/70 border-white/80 dark:bg-zinc-950/60 dark:border-zinc-900">
-              <div className="w-16 h-16 bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mx-auto shadow-inner border border-red-500/20">
-                <AlertCircle size={28} />
+      {/* --- QUICK METADATA ROW --- */}
+      <section className={`border-b py-6 px-5 sm:px-8 md:px-14 ${
+        isDark ? 'border-[#1E293B] bg-[#0A1128]/40' : 'border-slate-200 bg-slate-50'
+      }`}>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-1">
+            <p className="font-mono-tag text-[10px] font-bold uppercase tracking-widest text-slate-500">VENUE</p>
+            <p className="font-display-heavy text-sm uppercase">KIT College of Engineering, Kolhapur</p>
+          </div>
+          <div className="space-y-1">
+            <p className="font-mono-tag text-[10px] font-bold uppercase tracking-widest text-slate-500">DATE &amp; MODE</p>
+            <p className="font-display-heavy text-sm uppercase">Academic Year 2026 • In-Person Drive</p>
+          </div>
+          <div className="space-y-1">
+            <p className="font-mono-tag text-[10px] font-bold uppercase tracking-widest text-slate-500">ELIGIBILITY</p>
+            <p className="font-display-heavy text-sm uppercase">Open for FY, SY, and TY Students (All Branches)</p>
+          </div>
+        </div>
+      </section>
+
+      {/* --- "PICK YOUR PLAYFIELD." (DOMAINS BENTO GRID) --- */}
+      <section id="domains" className="py-20 px-5 sm:px-8 md:px-14 max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+          <div>
+            <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">
+              VERTICALS &amp; DEPARTMENTS
+            </p>
+            <h2 className="font-display-heavy text-4xl sm:text-5xl md:text-6xl uppercase tracking-tight">
+              PICK YOUR <br />
+              PLAYFIELD.
+            </h2>
+          </div>
+          <p className={`max-w-md text-xs sm:text-sm leading-relaxed ${
+            isDark ? 'text-slate-400' : 'text-slate-600'
+          }`}>
+            Explore our open verticals and apply for roles where you can innovate, design, organize, and create real impact with Team Mavericks.
+          </p>
+        </div>
+
+        {/* Bento Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {domains.map((dom, idx) => {
+            const IconComponent = DOMAIN_ICONS[dom.name] || Code2;
+            const isFeatured = idx === 0 || idx === 3;
+
+            return (
+              <div
+                key={dom.id}
+                className={`p-6 sm:p-7 border flex flex-col justify-between gap-6 relative group transition-all duration-200 ${
+                  isFeatured
+                    ? isDark
+                      ? 'bg-[#1D4ED8] text-white border-blue-400/50'
+                      : 'bg-[#1E40AF] text-white border-blue-900'
+                    : isDark
+                      ? 'bg-[#0E172A] border-[#1E293B] text-slate-100 hover:border-blue-500/60'
+                      : 'bg-[#F3EFE6] border-slate-300 text-slate-900 hover:border-slate-800'
+                }`}
+              >
+                {/* Header with 01 number and Icon */}
+                <div className="flex items-center justify-between border-b pb-4 border-current/20">
+                  <span className="font-mono-tag text-xs font-bold tracking-wider opacity-80">
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono-tag text-[10px] font-bold uppercase tracking-wider opacity-80">
+                      INTAKE: {dom.max_intake || 'Open'}
+                    </span>
+                    <IconComponent size={16} className="opacity-90" />
+                  </div>
+                </div>
+
+                {/* Domain Title & Details */}
+                <div className="space-y-3 my-2">
+                  <h3 className="font-display-heavy text-2xl uppercase tracking-tight">
+                    {dom.name}
+                  </h3>
+                  <p className="text-xs leading-relaxed opacity-85 font-medium">
+                    {dom.description}
+                  </p>
+                </div>
+
+                {/* Card Action Link */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectDomainFromCard(dom.id)}
+                  className="pt-4 border-t border-current/20 flex items-center justify-between font-mono-tag text-xs font-black uppercase tracking-wider cursor-pointer group-hover:underline text-left"
+                >
+                  <span>Select &amp; Apply</span>
+                  <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </button>
               </div>
-              <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">Recruitment is Closed</h2>
-              <p className="text-zinc-600 dark:text-zinc-400 text-xs font-medium leading-relaxed max-w-md mx-auto">
-                {campaign.closed_message || 'Recruitment is currently closed. Thank you for your interest in Team Mavericks!'}
-                <br />
-                <span className="mt-3 block text-blue-600 dark:text-blue-500 font-bold">Please contact the club admin or members for further inquiries.</span>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* --- "BIG IDEAS. REAL ENERGY." (ABOUT MAVERICKS) --- */}
+      <section id="about" className={`border-y py-20 px-5 sm:px-8 md:px-14 ${
+        isDark ? 'border-[#1E293B] bg-[#0A1128]/50' : 'border-slate-200 bg-slate-100/60'
+      }`}>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+          
+          <div className="lg:col-span-6 space-y-4">
+            <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500">
+              WHO WE ARE
+            </p>
+            <h2 className="font-display-heavy text-5xl sm:text-6xl md:text-7xl uppercase leading-[0.92]">
+              BIG IDEAS. <br />
+              REAL ENERGY.
+            </h2>
+          </div>
+
+          <div className="lg:col-span-6">
+            <div className={`p-8 border space-y-6 ${
+              isDark ? 'border-[#1E293B] bg-[#070C18]' : 'border-slate-300 bg-white'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 border border-blue-500 bg-blue-500/10 text-blue-400 flex items-center justify-center font-mono-tag font-black">
+                  TM
+                </div>
+                <div>
+                  <h4 className="font-display-heavy text-sm uppercase tracking-tight">DEPARTMENT OF INNOVATION</h4>
+                  <p className="font-mono-tag text-[10px] text-slate-500 uppercase">STUDENT EMPOWERMENT &amp; EXCELLENCE</p>
+                </div>
+              </div>
+
+              <p className={`text-xs sm:text-sm leading-relaxed ${
+                isDark ? 'text-slate-300' : 'text-slate-700'
+              }`}>
+                Team Mavericks is the leading student organization at KIT’s College of Engineering, Kolhapur. We bridge the gap between classroom theory and real-world execution across coding, UI/UX design, event operations, and public relations.
+              </p>
+
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-current/10">
+                <div>
+                  <p className="font-display-heavy text-2xl text-blue-500">500+</p>
+                  <p className="font-mono-tag text-[10px] uppercase font-bold text-slate-500">Active Community</p>
+                </div>
+                <div>
+                  <p className="font-display-heavy text-2xl text-blue-500">10+</p>
+                  <p className="font-mono-tag text-[10px] uppercase font-bold text-slate-500">Flagship Events / Year</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* --- "SEE YOU AT KIT COEK." / "GET READY TO JOIN." --- */}
+      <section id="venue" className="py-20 px-5 sm:px-8 md:px-14 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          
+          {/* Left Info Card */}
+          <div className={`md:col-span-7 p-8 sm:p-10 border flex flex-col justify-between gap-8 ${
+            isDark ? 'border-[#1E293B] bg-[#0E172A]' : 'border-slate-300 bg-[#F3EFE6]'
+          }`}>
+            <div className="space-y-4">
+              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500">
+                RECRUITMENT VENUE
+              </p>
+              <h3 className="font-display-heavy text-4xl sm:text-5xl uppercase tracking-tight">
+                SEE YOU <br />
+                AT KIT COEK.
+              </h3>
+              <p className="text-xs sm:text-sm opacity-80 leading-relaxed max-w-md font-medium">
+                KIT’s College of Engineering (Autonomous), Gokul Shirgaon, Kolhapur, Maharashtra 416234.
+                Offline interviews and orientation sessions will take place in the Central Auditorium.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-6 font-mono-tag text-xs uppercase font-bold pt-4 border-t border-current/20">
+              <div className="flex items-center gap-2">
+                <MapPin size={15} className="text-blue-500" />
+                <span>KIT CAMPUS</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock size={15} className="text-blue-500" />
+                <span>ALL DEPARTMENTS</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Action Card */}
+          <div className={`md:col-span-5 p-8 sm:p-10 border flex flex-col justify-between gap-8 ${
+            isDark ? 'border-blue-900 bg-[#070C18] text-white' : 'bg-[#0A1128] border-slate-900 text-white'
+          }`}>
+            <div className="space-y-4">
+              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-400">
+                JOIN THE DRIVE
+              </p>
+              <h3 className="font-display-heavy text-3xl sm:text-4xl uppercase tracking-tight leading-tight text-white">
+                FIND YOUR DOMAIN. <br />
+                GET READY TO JOIN.
+              </h3>
+              <p className="text-xs opacity-75 leading-relaxed">
+                Complete your online application form below to receive interview schedules and domain assignment updates.
+              </p>
+            </div>
+
+            <a
+              href="#apply-form"
+              className="h-12 px-6 bg-blue-600 hover:bg-blue-500 text-white font-mono-tag text-xs font-black uppercase tracking-wider flex items-center justify-between transition-all"
+            >
+              <span>Begin Registration</span>
+              <ChevronRight size={16} />
+            </a>
+          </div>
+
+        </div>
+      </section>
+
+      {/* --- "A FEW USEFUL ANSWERS." (FLAT ACCORDION FAQS) --- */}
+      <section id="faqs" className={`border-t py-20 px-5 sm:px-8 md:px-14 ${
+        isDark ? 'border-[#1E293B] bg-[#0A1128]/30' : 'border-slate-200 bg-slate-50'
+      }`}>
+        <div className="max-w-4xl mx-auto space-y-10">
+          <div>
+            <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">
+              FREQUENTLY ASKED
+            </p>
+            <h2 className="font-display-heavy text-4xl sm:text-5xl uppercase tracking-tight">
+              A FEW USEFUL ANSWERS.
+            </h2>
+          </div>
+
+          <div className="border-t border-current/20 divide-y divide-current/20">
+            {faqs.map((faq, index) => {
+              const isOpen = openFaq === index;
+              const question = faq.question || faq.q;
+              const answer = faq.answer || faq.a;
+
+              return (
+                <div key={index} className="py-5">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaq(isOpen ? null : index)}
+                    className="w-full flex items-center justify-between gap-4 text-left font-display-heavy text-base sm:text-lg uppercase tracking-tight cursor-pointer group"
+                  >
+                    <span className="group-hover:text-blue-500 transition-colors">
+                      {question}
+                    </span>
+                    <span className="font-mono-tag text-base font-bold text-blue-500 shrink-0">
+                      {isOpen ? '—' : '+'}
+                    </span>
+                  </button>
+
+                  <AnimatePresence>
+                    {isOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <p className={`pt-3 text-xs sm:text-sm leading-relaxed ${
+                          isDark ? 'text-slate-400' : 'text-slate-600'
+                        }`}>
+                          {answer}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* --- DYNAMIC CANDIDATE REGISTRATION FORM (FLAT UI) --- */}
+      <section id="apply-form" className="py-20 px-5 sm:px-8 md:px-14 border-t border-[#1E293B]">
+        <div className="max-w-3xl mx-auto space-y-8">
+          
+          {campaign.status === 'closed' || campaignClosed ? (
+            <div className={`p-10 border text-center space-y-4 ${
+              isDark ? 'border-red-900/50 bg-[#0C152B]' : 'border-red-300 bg-red-50'
+            }`}>
+              <AlertCircle size={36} className="text-red-500 mx-auto" />
+              <h3 className="font-display-heavy text-2xl uppercase">Recruitment Drive Closed</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                {campaign.closed_message || 'The application window for this recruitment drive has concluded. Thank you for your interest!'}
               </p>
             </div>
           ) : (
             <>
+              {/* Form Title Header */}
               <div className="text-center space-y-2">
-                <span className="text-[10px] text-blue-800/80 dark:text-zinc-500 uppercase tracking-widest font-black">Start your application</span>
-                <h2 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Candidate Registration</h2>
-                <p className="text-xs text-zinc-600 dark:text-zinc-400">Fill out this dynamic form. Your progress will auto-save as you type.</p>
+                <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500">
+                  APPLICATION PORTAL
+                </p>
+                <h2 className="font-display-heavy text-4xl sm:text-5xl uppercase tracking-tight">
+                  CANDIDATE REGISTRATION
+                </h2>
+                <p className="text-xs text-slate-500 font-mono-tag uppercase tracking-wider">
+                  Fill in your details accurately. Your progress auto-saves as you type.
+                </p>
               </div>
 
-              {/* Stepper Progress Bar */}
-              <div className="flex justify-between items-center gap-1.5 text-[9px] font-black text-zinc-500 dark:text-zinc-500 tracking-widest font-mono uppercase select-none">
+              {/* Flat Step Indicator Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-[10px] font-mono-tag font-bold uppercase select-none">
                 {formStructure.map((sec, idx) => (
-                  <div key={sec.id} className="flex-1 flex flex-col gap-2 items-center">
-                    <div className={`h-1.5 w-full rounded-full transition-colors duration-300 bg-zinc-200 dark:bg-zinc-800
-                      ${idx <= activeStep ? 'bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500' : ''}
-                    `}></div>
-                    <span className={`hidden sm:inline truncate max-w-[80px] mt-0.5
-                      ${idx === activeStep ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-zinc-500'}
-                    `}>{sec.name}</span>
+                  <div
+                    key={sec.id}
+                    className={`p-2.5 border text-center transition-all ${
+                      idx === activeStep
+                        ? 'border-blue-500 bg-blue-600 text-white font-black'
+                        : idx < activeStep
+                          ? isDark
+                            ? 'border-blue-900 bg-blue-950/40 text-blue-300'
+                            : 'border-blue-200 bg-blue-50 text-blue-800'
+                          : isDark
+                            ? 'border-[#1E293B] bg-[#0E172A] text-slate-500'
+                            : 'border-slate-200 bg-white text-slate-400'
+                    }`}
+                  >
+                    <div>{String(idx + 1).padStart(2, '0')}</div>
+                    <div className="truncate">{sec.name}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Form Container */}
-              <form onSubmit={handleSubmit(onSubmitForm)} className="border rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 relative bg-white/70 border-white/80 dark:bg-zinc-950/60 dark:border-zinc-900 shadow-blue-900/5 dark:shadow-none">
-
-                {/* Section Title Header */}
-                <div className="border-b border-zinc-100 dark:border-zinc-900 pb-4 flex justify-between items-center gap-4">
+              {/* Flat Form Box */}
+              <form
+                onSubmit={handleSubmit(onSubmitForm)}
+                className={`border p-6 sm:p-10 space-y-8 ${
+                  isDark ? 'border-[#1E293B] bg-[#0E172A]' : 'border-slate-300 bg-white shadow-sm'
+                }`}
+              >
+                {/* Current Section Title */}
+                <div className="flex items-center justify-between border-b pb-4 border-current/15">
                   <div>
-                    <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase font-mono">
-                      {formStructure[activeStep]?.name || `Step ${activeStep + 1}`}
+                    <h3 className="font-display-heavy text-xl uppercase tracking-tight">
+                      {formStructure[activeStep]?.name || `SECTION ${activeStep + 1}`}
                     </h3>
-                    <p className="text-[10px] text-zinc-500 font-medium">{formStructure[activeStep]?.description || 'Please fill out all fields below accurately.'}</p>
+                    <p className="text-[11px] font-mono-tag uppercase text-slate-500 tracking-wider">
+                      {formStructure[activeStep]?.description || 'Complete the required fields below'}
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleClearDraft}
-                    className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-500 hover:text-red-500 cursor-pointer flex items-center gap-1 transition"
+                    className="font-mono-tag text-[10px] uppercase font-black text-slate-500 hover:text-red-500 cursor-pointer"
                   >
-                    Clear Section
+                    CLEAR FORM
                   </button>
                 </div>
 
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeStep}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                     className="space-y-6"
                   >
                     {formStructure[activeStep]?.fields.map((field) => {
                       const key = `field_${field.id}`;
 
-                      // Preferred Domains Cards
+                      // Preferred Domains Multi-select
                       if (field.field_type === 'checkbox' && field.label === 'Preferred Domains') {
                         return (
-                          <div key={field.id} className="space-y-2">
-                            <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                          <div key={field.id} className="space-y-3">
+                            <label className="block font-mono-tag text-xs font-bold uppercase tracking-wider">
                               {field.label} {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-red-500">*</span> : null}
                             </label>
                             {field.description && (
-                              <p className="text-[10px] text-zinc-500 font-medium leading-normal">{field.description}</p>
+                              <p className="text-xs text-slate-500">{field.description}</p>
                             )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                              {domains.map((dom) => {
+                              {domains.map((dom, domIdx) => {
                                 const val = watch('preferred_domains');
                                 const isSelected = Array.isArray(val) && val.includes(String(dom.id));
                                 return (
                                   <label
                                     key={dom.id}
-                                    className={`flex items-start gap-3 cursor-pointer text-xs border rounded-xl p-4 transition-all duration-200 select-none
-                                      ${isSelected
-                                        ? 'border-blue-600 bg-blue-50/50 text-blue-900 dark:border-blue-500/5 dark:bg-blue-500/5 dark:text-white font-bold'
-                                        : 'border-zinc-200 hover:border-zinc-300 bg-white/30 text-zinc-700 dark:border-zinc-800 dark:hover:border-zinc-700 dark:bg-zinc-900/20 dark:text-zinc-300'
-                                      }
-                                    `}
+                                    className={`flex items-start gap-3 p-4 border cursor-pointer select-none transition-all ${
+                                      isSelected
+                                        ? 'border-blue-500 bg-blue-600 text-white font-bold'
+                                        : isDark
+                                          ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:border-slate-700'
+                                          : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
+                                    }`}
                                   >
                                     <input
                                       type="checkbox"
                                       value={String(dom.id)}
-                                      {...register('preferred_domains', { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select at least one preferred domain.' : false })}
-                                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500/50 border-zinc-300 dark:border-zinc-800 mt-0.5 bg-zinc-950"
+                                      {...register('preferred_domains', {
+                                        required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true)
+                                          ? 'Please select at least one domain.'
+                                          : false
+                                      })}
+                                      className="w-4 h-4 mt-0.5 accent-blue-600 rounded-none cursor-pointer"
                                     />
                                     <div>
-                                      <p className="font-bold text-xs">{dom.name}</p>
-                                      <span className="text-[10px] text-zinc-500 dark:text-zinc-550 leading-normal font-medium mt-0.5 block">{dom.description}</span>
+                                      <div className="font-mono-tag text-[10px] opacity-70 uppercase">
+                                        DOMAIN {String(domIdx + 1).padStart(2, '0')}
+                                      </div>
+                                      <p className="font-display-heavy text-sm uppercase tracking-tight">
+                                        {dom.name}
+                                      </p>
+                                      <p className="text-[11px] opacity-80 mt-0.5 font-normal">
+                                        {dom.description}
+                                      </p>
                                     </div>
                                   </label>
                                 );
                               })}
                             </div>
+
                             {errors.preferred_domains && (
-                              <p className="mt-2 text-[10px] text-red-500 flex items-center gap-1.5 font-bold">
+                              <p className="font-mono-tag text-[10px] text-red-500 font-bold flex items-center gap-1.5 pt-1">
                                 <AlertCircle size={12} />
                                 <span>{errors.preferred_domains.message}</span>
                               </p>
@@ -769,15 +1128,15 @@ const PublicLanding = () => {
                         );
                       }
 
-                      // Default Input Types
+                      // Default Inputs
                       return (
                         <div key={field.id} className="space-y-2">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                          <label className="block font-mono-tag text-xs font-bold uppercase tracking-wider">
                             {field.label} {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-red-500">*</span> : null}
                           </label>
 
                           {field.description && (
-                            <p className="text-[10px] text-zinc-500 font-medium leading-normal">{field.description}</p>
+                            <p className="text-xs text-slate-500">{field.description}</p>
                           )}
 
                           {/* 1. Single Line Inputs */}
@@ -798,21 +1157,20 @@ const PublicLanding = () => {
                                   minLength: isPhone
                                     ? { value: 10, message: 'Mobile number must be exactly 10 digits.' }
                                     : field.validation_rules?.min ? { value: field.validation_rules.min, message: `Minimum ${field.validation_rules.min} characters` } : undefined,
-                                  maxLength: isPhone
-                                    ? { value: 10, message: 'Mobile number must be exactly 10 digits.' }
-                                    : field.validation_rules?.max ? { value: field.validation_rules.max, message: `Maximum ${field.validation_rules.max} characters` } : undefined,
                                   pattern: isPhone
                                     ? { value: /^\d{10}$/, message: 'Mobile number must be exactly 10 digits.' }
                                     : field.validation_rules?.regex ? { value: new RegExp(field.validation_rules.regex), message: 'Invalid formatting value' } : undefined
                                 })}
-                                className={`w-full px-4 py-3 border rounded-xl text-xs focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 focus:outline-none transition-all duration-200 bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-600
-                                  ${errors[key] ? 'border-red-500/50 focus:ring-red-500/50' : ''}
-                                `}
+                                className={`w-full px-4 py-3.5 border rounded-none text-xs font-medium transition-all ${
+                                  isDark
+                                    ? 'bg-[#070C18] border-[#1E293B] text-white focus:border-blue-500 focus:outline-none'
+                                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-blue-600 focus:outline-none'
+                                } ${errors[key] ? 'border-red-500' : ''}`}
                               />
                             );
                           })()}
 
-                          {/* 2. Paragraph Field */}
+                          {/* 2. Paragraph Textarea */}
                           {field.field_type === 'paragraph' && (
                             <textarea
                               placeholder={field.placeholder || ''}
@@ -821,23 +1179,27 @@ const PublicLanding = () => {
                                 required: field.is_required ? `${field.label} is required` : false,
                                 minLength: field.validation_rules?.min ? { value: field.validation_rules.min, message: `Answer must be at least ${field.validation_rules.min} characters` } : undefined
                               })}
-                              className={`w-full px-4 py-3 border rounded-xl text-xs focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 focus:outline-none transition-all duration-200 resize-none bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-600
-                                ${errors[key] ? 'border-red-500/50 focus:ring-red-500/50' : ''}
-                              `}
+                              className={`w-full px-4 py-3.5 border rounded-none text-xs font-medium resize-none transition-all ${
+                                isDark
+                                  ? 'bg-[#070C18] border-[#1E293B] text-white focus:border-blue-500 focus:outline-none'
+                                  : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-blue-600 focus:outline-none'
+                              } ${errors[key] ? 'border-red-500' : ''}`}
                             />
                           )}
 
-                          {/* 3. Dropdown Select */}
+                          {/* 3. Dropdown */}
                           {field.field_type === 'dropdown' && (
                             <select
                               {...register(key, { required: field.is_required ? `${field.label} is required` : false })}
-                              className={`w-full px-4 py-3 border rounded-xl text-xs focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 focus:outline-none transition-all duration-200 bg-white border-zinc-300 text-zinc-900 dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white
-                                ${errors[key] ? 'border-red-500/50' : ''}
-                              `}
+                              className={`w-full px-4 py-3.5 border rounded-none text-xs font-medium transition-all ${
+                                isDark
+                                  ? 'bg-[#070C18] border-[#1E293B] text-white focus:border-blue-500 focus:outline-none'
+                                  : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-blue-600 focus:outline-none'
+                              } ${errors[key] ? 'border-red-500' : ''}`}
                             >
-                              <option value="" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{field.placeholder || 'Select value...'}</option>
+                              <option value="">{field.placeholder || 'Select value...'}</option>
                               {field.options?.map((opt) => (
-                                <option key={opt.id} value={opt.option_value} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{opt.option_label}</option>
+                                <option key={opt.id} value={opt.option_value}>{opt.option_label}</option>
                               ))}
                             </select>
                           )}
@@ -857,18 +1219,19 @@ const PublicLanding = () => {
                                     return (
                                       <label
                                         key={opt.id}
-                                        className={`flex items-center gap-3 cursor-pointer text-xs border rounded-xl p-3.5 transition-all duration-200 select-none
-                                          ${isSelected
-                                            ? 'border-blue-600 bg-blue-50/50 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-white font-bold'
-                                            : 'border-zinc-200 hover:border-zinc-300 bg-white/30 text-zinc-700 dark:border-zinc-800 dark:hover:border-zinc-700 dark:bg-zinc-900/20 dark:text-zinc-300'
-                                          }
-                                        `}
+                                        className={`flex items-center gap-3 p-3.5 border rounded-none cursor-pointer text-xs font-semibold select-none transition-all ${
+                                          isSelected
+                                            ? 'border-blue-500 bg-blue-600 text-white font-bold'
+                                            : isDark
+                                              ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:border-slate-700'
+                                              : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
+                                        }`}
                                       >
                                         <input
                                           type="checkbox"
                                           value={opt.option_value}
                                           {...register(key, { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select at least one option.' : false })}
-                                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500/50 border-zinc-300 dark:border-zinc-800 bg-zinc-950"
+                                          className="w-4 h-4 rounded-none accent-blue-600"
                                         />
                                         <span>{opt.option_label}</span>
                                       </label>
@@ -876,17 +1239,19 @@ const PublicLanding = () => {
                                   })}
                                 </div>
                                 {isOtherChecked && (
-                                  <div className="mt-2.5 animate-fadeIn">
+                                  <div className="mt-2.5">
                                     <input
                                       type="text"
                                       placeholder="Please specify details for 'Other'..."
                                       {...register(`${key}_other_text`, {
                                         required: isOtherChecked ? "Please specify details for 'Other'" : false
                                       })}
-                                      className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-medium bg-white dark:bg-zinc-900/40 text-zinc-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                                      className={`w-full px-4 py-3 border rounded-none text-xs font-medium ${
+                                        isDark ? 'bg-[#070C18] border-[#1E293B] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                      }`}
                                     />
                                     {errors[`${key}_other_text`] && (
-                                      <p className="mt-1 text-[9px] text-red-500 font-bold px-2 flex items-center gap-1.5 animate-pulse">
+                                      <p className="mt-1 text-[10px] text-red-500 font-bold flex items-center gap-1.5">
                                         <AlertCircle size={11} />
                                         <span>{errors[`${key}_other_text`].message}</span>
                                       </p>
@@ -905,18 +1270,19 @@ const PublicLanding = () => {
                                 return (
                                   <label
                                     key={opt.id}
-                                    className={`flex items-center gap-3 cursor-pointer text-xs border rounded-xl p-3.5 transition-all duration-200 select-none
-                                      ${isSelected
-                                        ? 'border-blue-600 bg-blue-50/50 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-white font-bold'
-                                        : 'border-zinc-200 hover:border-zinc-300 bg-white/30 text-zinc-700 dark:border-zinc-800 dark:hover:border-zinc-700 dark:bg-zinc-900/20 dark:text-zinc-300'
-                                      }
-                                    `}
+                                    className={`flex items-center gap-3 p-3.5 border rounded-none cursor-pointer text-xs font-semibold select-none transition-all ${
+                                      isSelected
+                                        ? 'border-blue-500 bg-blue-600 text-white font-bold'
+                                        : isDark
+                                          ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:border-slate-700'
+                                          : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
+                                    }`}
                                   >
                                     <input
                                       type="radio"
                                       value={opt.option_value}
                                       {...register(key, { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select an option.' : false })}
-                                      className="w-4 h-4 text-blue-600 focus:ring-blue-500/50 border-zinc-300 dark:border-zinc-800 bg-zinc-950"
+                                      className="w-4 h-4 rounded-none accent-blue-600"
                                     />
                                     <span>{opt.option_label}</span>
                                   </label>
@@ -925,21 +1291,23 @@ const PublicLanding = () => {
                             </div>
                           )}
 
-                          {/* 6. File Upload Input */}
+                          {/* 6. File Upload */}
                           {['file', 'image', 'resume', 'pdf', 'id_card'].includes(field.field_type) && (
-                            <div className="border border-dashed border-zinc-300 dark:border-zinc-800 rounded-xl p-4 bg-white/40 dark:bg-zinc-900/20 text-center space-y-2">
+                            <div className={`border border-dashed p-5 text-center space-y-2 ${
+                              isDark ? 'border-[#1E293B] bg-[#070C18]' : 'border-slate-300 bg-slate-50'
+                            }`}>
                               <input
                                 type="file"
                                 accept={field.field_type === 'pdf' || field.field_type === 'resume' ? '.pdf' : 'image/*,.pdf'}
                                 {...register(key, { required: field.is_required ? `${field.label} is required` : false })}
-                                className="w-full text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 dark:file:bg-zinc-800 dark:file:text-zinc-200 hover:file:bg-blue-100 dark:hover:file:bg-zinc-700 transition cursor-pointer"
+                                className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-none file:border-0 file:text-xs file:font-mono-tag file:font-black file:uppercase file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
                               />
                             </div>
                           )}
 
-                          {/* Inline Field Error Message */}
+                          {/* Field Error */}
                           {errors[key] && (
-                            <p className="text-[10px] text-red-500 font-bold flex items-center gap-1.5 mt-1">
+                            <p className="font-mono-tag text-[10px] text-red-500 font-bold flex items-center gap-1.5 mt-1">
                               <AlertCircle size={12} />
                               <span>{errors[key].message}</span>
                             </p>
@@ -950,13 +1318,17 @@ const PublicLanding = () => {
                   </motion.div>
                 </AnimatePresence>
 
-                {/* Form Controls */}
-                <div className="flex justify-between items-center pt-6 border-t border-zinc-100 dark:border-zinc-900 gap-4">
+                {/* Stepper Controls */}
+                <div className="flex justify-between items-center pt-6 border-t border-current/15 gap-4">
                   <button
                     type="button"
                     onClick={prevStep}
                     disabled={activeStep === 0}
-                    className="px-5 h-11 border border-zinc-300 bg-white hover:bg-zinc-100 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/20 dark:hover:bg-zinc-900/60 dark:text-zinc-300 rounded-xl text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2 active:scale-95"
+                    className={`h-11 px-6 font-mono-tag text-xs font-black uppercase tracking-wider flex items-center gap-2 border transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                      isDark
+                        ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:bg-[#0A1128]'
+                        : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                    }`}
                   >
                     <ChevronLeft size={14} /> Back
                   </button>
@@ -966,24 +1338,24 @@ const PublicLanding = () => {
                       type="button"
                       onClick={nextStep}
                       disabled={checkingNextStep}
-                      className="px-6 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-md hover:shadow-blue-500/20 active:scale-95 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                      className="h-11 px-7 bg-blue-600 hover:bg-blue-500 text-white font-mono-tag text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all disabled:opacity-50"
                     >
                       {checkingNextStep ? (
-                        <><RefreshCw size={14} className="animate-spin" /> Validating...</>
+                        <><RefreshCw size={14} className="animate-spin" /> Checking...</>
                       ) : (
-                        <>Next Step <ChevronRight size={14} /></>
+                        <>Next Section <ChevronRight size={14} /></>
                       )}
                     </button>
                   ) : (
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="px-8 h-11 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                      className="h-11 px-8 bg-emerald-600 hover:bg-emerald-500 text-white font-mono-tag text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all disabled:opacity-50"
                     >
                       {submitting ? (
                         <><RefreshCw size={14} className="animate-spin" /> Submitting...</>
                       ) : (
-                        <><CheckCircle size={14} /> Submit Application</>
+                        <><CheckCircle size={14} /> Complete Registration</>
                       )}
                     </button>
                   )}
@@ -994,23 +1366,20 @@ const PublicLanding = () => {
         </div>
       </section>
 
-      {/* ===== OTP MODAL INTERCEPT ===== */}
+      {/* --- OTP MODAL (FLAT DESIGN) --- */}
       {otpModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#06040f]/80 backdrop-blur-sm animate-fadeIn">
-          <div className="relative bg-white border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-900 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center">
-                  <CheckCircle size={16} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-zinc-900 dark:text-white">Email Verification Required</h3>
-                  <p className="text-[10px] text-zinc-500 font-medium">Verify your email address before submitting.</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#070C18]/85 backdrop-blur-sm">
+          <div className={`border p-7 max-w-md w-full space-y-6 ${
+            isDark ? 'bg-[#0C152B] border-blue-900 text-white' : 'bg-white border-slate-300 text-slate-900'
+          }`}>
+            <div className="flex items-center justify-between border-b pb-4 border-current/20">
+              <div>
+                <h3 className="font-display-heavy text-lg uppercase tracking-tight">Email Verification</h3>
+                <p className="font-mono-tag text-[10px] text-slate-500 uppercase">One-time password confirmation</p>
               </div>
               <button
                 onClick={() => setOtpModalOpen(false)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xs font-bold p-1 rounded-lg transition"
+                className="font-mono-tag text-xs font-bold p-1 text-slate-400 hover:text-white"
               >
                 ✕
               </button>
@@ -1018,42 +1387,46 @@ const PublicLanding = () => {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 font-mono">Email Address</label>
+                <label className="block font-mono-tag text-[10px] font-bold uppercase tracking-wider text-slate-400">Email Address</label>
                 <div className="flex gap-2">
                   <input
                     type="email"
                     value={otpEmail}
                     onChange={e => setOtpEmail(e.target.value)}
                     disabled={otpSent}
-                    placeholder="your.email@example.com"
-                    className="flex-1 h-11 px-3.5 rounded-xl border border-zinc-300 bg-white text-zinc-900 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-white disabled:opacity-60 transition-all"
+                    placeholder="student@example.com"
+                    className={`flex-1 h-11 px-3.5 border rounded-none text-xs font-medium ${
+                      isDark ? 'bg-[#070C18] border-[#1E293B] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
                   />
                   <button
                     type="button"
                     onClick={handleSendOtp}
                     disabled={otpSending || (otpSent && otpCountdown > 0)}
-                    className="h-11 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition shadow-md active:scale-95 whitespace-nowrap shrink-0"
+                    className="h-11 px-4 bg-blue-600 hover:bg-blue-500 text-white font-mono-tag text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50"
                   >
-                    {otpSending ? 'Sending…' : otpSent && otpCountdown > 0 ? `Resend in ${otpCountdown}s` : otpSent ? 'Resend' : 'Send OTP'}
+                    {otpSending ? 'Sending…' : otpSent && otpCountdown > 0 ? `${otpCountdown}s` : otpSent ? 'Resend' : 'Send OTP'}
                   </button>
                 </div>
               </div>
 
               {otpSent && (
-                <div className="space-y-4">
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium flex items-center gap-2">
-                    <CheckCircle size={12} className="text-emerald-500" />
-                    OTP sent to <span className="font-bold text-zinc-800 dark:text-white">{otpEmail}</span>
+                <div className="space-y-4 pt-2">
+                  <p className="font-mono-tag text-[10px] text-emerald-400 font-bold flex items-center gap-1.5">
+                    <CheckCircle size={12} />
+                    OTP code sent to {otpEmail}
                   </p>
                   <div className="space-y-2">
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 font-mono">6-Digit OTP Code</label>
+                    <label className="block font-mono-tag text-[10px] font-bold uppercase tracking-wider text-slate-400">6-Digit OTP</label>
                     <input
                       type="text"
-                      placeholder="• • • • • •"
+                      placeholder="000000"
                       maxLength={6}
                       value={otpCode}
                       onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-full h-12 px-4 text-2xl font-black tracking-[0.5em] rounded-xl border border-zinc-300 bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-white transition-all text-center"
+                      className={`w-full h-12 px-4 text-xl font-mono-tag font-black tracking-[0.4em] text-center border rounded-none ${
+                        isDark ? 'bg-[#070C18] border-[#1E293B] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                      }`}
                       autoFocus
                     />
                   </div>
@@ -1061,101 +1434,65 @@ const PublicLanding = () => {
                     type="button"
                     onClick={handleVerifyOtp}
                     disabled={otpVerifying || otpCode.length !== 6}
-                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-mono-tag text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                   >
-                    {otpVerifying
-                      ? <><RefreshCw size={13} className="animate-spin" /> Verifying…</>
-                      : <><CheckCircle size={13} /> Verify &amp; Submit Application</>
-                    }
+                    {otpVerifying ? <><RefreshCw size={13} className="animate-spin" /> Verifying…</> : <><CheckCircle size={13} /> Verify &amp; Submit</>}
                   </button>
                 </div>
               )}
-
-              <p className="text-[9px] text-zinc-500 text-center font-medium">Your data is auto-saved. Email verification is required once per session.</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== CLEAR FORM CONFIRMATION MODAL ===== */}
+      {/* --- CLEAR CONFIRM MODAL --- */}
       {showClearConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#06040f]/80 backdrop-blur-sm">
-          <div className="relative bg-white border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-900 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6 overflow-hidden transform scale-100 transition-all duration-300">
-            <div className="text-center space-y-4 relative z-10">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-50/50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 mx-auto shadow-inner border border-blue-200/40">
-                <AlertCircle size={22} />
-              </div>
-              <div className="space-y-1.5">
-                <h3 className="text-base font-black text-zinc-900 dark:text-white">Clear Form Data?</h3>
-                <p className="text-xs font-medium text-zinc-550 max-w-xs mx-auto leading-relaxed">
-                  Are you sure you want to clear your current progress and start fresh? This action cannot be undone.
-                </p>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#070C18]/85 backdrop-blur-sm">
+          <div className={`border p-7 max-w-md w-full space-y-6 ${
+            isDark ? 'bg-[#0C152B] border-blue-900 text-white' : 'bg-white border-slate-300 text-slate-900'
+          }`}>
+            <div className="space-y-2">
+              <h3 className="font-display-heavy text-lg uppercase tracking-tight">Clear Form Data?</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                This will reset your drafted answers in this browser session.
+              </p>
             </div>
-
-            <div className="flex gap-3 relative z-10">
+            <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setShowClearConfirmModal(false)}
-                className="flex-1 h-11 border rounded-xl border-zinc-300 bg-white hover:bg-zinc-100 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/20 dark:hover:bg-zinc-900/60 dark:text-zinc-300 text-xs font-bold transition active:scale-95"
+                className={`flex-1 h-11 border font-mono-tag text-xs font-bold uppercase ${
+                  isDark ? 'border-[#1E293B] bg-[#070C18] text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-800'
+                }`}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmClearDraft}
-                className="flex-1 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-md active:scale-95"
+                className="flex-1 h-11 bg-red-600 hover:bg-red-500 text-white font-mono-tag text-xs font-black uppercase tracking-wider"
               >
-                Yes, Clear Form
+                Clear Form
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- FAQs Accordion --- */}
-      <section className="py-24 max-w-3xl mx-auto px-6 space-y-10 relative z-10">
-        <div className="text-center space-y-2">
-          <span className="text-[10px] text-blue-800/80 dark:text-zinc-500 uppercase tracking-widest font-black">Have Questions?</span>
-          <h2 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Frequently Asked Questions</h2>
-        </div>
-
-        <div className="space-y-4 text-xs font-semibold">
-          {faqs.map((faq, index) => (
-            <div
-              key={index}
-              className="border rounded-2xl overflow-hidden shadow-sm hover:border-blue-100 dark:hover:border-zinc-800 transition duration-200 bg-white/70 border-white/60 dark:bg-zinc-950/60 dark:border-zinc-900 faq-item"
-            >
-              <button
-                onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                className="w-full p-4 text-left font-bold flex items-center justify-between gap-4 cursor-pointer hover:bg-blue-50/20 dark:hover:bg-zinc-900/40 text-zinc-900 dark:text-white transition duration-150"
-              >
-                <span>{faq.question || faq.q}</span>
-                <ChevronDown
-                  size={16}
-                  className="text-zinc-500 transition-transform duration-200"
-                />
-              </button>
-              <AnimatePresence>
-                {openFaq === index && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden border-t border-zinc-200 dark:border-zinc-900"
-                  >
-                    <p className="p-4 text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed font-sans text-xs">
-                      {faq.answer || faq.a}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
+      {/* --- BIG BOTTOM DISPLAY BRANDING --- */}
+      <section className={`border-t py-16 px-5 sm:px-8 md:px-14 select-none overflow-hidden ${
+        isDark ? 'border-[#1E293B] bg-[#070C18]' : 'border-slate-200 bg-[#F8FAFC]'
+      }`}>
+        <div className="max-w-7xl mx-auto">
+          <h1 className={`font-display-heavy text-6xl sm:text-8xl md:text-9xl lg:text-[140px] uppercase tracking-tighter leading-none whitespace-nowrap opacity-90 ${
+            isDark ? 'text-[#2563EB]' : 'text-[#0A1128]'
+          }`}>
+            TEAM MAVERICKS.
+          </h1>
         </div>
       </section>
 
-      {/* --- Footer --- */}
+      {/* --- FOOTER (KEPT AS IS) --- */}
       <Footer />
 
     </div>
