@@ -1,2 +1,27 @@
 # Customizations folder
 .agents/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Dependencies
+node_modules/
+backend/vendor/
+backend/uploads/
+backend/cache/
+
+# Production build outputs
+frontend/dist/
+frontend/dist-ssr/
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

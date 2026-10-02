@@ -24,7 +24,7 @@ const CommunicatePage = () => {
   const [body, setBody] = useState('');
   const [hasButton, setHasButton] = useState(false);
   const [buttonText, setButtonText] = useState('Go to your application dashboard');
-  const [buttonUrl, setButtonUrl] = useState('http://localhost:8000/teammavericks/apply-success');
+  const [buttonUrl, setButtonUrl] = useState(`${typeof window !== 'undefined' ? window.location.origin : ''}/teammavericks/apply-success`);
   const [saveTargetEvent, setSaveTargetEvent] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
 

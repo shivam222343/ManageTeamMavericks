@@ -1,0 +1,15 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Composer
+/vendor/
+/cache/
+/uploads/
+composer.phar
+
+# Logs and system files
+*.log
+.DS_Store
+Thumbs.db

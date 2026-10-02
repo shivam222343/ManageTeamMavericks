@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 const AuthContext = createContext();
 
@@ -9,12 +10,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Setup Axios defaults
-  axios.defaults.baseURL = 'http://localhost:8000'; // Target local PHP built-in server
-  
+  axios.defaults.baseURL = API_URL;
+
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
+
       // Verify token & fetch profile
       axios.get('/auth/me')
         .then(response => {
@@ -38,15 +39,15 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/auth/login', { email, password, rememberMe });
       const { token: receivedToken, user: receivedUser } = response.data;
-      
+
       localStorage.setItem('token', receivedToken);
       setToken(receivedToken);
       setUser(receivedUser);
       return { success: true };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.error || 'Login failed. Please check your credentials.' 
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Login failed. Please check your credentials.'
       };
     }
   };
