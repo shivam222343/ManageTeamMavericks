@@ -49,11 +49,9 @@ jobs:
           mkdir -p deploy_payload
 
           echo "Copying frontend..."
-
           cp -r frontend/dist/. deploy_payload/
 
           echo "Copying backend..."
-
           cp backend/api.php deploy_payload/
           cp backend/index.php deploy_payload/
           cp backend/.htaccess deploy_payload/
@@ -93,8 +91,8 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
-          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
         run: |
           set -e
 
@@ -111,23 +109,25 @@ jobs:
           fi
 
           if [ -z "$SSH_USER" ]; then
-            echo "❌ HOSTINGER_SSH_USER is missing."
+            echo "❌ HOSTINGER_USER is missing."
             exit 1
           fi
 
           if [ -z "$SSH_PORT" ]; then
-            echo "❌ HOSTINGER_SSH_PORT is missing."
+            echo "❌ HOSTINGER_PORT is missing."
             exit 1
           fi
 
           echo "✅ HOSTINGER_SSH_KEY is available."
           echo "✅ HOSTINGER_SSH_HOST is available."
-          echo "✅ HOSTINGER_SSH_USER is available."
-          echo "✅ HOSTINGER_SSH_PORT is available."
+          echo "✅ HOSTINGER_USER is available."
+          echo "✅ HOSTINGER_PORT is available."
 
       - name: Setup SSH
         env:
           SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
         run: |
           set -e
 
@@ -144,15 +144,15 @@ jobs:
           echo "✅ SSH private key is valid."
 
           ssh-keyscan \
-            -p "${{ secrets.HOSTINGER_SSH_PORT }}" \
-            "${{ secrets.HOSTINGER_SSH_HOST }}" \
+            -p "$SSH_PORT" \
+            "$SSH_HOST" \
             >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Test SSH Connection
         env:
           SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
-          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
         run: |
           set -e
 
@@ -169,8 +169,8 @@ jobs:
       - name: Deploy to Hostinger via Native Rsync
         env:
           SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
-          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
         run: |
           set -e
 
@@ -201,8 +201,8 @@ jobs:
       - name: Ensure Server Permissions
         env:
           SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
-          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          SSH_USER: ${{ secrets.HOSTINGER_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_PORT }}
         run: |
           set -e
 
