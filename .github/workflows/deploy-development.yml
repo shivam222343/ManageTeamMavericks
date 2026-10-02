@@ -1,6 +1,5 @@
 name: Deploy Development
 
-# Trigger workflow deployment
 on:
   push:
     branches:
@@ -55,7 +54,6 @@ jobs:
           echo "Copying backend..."
           cp backend/api.php deploy_payload/
           cp backend/index.php deploy_payload/
-          cp backend/.htaccess deploy_payload/
           cp backend/composer.json deploy_payload/
           cp backend/composer.lock deploy_payload/
 
@@ -87,6 +85,7 @@ jobs:
           EOF
 
           echo "Deployment artifacts prepared."
+          echo "Server .htaccess will be preserved."
 
       - name: Validate Deployment Secrets
         env:
@@ -191,6 +190,7 @@ jobs:
           rsync \
             -avz \
             --delete \
+            --exclude='.htaccess' \
             --exclude='uploads/' \
             --exclude='cache/' \
             -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no" \
@@ -198,6 +198,7 @@ jobs:
             "$SSH_USER@$SSH_HOST:$REMOTE_PATH"
 
           echo "✅ Deployment completed successfully."
+          echo "✅ Existing server .htaccess preserved."
 
       - name: Ensure Server Permissions
         env:
@@ -232,5 +233,6 @@ jobs:
           echo "Backend: Composer dependencies installed"
           echo "SSH: Connection successful"
           echo "Rsync: Deployment successful"
+          echo ".htaccess: Preserved on server"
           echo ""
           echo "=========================================="
