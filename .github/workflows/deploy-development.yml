@@ -25,7 +25,7 @@ jobs:
       - name: Build Frontend
         working-directory: frontend
         env:
-          VITE_API_URL: https://development.teammavericks.org
+          VITE_API_URL: https://development.teammavericks.org/api.php
         run: |
           npm ci
           npm run build

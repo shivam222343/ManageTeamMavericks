@@ -25,7 +25,7 @@ jobs:
       - name: Build Frontend
         working-directory: frontend
         env:
-          VITE_API_URL: https://manage.teammavericks.org
+          VITE_API_URL: https://manage.teammavericks.org/api.php
         run: |
           npm ci
           npm run build
@@ -147,3 +147,4 @@ jobs:
           echo ".htaccess: Preserved on server"
           echo ""
           echo "=========================================="
+
