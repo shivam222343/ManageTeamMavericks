@@ -12,7 +12,7 @@ class CampaignController {
      * GET /api.php/campaigns
      */
     public function list(): void {
-        AuthMiddleware::requireCore(); // Admin access
+        AuthMiddleware::authenticate();
         
         $db = Database::getConnection();
         $stmt = $db->query("SELECT c.*, 

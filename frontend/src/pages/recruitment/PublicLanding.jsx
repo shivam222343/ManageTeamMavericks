@@ -13,9 +13,7 @@ import {
   AlertCircle,
   ChevronRight,
   ChevronLeft,
-  RefreshCw,
-  Sun,
-  Moon
+  RefreshCw
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import AboutEventsSection from './components/AboutEventsSection';
@@ -24,7 +22,7 @@ import Footer from '../../components/layout/Footer';
 gsap.registerPlugin(ScrollTrigger);
 
 const PublicLanding = () => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const isDark = theme === 'dark';
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -392,7 +390,7 @@ const PublicLanding = () => {
   const nextStep = async () => {
     const currentSection = formStructure[activeStep];
     const sectionFields = currentSection ? currentSection.fields : [];
-    
+
     const fieldKeysToValidate = [];
     sectionFields.forEach(f => {
       if (f.field_type === 'checkbox' && f.label === 'Preferred Domains') {
@@ -411,7 +409,7 @@ const PublicLanding = () => {
     let prnVal = '';
     let emailVal = '';
     let phoneVal = '';
-    
+
     formStructure.forEach(sec => {
       sec.fields.forEach(f => {
         const val = formValues[`field_${f.id}`];
@@ -515,32 +513,25 @@ const PublicLanding = () => {
       <div className={`absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[140px] pointer-events-none z-0 animate-breathe transition-colors duration-500 ${isDark ? 'bg-[#3B82FF]/5' : 'bg-[#3B82FF]/3'}`} style={{ animationDelay: '4s' }} />
 
       {/* --- Public Header Navigation --- */}
-      <header className={`sticky top-0 z-40 h-[76px] border-b bg-transparent backdrop-blur-[18px] flex items-center justify-between px-6 md:px-12 transition-all duration-300 ${isDark ? 'border-white/4' : 'border-zinc-200/50'}`}>
-        <div className="flex items-center gap-6">
+      <header className={`sticky top-0 z-40 h-[76px] border-b bg-transparent backdrop-blur-[18px] flex items-center justify-between px-4 sm:px-6 md:px-12 transition-all duration-300 ${isDark ? 'border-white/4' : 'border-zinc-200/50'}`}>
+        <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6 min-w-0">
           <img
             src="/Logos/Mavericks_Logo.png"
             alt="Team Mavericks Logo"
-            className="w-8 h-8 object-contain shrink-0"
+            className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0"
             style={{ filter: isDark ? 'brightness(0) invert(1)' : 'none' }}
           />
-          <h1 className={`font-satoshi font-bold text-[18px] tracking-[3px] uppercase transition-colors duration-300 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
+          <h1 className={`font-satoshi font-bold text-[13px] sm:text-[16px] md:text-[18px] tracking-[1.5px] sm:tracking-[2px] md:tracking-[3px] uppercase transition-colors duration-300 whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-zinc-900'}`}>
             Team Mavericks
           </h1>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button
-            onClick={toggleTheme}
-            className={`p-2.5 rounded-full border transition-all duration-300 cursor-pointer ${isDark ? 'bg-white/5 border-white/10 text-amber-400 hover:bg-white/10' : 'bg-zinc-100 border-zinc-200 text-zinc-700 hover:bg-zinc-200'}`}
-            title="Toggle theme"
-          >
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+        <div className="flex items-center gap-3 shrink-0">
           <a
             href="#apply-form"
-            className="h-[48px] px-[28px] bg-gradient-to-r from-[#2B5CFF] to-[#8C3AFF] text-white rounded-[14px] text-sm font-satoshi font-semibold flex items-center justify-center transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_10px_30px_rgba(85,105,255,0.4)]"
+            className="h-[40px] sm:h-[48px] px-4 sm:px-[28px] bg-gradient-to-r from-[#2B5CFF] to-[#8C3AFF] text-white rounded-[12px] sm:rounded-[14px] text-xs sm:text-sm font-satoshi font-semibold flex items-center justify-center transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_10px_30px_rgba(85,105,255,0.4)] whitespace-nowrap"
           >
-            Apply Now ↗
+            Apply
           </a>
         </div>
       </header>
@@ -617,7 +608,7 @@ const PublicLanding = () => {
         <div className="max-w-4xl mx-auto flex flex-col items-center text-center relative z-10 w-full">
           <h1
             ref={titleRef}
-            className={`font-clash font-[900] text-[48px] sm:text-[96px] md:text-[128px] tracking-[-3px] sm:tracking-[-5px] leading-[0.82] uppercase mb-[32px] select-none transition-colors duration-300 ${isDark ? 'text-white' : 'text-[#0B0F2B]'}`}
+            className={`font-bebas text-[56px] sm:text-[104px] md:text-[140px] tracking-normal sm:tracking-wide leading-[0.88] uppercase mb-[32px] select-none transition-colors duration-300 ${isDark ? 'text-white' : 'text-[#0B0F2B]'}`}
           >
             WE ARE <br />
             <span
@@ -699,7 +690,7 @@ const PublicLanding = () => {
 
               {/* Form Container */}
               <form onSubmit={handleSubmit(onSubmitForm)} className="border rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 relative bg-white/70 border-white/80 dark:bg-zinc-950/60 dark:border-zinc-900 shadow-blue-900/5 dark:shadow-none">
-                
+
                 {/* Section Title Header */}
                 <div className="border-b border-zinc-100 dark:border-zinc-900 pb-4 flex justify-between items-center gap-4">
                   <div>

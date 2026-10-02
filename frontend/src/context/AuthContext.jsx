@@ -59,9 +59,20 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
   };
 
+  const clearMustChangePassword = () => {
+    setUser((prev) => (prev ? { ...prev, mustChangePassword: false } : prev));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, login, logout, clearMustChangePassword, loading, isAuthenticated: !!user }}>
       {children}
+      {user?.mustChangePassword && (
+        <ChangePasswordModal
+          isOpen={true}
+          isFirstLogin={true}
+          onClose={clearMustChangePassword}
+        />
+      )}
     </AuthContext.Provider>
   );
 };

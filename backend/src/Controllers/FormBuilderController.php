@@ -34,6 +34,8 @@ class FormBuilderController {
             foreach ($fields as $field) {
                 $field['is_required'] = (bool)$field['is_required'];
                 $field['is_hidden'] = (bool)$field['is_hidden'];
+                $field['is_prn_verify_only'] = isset($field['is_prn_verify_only']) ? (bool)$field['is_prn_verify_only'] : false;
+                $field['show_in_analytics'] = isset($field['show_in_analytics']) ? (bool)$field['show_in_analytics'] : true;
                 $field['validation_rules'] = !empty($field['validation_rules']) ? json_decode($field['validation_rules'], true) : null;
                 $field['conditional_visibility'] = !empty($field['conditional_visibility']) ? json_decode($field['conditional_visibility'], true) : null;
 
@@ -72,8 +74,15 @@ class FormBuilderController {
             $stmtSecInsert = $db->prepare("INSERT INTO form_sections (campaign_id, name, description, display_order, is_hidden) VALUES (?, ?, ?, ?, ?)");
             $stmtSecUpdate = $db->prepare("UPDATE form_sections SET name = ?, description = ?, display_order = ?, is_hidden = ? WHERE id = ?");
 
-            $stmtFieldInsert = $db->prepare("INSERT INTO form_fields (section_id, label, placeholder, field_type, is_required, description, validation_rules, default_value, help_text, conditional_visibility, display_order, is_hidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmtFieldUpdate = $db->prepare("UPDATE form_fields SET section_id = ?, label = ?, placeholder = ?, field_type = ?, is_required = ?, description = ?, validation_rules = ?, default_value = ?, help_text = ?, conditional_visibility = ?, display_order = ?, is_hidden = ? WHERE id = ?");
+            // Ensure column exists dynamically in form_fields
+            try {
+                $db->exec("ALTER TABLE form_fields ADD COLUMN is_prn_verify_only BOOLEAN NOT NULL DEFAULT FALSE");
+            } catch (\Exception $e) {
+                // Column already exists
+            }
+
+            $stmtFieldInsert = $db->prepare("INSERT INTO form_fields (section_id, label, placeholder, field_type, is_required, description, validation_rules, default_value, help_text, conditional_visibility, display_order, is_hidden, show_in_analytics, is_prn_verify_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmtFieldUpdate = $db->prepare("UPDATE form_fields SET section_id = ?, label = ?, placeholder = ?, field_type = ?, is_required = ?, description = ?, validation_rules = ?, default_value = ?, help_text = ?, conditional_visibility = ?, display_order = ?, is_hidden = ?, show_in_analytics = ?, is_prn_verify_only = ? WHERE id = ?");
 
             $stmtOptDelete = $db->prepare("DELETE FROM field_options WHERE field_id = ?");
             $stmtOptInsert = $db->prepare("INSERT INTO field_options (field_id, option_value, option_label, display_order) VALUES (?, ?, ?, ?)");
@@ -106,17 +115,19 @@ class FormBuilderController {
                     $helpText = trim($field['help_text'] ?? '');
                     $conditionalVis = isset($field['conditional_visibility']) ? json_encode($field['conditional_visibility']) : null;
                     $fieldHidden = $field['is_hidden'] ?? false;
+                    $showInAnalytics = isset($field['show_in_analytics']) ? ($field['show_in_analytics'] ? 1 : 0) : 1;
+                    $isPrnVerifyOnly = isset($field['is_prn_verify_only']) ? ($field['is_prn_verify_only'] ? 1 : 0) : 0;
 
                     if ($fieldId) {
                         $stmtFieldUpdate->execute([
                             $secId, $label, $placeholder, $fieldType, $isRequired, $fieldDesc, 
-                            $validationRules, $defaultValue, $helpText, $conditionalVis, $fIdx, $fieldHidden, $fieldId
+                            $validationRules, $defaultValue, $helpText, $conditionalVis, $fIdx, $fieldHidden, $showInAnalytics, $isPrnVerifyOnly, $fieldId
                         ]);
                         $activeFieldIds[] = $fieldId;
                     } else {
                         $stmtFieldInsert->execute([
                             $secId, $label, $placeholder, $fieldType, $isRequired, $fieldDesc, 
-                            $validationRules, $defaultValue, $helpText, $conditionalVis, $fIdx, $fieldHidden
+                            $validationRules, $defaultValue, $helpText, $conditionalVis, $fIdx, $fieldHidden, $showInAnalytics, $isPrnVerifyOnly
                         ]);
                         $fieldId = (int)$db->lastInsertId();
                         $activeFieldIds[] = $fieldId;

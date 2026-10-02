@@ -6,13 +6,22 @@ class EmailTemplate {
         return "background: #0d2399 url('https://res.cloudinary.com/dnmzkntqd/image/upload/v1784363984/MailHeader_uvqc31.png') no-repeat center center; background-size: cover; text-align: left;";
     }
 
-    public static function getHtml(string $title, string $bodyHtml, ?string $buttonText = null, ?string $buttonUrl = null): string {
+    public static function getHtml(string $title, string $bodyHtml, ?string $buttonText = null, ?string $buttonUrl = null, string $buttonStyle = 'primary'): string {
         $headerBg = self::headerStyle();
         $btnMarkup = "";
         if ($buttonText && $buttonUrl) {
-            $btnMarkup = "<div style='text-align: center; margin-top: 32px; margin-bottom: 8px;'><a href='{$buttonUrl}' target='_blank' style='display: inline-block; background-color: #f97316; color: #ffffff; font-family: sans-serif; font-size: 13px; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 6px;'>{$buttonText}</a></div>";
+            if ($buttonStyle === 'outline_blue') {
+                $btnStyleAttr = "display: inline-block; border: 2px solid #2563eb; color: #2563eb; background-color: #ffffff; font-family: sans-serif; font-size: 13px; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 8px;";
+            } else {
+                $btnStyleAttr = "display: inline-block; background-color: #f97316; color: #ffffff; font-family: sans-serif; font-size: 13px; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 6px;";
+            }
+            $btnMarkup = "<div style='text-align: center; margin-top: 32px; margin-bottom: 8px;'><a href='{$buttonUrl}' target='_blank' style='{$btnStyleAttr}'>{$buttonText}</a></div>";
         }
-        $formattedBodyHtml = nl2br($bodyHtml);
+        if (strpos($bodyHtml, '<p>') !== false || strpos($bodyHtml, '<table') !== false || strpos($bodyHtml, '<div>') !== false) {
+            $formattedBodyHtml = $bodyHtml;
+        } else {
+            $formattedBodyHtml = nl2br($bodyHtml);
+        }
         $year = date('Y');
         return "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>{$title}</title><link href='https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Outfit:wght@400;750;900&display=swap' rel='stylesheet'></head><body style='margin:0;padding:0;background-color:#f8fafc;font-family:sans-serif;'><table border='0' cellpadding='0' cellspacing='0' width='100%' style='table-layout:fixed;background-color:#f8fafc;'><tr><td align='center' style='padding:40px 10px;'><table border='0' cellpadding='0' cellspacing='0' width='100%' style='max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(15, 23, 42,0.05);border:1px solid #e2e8f0;'><tr><td background='https://res.cloudinary.com/dnmzkntqd/image/upload/v1784363984/MailHeader_uvqc31.png' style='{$headerBg}'><table border='0' cellpadding='0' cellspacing='0' width='100%'><tr><td style='padding: 35px 35px; text-align: left;'><span style='color: #ffffff; font-family: Cinzel, Georgia, serif; font-size: 24px; font-weight: 900; letter-spacing: 1.5px; display: block; text-shadow: 0 2px 8px rgba(0,0,0,0.3);'>Team Mavericks</span></td></tr></table></td></tr><tr><td height='4' style='background:linear-gradient(90deg,#f97316 0%,#fb923c 50%,#fdba74 100%);'></td></tr><tr><td style='padding:36px 32px;text-align:left;color:#334155;font-size:13px;line-height:1.6;'><div style='font-size:13px;color:#334155;font-family:sans-serif;'>{$formattedBodyHtml}</div>{$btnMarkup}</td></tr><tr><td style='background-color:#f1f5f9;padding:20px 32px;text-align:center;font-size:10px;color:#64748b;border-top:1px solid #e2e8f0;'><p style='margin:0;font-family:Outfit,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'>Stay Updated!! Stay Ahead!!</p><p style='margin:6px 0 0 0;'>&copy; {$year} Team Mavericks. KIT CoEK Kolhapur. All rights reserved.</p></td></tr></table></td></tr></table></body></html>";
     }

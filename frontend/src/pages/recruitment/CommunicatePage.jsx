@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { Mail, Search, RefreshCw, Send, AlertCircle, Play, Sparkles, Check, CheckSquare, Square, FileText, Bold, Italic, Underline, Link as LinkIcon, Heading, Save } from 'lucide-react';
+import { Mail, Search, RefreshCw, Send, AlertCircle, Play, Sparkles, Check, CheckSquare, Square, FileText, Bold, Italic, Underline, Link as LinkIcon, Heading, Save, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useAuth } from '../../context/AuthContext';
 
 const CommunicatePage = () => {
   const { user } = useAuth();
+  const canCommunicate = user?.role === 'coordinator' || user?.permissions?.communicate === true;
   const isCanEdit = user?.role === 'coordinator' || user?.role === 'core_member';
 
   const [campaigns, setCampaigns] = useState([]);
@@ -288,6 +289,20 @@ const CommunicatePage = () => {
 </html>`;
   };
 
+  if (!canCommunicate) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto text-center py-24 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+          <Lock size={28} />
+        </div>
+        <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Communication Access Restricted</h2>
+        <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed">
+          Email dispatch and candidate communication features are reserved for Coordinators or members with explicit communication permissions. Please contact your Coordinator to enable this feature in Settings.
+        </p>
+      </div>
+    );
+  }
+
   if (loading && campaigns.length === 0) return <MajorLoader fullPage />;
 
   return (
@@ -305,12 +320,12 @@ const CommunicatePage = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-zinc-500">Recruitment drive:</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <span className="text-xs font-bold text-zinc-500 shrink-0">Recruitment drive:</span>
             <select
               value={selectedCampaignId}
               onChange={e => setSelectedCampaignId(e.target.value)}
-              className="px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-xs font-bold rounded-lg focus:outline-none"
+              className="w-full sm:w-auto px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-xs font-bold rounded-lg focus:outline-none"
             >
               {campaigns.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>

@@ -15,11 +15,17 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 const ApplicantList = () => {
+  const { user } = useAuth();
+  const isCoordinator = user?.role === 'coordinator';
+  const canApplicants = isCoordinator || user?.permissions?.applicants !== false;
+
   const [loading, setLoading] = useState(true);
   const [applicants, setApplicants] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null); // stores applicant object to delete
@@ -90,34 +96,31 @@ const ApplicantList = () => {
     }
   };
 
-  // Fetch campaign domains
+  // Fetch campaign domains & dynamic domain options
   useEffect(() => {
     const fetchDomains = async () => {
       try {
-        const res = await axios.get('/campaigns/1/domains');
-        if (Array.isArray(res.data)) {
-          setDomains(res.data);
-        } else {
-          setDomains([]);
-        }
-      } catch (err) {
-        console.error('Failed to load campaign domains');
-        setDomains([]);
-      }
-    };
-    fetchDomains();
-  }, []);
-  // Fetch campaign form fields for table columns
-  useEffect(() => {
-    const fetchFormFields = async () => {
-      try {
-        const res = await axios.get('/campaigns/1/form');
-        if (Array.isArray(res.data)) {
-          // Flatten all fields across sections
-          const fields = res.data.reduce((acc, sec) => {
-            return [...acc, ...(sec.fields || [])];
-          }, []);
+        const resDom = await axios.get('/campaigns/1/domains');
+        let domList = Array.isArray(resDom.data) ? [...resDom.data] : [];
+        
+        // Also inspect form fields for dynamic domain options
+        const resForm = await axios.get('/campaigns/1/form');
+        if (Array.isArray(resForm.data)) {
+          const fields = resForm.data.reduce((acc, sec) => [...acc, ...(sec.fields || [])], []);
           setFormFields(fields);
+
+          const domainFields = fields.filter(f => 
+            (f.label.toLowerCase().includes('domain') || f.label.toLowerCase().includes('preferred')) && f.options && f.options.length > 0
+          );
+
+          domainFields.forEach(df => {
+            df.options.forEach(opt => {
+              const optName = opt.option_label || opt.option_value || opt;
+              if (optName && !domList.some(d => d.name.toLowerCase() === String(optName).toLowerCase())) {
+                domList.push({ id: opt.id || opt.option_value || optName, name: optName });
+              }
+            });
+          });
 
           // Initialize visible columns
           const savedCols = localStorage.getItem('visible_applicant_columns');
@@ -128,7 +131,6 @@ const ApplicantList = () => {
               setVisibleColumns(fields.map(f => f.id));
             }
           } else {
-            // Default: show first 4 fields to keep layout clean, or all if less than 4
             if (fields.length > 4) {
               setVisibleColumns(fields.slice(0, 4).map(f => f.id));
             } else {
@@ -136,11 +138,12 @@ const ApplicantList = () => {
             }
           }
         }
+        setDomains(domList);
       } catch (err) {
-        console.error('Failed to load campaign form fields for headers:', err);
+        console.error('Failed to load campaign domains', err);
       }
     };
-    fetchFormFields();
+    fetchDomains();
   }, []);
   // Trigger search on filter changes
   useEffect(() => {
@@ -194,7 +197,19 @@ const ApplicantList = () => {
     );
   };
 
-  const activeFields = formFields.filter(field => visibleColumns.includes(field.id));
+  if (!canApplicants) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6">
+        <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+          <Lock className="text-zinc-500" />
+        </div>
+        <h2 className="text-xl font-bold">Access Restricted</h2>
+        <p className="text-zinc-500 mt-2 max-w-sm">You do not have the necessary permissions to access candidate applications.</p>
+      </div>
+    );
+  }
+
+  const activeFields = (formFields || []).filter(field => (visibleColumns || []).includes(field.id));
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -212,12 +227,13 @@ const ApplicantList = () => {
             className="flex items-center gap-2 px-3.5 py-1.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
           >
             <Download size={14} />
-            <span>Export CSV</span>
+            <span className="hidden sm:inline">Export CSV</span>
           </a>
         </div>
       </div>
 
       {/* --- Filter Navigation Segment (Matches Screenshot segment controls) --- */}
+      {/* Desktop view filters */}
       <div className="hidden sm:flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-4">
         {['all', 'applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected'].map((st) => (
           <button
@@ -317,7 +333,7 @@ const ApplicantList = () => {
           <select
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
-            className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary-blue"
+            className="w-[110px] sm:w-auto px-3 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary-blue"
           >
             <option value="">All Domains</option>
             {Array.isArray(domains) && domains.map((dom) => (
@@ -335,7 +351,7 @@ const ApplicantList = () => {
             className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer flex items-center gap-1.5"
           >
             <ArrowUpDown size={12} />
-            <span>Order</span>
+            <span className="hidden sm:inline">Order</span>
           </button>
 
           <button
@@ -343,7 +359,8 @@ const ApplicantList = () => {
             onClick={handleClearFilters}
             className="px-3.5 py-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 text-xs font-bold transition cursor-pointer"
           >
-            Clear All Filters
+            <span className="hidden sm:inline">Clear All Filters</span>
+            <span className="inline sm:hidden">Clear</span>
           </button>
 
           <div className="relative">
@@ -353,7 +370,7 @@ const ApplicantList = () => {
               className="px-3.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-650 dark:text-zinc-300 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
             >
               <SlidersHorizontal size={12} />
-              <span>Columns</span>
+              <span className="hidden sm:inline">Columns</span>
             </button>
 
             {showColumnManager && (
@@ -390,7 +407,7 @@ const ApplicantList = () => {
       </form>
 
       {/* --- Applicants Data Table --- */}
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-sm">
+      <div className="-mx-6 sm:mx-0 border-x-0 sm:border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-none sm:rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <RefreshCw size={24} className="animate-spin text-primary-blue" />
@@ -417,7 +434,7 @@ const ApplicantList = () => {
                 {Array.isArray(applicants) && applicants.length > 0 ? (
                   applicants.map((app) => {
                     return (
-                      <tr key={app.id} className="hover:bg-zinc-50/30 dark:hover:bg-zinc-900/20 align-middle">
+                      <tr key={app.id} className="hover:bg-zinc-100/70 dark:hover:bg-zinc-800/60 align-middle transition">
                         {/* Student ID */}
                         <td className="py-4 px-6 text-zinc-500 font-mono">
                           {app.registration_id || `TM-${String(app.id).padStart(4, '0')}`}
@@ -477,16 +494,18 @@ const ApplicantList = () => {
                               to={`/dashboard/applicants/${app.id}`}
                               className="px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 transition text-[11px]"
                             >
-                              <span>Details</span>
+                              <span className="hidden sm:inline">Details</span>
                               <ChevronRight size={12} />
                             </Link>
-                            <button
-                              onClick={() => setDeleteTarget(app)}
-                              className="p-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 transition cursor-pointer"
-                              title="Delete applicant entry"
-                            >
-                              <Trash2 size={12} />
-                            </button>
+                            {isCoordinator && (
+                              <button
+                                onClick={() => setDeleteTarget(app)}
+                                className="p-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-400 hover:text-accent-red hover:bg-red-50 dark:hover:bg-red-950/20 transition cursor-pointer"
+                                title="Delete applicant entry"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
