@@ -25,7 +25,7 @@ jobs:
       - name: Build Frontend
         working-directory: frontend
         env:
-          VITE_API_URL: https://manage.teammavericks.org
+          VITE_API_URL: https://manage.teammavericks.org/api.php
         run: |
           npm ci
           npm run build
@@ -146,4 +146,8 @@ jobs:
           echo "Rsync: Deployment successful"
           echo ".htaccess: Preserved on server"
           echo ""
+<<<<<<< HEAD
           echo "=========================================="
+=======
+          echo "=========================================="
+>>>>>>> 8fb5bf8 (fix(api): route frontend requests through api.php and fix static asset URLs)

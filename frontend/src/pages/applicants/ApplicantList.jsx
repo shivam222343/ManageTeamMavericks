@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
+import { API_URL, BASE_URL } from '../../config/api';
 import {
   Search,
   Filter,
@@ -465,7 +465,7 @@ const ApplicantList = () => {
                                   <div className="flex items-center gap-1.5">
                                     <span>📄 Uploaded</span>
                                     <a
-                                      href={answer.startsWith('http://') || answer.startsWith('https://') ? answer : `${API_URL}/${answer.replace(/^\/+/, '')}`}
+                                      href={answer.startsWith('http://') || answer.startsWith('https://') ? answer : `${BASE_URL}/${answer.replace(/^\/+/, '')}`}
                                       target="_blank"
                                       rel="noreferrer"
                                       className="p-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-650 dark:text-zinc-300 transition cursor-pointer inline-flex items-center justify-center"
