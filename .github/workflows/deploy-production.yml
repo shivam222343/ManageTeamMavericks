@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Build Frontend
@@ -43,20 +43,27 @@ jobs:
 
       - name: Prepare Deployment Artifacts
         run: |
+          set -e
+
+          rm -rf deploy_payload
           mkdir -p deploy_payload
-          # Copy compiled frontend assets
-          cp -r frontend/dist/* deploy_payload/
-          # Copy backend files
+
+          echo "Copying frontend..."
+          cp -r frontend/dist/. deploy_payload/
+
+          echo "Copying backend..."
           cp backend/api.php deploy_payload/
           cp backend/index.php deploy_payload/
-          cp backend/.htaccess deploy_payload/
           cp backend/composer.json deploy_payload/
           cp backend/composer.lock deploy_payload/
+
           cp -r backend/config deploy_payload/
           cp -r backend/src deploy_payload/
           cp -r backend/vendor deploy_payload/
-          # Generate environment file from GitHub Secrets / defaults
-          cat <<EOF > deploy_payload/.env
+
+          echo "Generating .env..."
+
+          cat > deploy_payload/.env <<EOF
           DB_HOST=${{ secrets.DB_HOST || 'srv1001.hstgr.io' }}
           DB_PORT=${{ secrets.DB_PORT || '3306' }}
           DB_USER=${{ secrets.DB_USER || 'u714635531_teammavericks' }}
@@ -77,6 +84,9 @@ jobs:
           DISPLAY_ERRORS=false
           EOF
 
+          echo "Deployment artifacts prepared."
+          echo "Server .htaccess will be preserved."
+
       - name: Deploy to Hostinger via Native Rsync
         env:
           SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY || secrets.SSH_PRIVATE_KEY }}
@@ -84,22 +94,56 @@ jobs:
           SSH_USER: ${{ secrets.HOSTINGER_SSH_USER || secrets.SSH_USER || 'u714635531' }}
           SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT || secrets.SSH_PORT || '65002' }}
         run: |
+          set -e
+
           if [ -z "$SSH_KEY" ]; then
             echo "❌ ERROR: HOSTINGER_SSH_KEY secret is not set or empty in GitHub!"
-            echo "Please go to GitHub -> Settings -> Secrets and variables -> Actions and add HOSTINGER_SSH_KEY."
             exit 1
           fi
 
           mkdir -p ~/.ssh
+
           echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+
           chmod 600 ~/.ssh/deploy_key
 
-          # Deploy files using native rsync over SSH
-          rsync -avz -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no" \
+          echo "Starting production deployment..."
+
+          rsync \
+            -avz \
+            --exclude='.htaccess' \
             --exclude='uploads/' \
             --exclude='cache/' \
-            deploy_payload/ $SSH_USER@$SSH_HOST:/home/u714635531/domains/teammavericks.org/public_html/manage/
+            -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no" \
+            deploy_payload/ \
+            "$SSH_USER@$SSH_HOST:/home/u714635531/domains/teammavericks.org/public_html/manage/"
 
-          # Ensure directories and permissions
-          ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
-            "mkdir -p /home/u714635531/domains/teammavericks.org/public_html/manage/uploads /home/u714635531/domains/teammavericks.org/public_html/manage/cache && chmod 755 /home/u714635531/domains/teammavericks.org/public_html/manage/uploads"
+          echo "✅ Deployment completed successfully."
+          echo "✅ Existing server .htaccess preserved."
+
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "mkdir -p /home/u714635531/domains/teammavericks.org/public_html/manage/uploads /home/u714635531/domains/teammavericks.org/public_html/manage/cache && chmod 755 /home/u714635531/domains/teammavericks.org/public_html/manage/uploads /home/u714635531/domains/teammavericks.org/public_html/manage/cache"
+
+          echo "✅ Server directories and permissions configured."
+
+      - name: Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "       PRODUCTION DEPLOYMENT COMPLETE"
+          echo "=========================================="
+          echo ""
+          echo "Environment: production"
+          echo "URL: https://manage.teammavericks.org"
+          echo "Target: /home/u714635531/domains/teammavericks.org/public_html/manage/"
+          echo ""
+          echo "Frontend: Built successfully"
+          echo "Backend: Composer dependencies installed"
+          echo "SSH: Connection successful"
+          echo "Rsync: Deployment successful"
+          echo ".htaccess: Preserved on server"
+          echo ""
+          echo "=========================================="
