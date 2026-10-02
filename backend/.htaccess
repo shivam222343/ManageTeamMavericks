@@ -1,19 +1,31 @@
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    
-    # Redirection to api.php for clean URLs
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^(.*)$ api.php [QSA,L]
-</IfModule>
+# Protect sensitive files
+<FilesMatch "^\.env|\.git|composer\.(json|lock)|\.(sql|log|md|sh)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
 
 # CORS Headers for Apache
 <IfModule mod_headers.c>
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+</IfModule>
+
+# URL Rewrites
+<IfModule mod_rewrite.c>
+    RewriteEngine On
     
-    # Handle preflight OPTIONS requests directly in Apache if needed
+    # Handle preflight OPTIONS requests directly
     RewriteCond %{REQUEST_METHOD} OPTIONS
     RewriteRule ^(.*)$ - [R=200,L]
+    
+    # Redirection to api.php for backend API routes
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ api.php [QSA,L]
 </IfModule>

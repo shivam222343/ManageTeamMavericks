@@ -4,8 +4,6 @@
 -- This is SAFE to run multiple times (INSERT IGNORE)
 -- ============================================================
 
-USE u714635531_MavericksDB;
-
 -- ── Create missing tables ──────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS users (

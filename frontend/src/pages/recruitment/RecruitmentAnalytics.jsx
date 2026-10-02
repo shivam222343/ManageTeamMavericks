@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import toast from 'react-hot-toast';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { motion } from 'framer-motion';
@@ -149,7 +150,7 @@ const RecruitmentAnalytics = () => {
             <span>Refresh Stats</span>
           </button>
           <a
-            href={`${axios.defaults.baseURL}/applicants/export?token=${localStorage.getItem('token') || ''}`}
+            href={`${API_URL}/applicants/export?token=${localStorage.getItem('token') || ''}`}
             download
             className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg text-xs font-bold hover:shadow transition cursor-pointer shadow-xs"
           >

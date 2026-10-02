@@ -189,7 +189,7 @@ const CampaignList = () => {
                       <span>Slug:</span>
                     </span>
                     <a 
-                      href={`http://localhost:5173/teammavericks/${c.slug}`}
+                      href={`/teammavericks/${c.slug}`}
                       target="_blank"
                       rel="noreferrer"
                       className="text-primary-blue dark:text-blue-400 hover:underline flex items-center gap-0.5"

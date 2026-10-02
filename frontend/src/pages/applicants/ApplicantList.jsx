@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import {
   Search,
   Filter,
@@ -221,7 +222,7 @@ const ApplicantList = () => {
         </div>
         <div className="flex gap-2.5">
           <a
-            href={`${axios.defaults.baseURL}/applicants/export?token=${localStorage.getItem('token') || ''}`}
+            href={`${API_URL}/applicants/export?token=${localStorage.getItem('token') || ''}`}
             download
             className="flex items-center gap-2 px-3.5 py-1.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
           >
@@ -464,7 +465,7 @@ const ApplicantList = () => {
                                   <div className="flex items-center gap-1.5">
                                     <span>📄 Uploaded</span>
                                     <a
-                                      href={answer.startsWith('http://') || answer.startsWith('https://') ? answer : `https://server.teammavericks.org/${answer}`}
+                                      href={answer.startsWith('http://') || answer.startsWith('https://') ? answer : `${API_URL}/${answer.replace(/^\/+/, '')}`}
                                       target="_blank"
                                       rel="noreferrer"
                                       className="p-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-650 dark:text-zinc-300 transition cursor-pointer inline-flex items-center justify-center"

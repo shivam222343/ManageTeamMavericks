@@ -1,7 +1,3 @@
--- Create database if not exists
-CREATE DATABASE IF NOT EXISTS u714635531_MavericksDB;
-USE u714635531_MavericksDB;
-
 -- Drop tables in reverse order of foreign keys to support safe re-running
 DROP TABLE IF EXISTS settings;
 DROP TABLE IF EXISTS email_templates;

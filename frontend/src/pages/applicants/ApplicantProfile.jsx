@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { 
   ArrowLeft, 
@@ -395,7 +396,7 @@ const ApplicantProfile = () => {
                   : 'http://localhost:8000';
                 const fileUrl = file.file_path.startsWith('http://') || file.file_path.startsWith('https://') 
                   ? file.file_path 
-                  : `${baseHost}/${file.file_path.replace(/^\//, '')}`;
+                  : `${API_URL}/${file.file_path.replace(/^\/+/, '')}`;
 
                 return (
                   <div key={file.file_id} className="p-4 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-lg flex flex-col justify-between gap-3 shadow-sm hover:shadow transition">
