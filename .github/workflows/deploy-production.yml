@@ -55,13 +55,13 @@ jobs:
           cp -r backend/config deploy_payload/
           cp -r backend/src deploy_payload/
           cp -r backend/vendor deploy_payload/
-          # Generate environment file from GitHub Secrets
+          # Generate environment file from GitHub Secrets / defaults
           cat <<EOF > deploy_payload/.env
-          DB_HOST=${{ secrets.DB_HOST }}
+          DB_HOST=${{ secrets.DB_HOST || 'srv1001.hstgr.io' }}
           DB_PORT=${{ secrets.DB_PORT || '3306' }}
-          DB_USER=${{ secrets.DB_USER }}
+          DB_USER=${{ secrets.DB_USER || 'u714635531_teammavericks' }}
           DB_PASS=${{ secrets.DB_PASS }}
-          DB_NAME=${{ secrets.DB_NAME }}
+          DB_NAME=${{ secrets.DB_NAME || 'u714635531_MavericksDB' }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           JWT_EXPIRY=${{ secrets.JWT_EXPIRY || '86400' }}
           CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
@@ -69,7 +69,7 @@ jobs:
           CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
           SMTP_HOST=${{ secrets.SMTP_HOST || 'smtp.hostinger.com' }}
           SMTP_PORT=${{ secrets.SMTP_PORT || '465' }}
-          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_USER=${{ secrets.SMTP_USER || 'official@teammavericks.org' }}
           SMTP_PASS=${{ secrets.SMTP_PASS }}
           SMTP_FROM_EMAIL=${{ secrets.SMTP_FROM_EMAIL || 'official@teammavericks.org' }}
           SMTP_FROM_NAME="${{ secrets.SMTP_FROM_NAME || 'Team Mavericks' }}"
@@ -77,27 +77,29 @@ jobs:
           DISPLAY_ERRORS=false
           EOF
 
-      - name: Deploy to Hostinger via SSH Rsync
-        uses: easingthemes/ssh-deploy@v5.0.3
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          ARGS: "-rlgoDzvc -i"
-          SOURCE: "deploy_payload/"
-          REMOTE_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-          REMOTE_USER: ${{ secrets.HOSTINGER_SSH_USER }}
-          REMOTE_PORT: ${{ secrets.HOSTINGER_SSH_PORT || '65002' }}
-          TARGET: "/home/u714635531/domains/teammavericks.org/public_html/manage/"
-          EXCLUDE: "/uploads/, /cache/"
+      - name: Deploy to Hostinger via Native Rsync
+        env:
+          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY || secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST || secrets.SSH_HOST || '89.117.157.108' }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER || secrets.SSH_USER || 'u714635531' }}
+          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT || secrets.SSH_PORT || '65002' }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "❌ ERROR: HOSTINGER_SSH_KEY secret is not set or empty in GitHub!"
+            echo "Please go to GitHub -> Settings -> Secrets and variables -> Actions and add HOSTINGER_SSH_KEY."
+            exit 1
+          fi
 
-      - name: Ensure Server Permissions & Directories
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOSTINGER_SSH_HOST }}
-          username: ${{ secrets.HOSTINGER_SSH_USER }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_SSH_PORT || '65002' }}
-          script: |
-            mkdir -p /home/u714635531/domains/teammavericks.org/public_html/manage/uploads
-            mkdir -p /home/u714635531/domains/teammavericks.org/public_html/manage/cache
-            chmod 755 /home/u714635531/domains/teammavericks.org/public_html/manage/uploads
-            chmod 755 /home/u714635531/domains/teammavericks.org/public_html/manage/cache
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Deploy files using native rsync over SSH
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no" \
+            --exclude='uploads/' \
+            --exclude='cache/' \
+            deploy_payload/ $SSH_USER@$SSH_HOST:/home/u714635531/domains/teammavericks.org/public_html/manage/
+
+          # Ensure directories and permissions
+          ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+            "mkdir -p /home/u714635531/domains/teammavericks.org/public_html/manage/uploads /home/u714635531/domains/teammavericks.org/public_html/manage/cache && chmod 755 /home/u714635531/domains/teammavericks.org/public_html/manage/uploads"

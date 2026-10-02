@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Build Frontend
@@ -43,33 +43,43 @@ jobs:
 
       - name: Prepare Deployment Artifacts
         run: |
+          set -e
+
+          rm -rf deploy_payload
           mkdir -p deploy_payload
-          # Copy compiled frontend assets
-          cp -r frontend/dist/* deploy_payload/
-          # Copy backend files
+
+          echo "Copying frontend..."
+
+          cp -r frontend/dist/. deploy_payload/
+
+          echo "Copying backend..."
+
           cp backend/api.php deploy_payload/
           cp backend/index.php deploy_payload/
           cp backend/.htaccess deploy_payload/
           cp backend/composer.json deploy_payload/
           cp backend/composer.lock deploy_payload/
+
           cp -r backend/config deploy_payload/
           cp -r backend/src deploy_payload/
           cp -r backend/vendor deploy_payload/
-          # Generate environment file from GitHub Secrets
-          cat <<EOF > deploy_payload/.env
-          DB_HOST=${{ secrets.DB_HOST }}
+
+          echo "Generating .env..."
+
+          cat > deploy_payload/.env <<EOF
+          DB_HOST=${{ secrets.DB_HOST || 'srv1001.hstgr.io' }}
           DB_PORT=${{ secrets.DB_PORT || '3306' }}
-          DB_USER=${{ secrets.DB_USER }}
+          DB_USER=${{ secrets.DB_USER || 'u714635531_maverickstemp' }}
           DB_PASS=${{ secrets.DB_PASS }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          DB_NAME=${{ secrets.DB_NAME || 'u714635531_managetemp' }}
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'mav_dev_jwt_9f83a27c1b4e5d6083a712f84b90e1c' }}
           JWT_EXPIRY=${{ secrets.JWT_EXPIRY || '86400' }}
           CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
           SMTP_HOST=${{ secrets.SMTP_HOST || 'smtp.hostinger.com' }}
           SMTP_PORT=${{ secrets.SMTP_PORT || '465' }}
-          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_USER=${{ secrets.SMTP_USER || 'official@teammavericks.org' }}
           SMTP_PASS=${{ secrets.SMTP_PASS }}
           SMTP_FROM_EMAIL=${{ secrets.SMTP_FROM_EMAIL || 'official@teammavericks.org' }}
           SMTP_FROM_NAME="${{ secrets.SMTP_FROM_NAME || 'Team Mavericks' }}"
@@ -77,27 +87,149 @@ jobs:
           DISPLAY_ERRORS=true
           EOF
 
-      - name: Deploy to Hostinger via SSH Rsync
-        uses: easingthemes/ssh-deploy@v5.0.3
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          ARGS: "-rlgoDzvc -i"
-          SOURCE: "deploy_payload/"
-          REMOTE_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-          REMOTE_USER: ${{ secrets.HOSTINGER_SSH_USER }}
-          REMOTE_PORT: ${{ secrets.HOSTINGER_SSH_PORT || '65002' }}
-          TARGET: "/home/u714635531/domains/teammavericks.org/public_html/development/"
-          EXCLUDE: "/uploads/, /cache/"
+          echo "Deployment artifacts prepared."
 
-      - name: Ensure Server Permissions & Directories
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOSTINGER_SSH_HOST }}
-          username: ${{ secrets.HOSTINGER_SSH_USER }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_SSH_PORT || '65002' }}
-          script: |
-            mkdir -p /home/u714635531/domains/teammavericks.org/public_html/development/uploads
-            mkdir -p /home/u714635531/domains/teammavericks.org/public_html/development/cache
-            chmod 755 /home/u714635531/domains/teammavericks.org/public_html/development/uploads
-            chmod 755 /home/u714635531/domains/teammavericks.org/public_html/development/cache
+      - name: Validate Deployment Secrets
+        env:
+          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+        run: |
+          set -e
+
+          echo "Checking Hostinger SSH configuration..."
+
+          if [ -z "$SSH_KEY" ]; then
+            echo "❌ HOSTINGER_SSH_KEY is missing."
+            exit 1
+          fi
+
+          if [ -z "$SSH_HOST" ]; then
+            echo "❌ HOSTINGER_SSH_HOST is missing."
+            exit 1
+          fi
+
+          if [ -z "$SSH_USER" ]; then
+            echo "❌ HOSTINGER_SSH_USER is missing."
+            exit 1
+          fi
+
+          if [ -z "$SSH_PORT" ]; then
+            echo "❌ HOSTINGER_SSH_PORT is missing."
+            exit 1
+          fi
+
+          echo "✅ HOSTINGER_SSH_KEY is available."
+          echo "✅ HOSTINGER_SSH_HOST is available."
+          echo "✅ HOSTINGER_SSH_USER is available."
+          echo "✅ HOSTINGER_SSH_PORT is available."
+
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -e
+
+          mkdir -p ~/.ssh
+
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+
+          chmod 600 ~/.ssh/deploy_key
+
+          echo "Validating SSH private key..."
+
+          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null
+
+          echo "✅ SSH private key is valid."
+
+          ssh-keyscan \
+            -p "${{ secrets.HOSTINGER_SSH_PORT }}" \
+            "${{ secrets.HOSTINGER_SSH_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Test SSH Connection
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+        run: |
+          set -e
+
+          echo "Testing SSH connection to Hostinger..."
+
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=15 \
+            "$SSH_USER@$SSH_HOST" \
+            "echo '✅ SSH connection successful'"
+
+      - name: Deploy to Hostinger via Native Rsync
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+        run: |
+          set -e
+
+          REMOTE_PATH="/home/u714635531/domains/teammavericks.org/public_html/development/"
+
+          echo "Creating required directories on Hostinger..."
+
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "mkdir -p ${REMOTE_PATH}uploads ${REMOTE_PATH}cache"
+
+          echo "Starting deployment..."
+
+          rsync \
+            -avz \
+            --delete \
+            --exclude='uploads/' \
+            --exclude='cache/' \
+            -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no" \
+            deploy_payload/ \
+            "$SSH_USER@$SSH_HOST:$REMOTE_PATH"
+
+          echo "✅ Deployment completed successfully."
+
+      - name: Ensure Server Permissions
+        env:
+          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+        run: |
+          set -e
+
+          REMOTE_PATH="/home/u714635531/domains/teammavericks.org/public_html/development"
+
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "chmod 755 ${REMOTE_PATH} ${REMOTE_PATH}/uploads ${REMOTE_PATH}/cache"
+
+          echo "✅ Server permissions configured."
+
+      - name: Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "      DEVELOPMENT DEPLOYMENT COMPLETE"
+          echo "=========================================="
+          echo ""
+          echo "Environment: development"
+          echo "URL: https://development.teammavericks.org"
+          echo "Target: /home/u714635531/domains/teammavericks.org/public_html/development/"
+          echo ""
+          echo "Frontend: Built successfully"
+          echo "Backend: Composer dependencies installed"
+          echo "SSH: Connection successful"
+          echo "Rsync: Deployment successful"
+          echo ""
+          echo "=========================================="
