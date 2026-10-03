@@ -32,6 +32,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import DitherVeil from '../../components/ui/DitherVeil';
+import ParticleText from '../../components/ui/ParticleText';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -208,6 +209,34 @@ const PublicLanding = () => {
     }
     return () => clearTimeout(t);
   }, [otpCountdown]);
+
+  // Mobile scroll-reveal for event cards (touch devices only)
+  useEffect(() => {
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+    if (!isTouchDevice) return;
+
+    const cards = document.querySelectorAll('.event-card');
+    if (!cards.length) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+          } else {
+            entry.target.classList.remove('is-visible');
+          }
+        });
+      },
+      {
+        threshold: 0.45,          // fires when 45% of the card is visible
+        rootMargin: '-5% 0px -5% 0px'  // slightly tighter than full viewport
+      }
+    );
+
+    cards.forEach(card => observer.observe(card));
+    return () => observer.disconnect();
+  }, [loading]); // re-run once campaign/cards are rendered
 
   const handleSendOtp = async () => {
     if (!otpEmail || !/\S+@\S+\.\S+/.test(otpEmail)) {
@@ -528,6 +557,59 @@ const PublicLanding = () => {
           border-radius: 0px;
           transition: all 0.2s ease-in-out;
         }
+
+        /* Particle hero row: desktop uses larger negative offset */
+        .particle-hero-row {
+          margin-left: -6em;
+        }
+        @media (max-width: 639px) {
+          .particle-hero-row {
+            margin-left: -2em;
+          }
+        }
+
+        /* Domain strip: scrollable but no visible scrollbar */
+        .domain-strip-scroll {
+          overflow-x: auto;
+          white-space: nowrap;
+          scrollbar-width: none;       /* Firefox */
+          -ms-overflow-style: none;    /* IE/Edge */
+        }
+        .domain-strip-scroll::-webkit-scrollbar {
+          display: none;               /* Chrome/Safari */
+        }
+
+        /* ── Infinite marquee ticker ── */
+        @keyframes ticker-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .ticker-track {
+          display: flex;
+          width: max-content;
+          animation: ticker-scroll 28s linear infinite;
+        }
+        .ticker-track:hover {
+          animation-play-state: paused;
+        }
+        .ticker-item {
+          display: flex;
+          align-items: center;
+          gap: 2rem;
+          padding-right: 2rem;
+          white-space: nowrap;
+          font-family: 'DM Mono', 'Inter', monospace;
+          font-weight: 700;
+          font-size: 0.68rem;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #e2e8f0;
+        }
+        .ticker-sep {
+          color: #60A5FA;
+          opacity: 0.7;
+          font-size: 0.55rem;
+        }
       `}</style>
 
       {/* --- TOP FLAT NAVIGATION --- */}
@@ -592,12 +674,34 @@ const PublicLanding = () => {
 
           {/* Left Column - Large Editorial Headline */}
           <div className="lg:col-span-6 space-y-6">
-            <h1 className="font-display-heavy text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-left uppercase leading-[0.9]">
-              ARE YOU A <br />
-              <span className={isDark ? 'text-[#F3EFE6]' : 'text-[#0B132B]'}>
-                MAVERiCK?
-              </span>
+            {/* Row 1 */}
+            <h1 className="font-display-heavy text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-left uppercase leading-[0.9]" style={{ marginBottom: 0 }}>
+              ARE YOU A TRUE
             </h1>
+            {/* Row 2: Maverick (particle canvas) + ? on the same flex row */}
+            <div className="particle-hero-row" style={{ display: 'flex', alignItems: 'center', marginTop: '-4em', marginBottom: '5em', gap: 0 }}>
+              <div style={{ flex: '1 1 auto', height: 'clamp(100px, 20vw, 160px)', minWidth: 0 }}>
+                <ParticleText
+                  text="MAVERICK?"
+                  particleSize={2.2}
+                  density={4}
+                  color={isDark ? '#f8fafc' : '#0B132B'}
+                  highlightColor="#3b82f6"
+                  scatter={190}
+                  gatherDuration={1600}
+                  stagger={420}
+                  pointerRepel={42}
+                  repelRadius={120}
+                  idleDrift={0.8}
+                  trigger="mount"
+                  fontSize="clamp(4rem, 18vw, 7.5rem)"
+                  fontWeight={800}
+                  fontFamily="'Barlow Condensed', sans-serif"
+                  glow
+                />
+              </div>
+            </div>
+
 
             <div className="space-y-3 pt-2 max-w-xl">
               <p className="font-mono-tag text-xs font-black tracking-widest uppercase text-blue-500">
@@ -705,20 +809,34 @@ const PublicLanding = () => {
         </div>
       </section>
 
-      {/* --- DOMAIN HIGHLIGHT STRIP (FULL WIDTH TICKER) --- */}
-      <section className="w-full border-y border-[#1E293B] bg-[#2563EB] text-white py-3.5 px-4 overflow-hidden select-none">
-        <div className="flex items-center justify-between gap-8 text-xs sm:text-sm font-mono-tag font-black tracking-widest uppercase overflow-x-auto whitespace-nowrap">
-          <span>TECH</span>
-          <span className="opacity-40">/</span>
-          <span>CREATIVITY &amp; DESIGN</span>
-          <span className="opacity-40">/</span>
-          <span>EVENT OPERATIONS</span>
-          <span className="opacity-40">/</span>
-          <span>PR &amp; MARKETING</span>
-          <span className="opacity-40">/</span>
-          <span>SOCIAL MEDIA &amp; CONTENT</span>
-          <span className="opacity-40">/</span>
-          <span>LEADERSHIP</span>
+      {/* --- DOMAIN HIGHLIGHT STRIP — INFINITE TICKER --- */}
+      <section
+        aria-label="Domains"
+        className="w-full overflow-hidden select-none py-3"
+        style={{
+          background: '#0A1128',
+          borderTop: '1.5px solid #60A5FA',
+          borderBottom: '1.5px solid #60A5FA'
+        }}
+      >
+        {/* ticker-track is duplicated for seamless loop */}
+        <div className="ticker-track">
+          {[0, 1].map(copy => (
+            <div key={copy} className="ticker-item" aria-hidden={copy === 1 ? 'true' : undefined}>
+              <span>TECH</span>
+              <span className="ticker-sep">✦</span>
+              <span>CREATIVITY &amp; DESIGN</span>
+              <span className="ticker-sep">✦</span>
+              <span>EVENT OPERATIONS</span>
+              <span className="ticker-sep">✦</span>
+              <span>PR &amp; MARKETING</span>
+              <span className="ticker-sep">✦</span>
+              <span>SOCIAL MEDIA &amp; CONTENT</span>
+              <span className="ticker-sep">✦</span>
+              <span>LEADERSHIP</span>
+              <span className="ticker-sep">✦</span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -805,6 +923,28 @@ const PublicLanding = () => {
           .event-card:hover .event-arrow {
             opacity: 1;
             transform: translateX(0);
+          }
+
+          /* Mobile scroll-reveal: mirrors hover when card is centred in viewport */
+          @media (pointer: coarse) {
+            .event-card.is-visible .event-img {
+              transform: scale(1);
+              filter: brightness(0.88) saturate(1.1);
+            }
+            .event-card.is-visible .event-overlay {
+              opacity: 0.2;
+            }
+            .event-card.is-visible .event-content {
+              transform: translateY(-6px);
+            }
+            .event-card.is-visible .event-tag {
+              background: #2563EB;
+              color: #fff;
+            }
+            .event-card.is-visible .event-arrow {
+              opacity: 1;
+              transform: translateX(0);
+            }
           }
         `}</style>
 
