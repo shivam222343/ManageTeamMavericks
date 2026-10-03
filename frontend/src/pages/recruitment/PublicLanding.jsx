@@ -951,7 +951,7 @@ const PublicLanding = () => {
                 key={dom.id}
                 className={`p-6 sm:p-7 border flex flex-col justify-between gap-6 relative group transition-all duration-200 ${isFeatured
                   ? isDark
-                    ? 'bg-[#1D4ED8] text-white border-blue-400/50'
+                    ? 'bg-[#122854] text-white border-blue-500/40 shadow-lg shadow-blue-950/40'
                     : 'bg-[#1E40AF] text-white border-blue-900'
                   : isDark
                     ? 'bg-[#0E172A] border-[#1E293B] text-slate-100 hover:border-blue-500/60'
