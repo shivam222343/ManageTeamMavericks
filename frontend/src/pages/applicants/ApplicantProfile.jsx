@@ -19,7 +19,7 @@ import {
   ChevronDown,
   Download, 
   ShieldCheck, 
-  Bookmark, 
+  Bookmark,
   MessageSquareCode, 
   Trash2,
   Image as ImageIcon,
