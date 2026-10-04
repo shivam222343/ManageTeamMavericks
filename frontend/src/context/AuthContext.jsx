@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config/api';
+import ChangePasswordModal from '../components/ui/ChangePasswordModal';
 
 const AuthContext = createContext();
 
