@@ -33,6 +33,7 @@ import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import DitherVeil from '../../components/ui/DitherVeil';
 import ParticleText from '../../components/ui/ParticleText';
+import SpringCheck from './SpringCheck';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -1423,19 +1424,35 @@ const PublicLanding = () => {
                                           ? 'Please select at least one domain.'
                                           : false
                                       })}
-                                      className="w-4 h-4 mt-0.5 accent-blue-600 rounded-none cursor-pointer"
+                                      className="sr-only"
                                     />
-                                    <div>
-                                      <div className="font-mono-tag text-[10px] opacity-70 uppercase">
-                                        DOMAIN {String(domIdx + 1).padStart(2, '0')}
+                                    <SpringCheck
+                                      as="span"
+                                      checked={isSelected}
+                                      color={isSelected ? '#ffffff' : (isDark ? '#E2E8F0' : '#1E293B')}
+                                      fillColor={isSelected ? '#ffffff' : '#2563EB'}
+                                      checkColor={isSelected ? '#2563EB' : '#ffffff'}
+                                      boxSize={22}
+                                      boxRadius={6}
+                                      fontSize={14}
+                                      bounce={0.2}
+                                      strikeLag={0.12}
+                                      doneOpacity={0.8}
+                                      strike="left"
+                                      className="pointer-events-none w-full items-start"
+                                    >
+                                      <div className="text-left space-y-0.5">
+                                        <div className="font-mono-tag text-[10px] opacity-70 uppercase">
+                                          DOMAIN {String(domIdx + 1).padStart(2, '0')}
+                                        </div>
+                                        <p className="font-display-heavy text-sm uppercase tracking-tight">
+                                          {dom.name}
+                                        </p>
+                                        <p className="text-[11px] opacity-80 font-normal">
+                                          {dom.description}
+                                        </p>
                                       </div>
-                                      <p className="font-display-heavy text-sm uppercase tracking-tight">
-                                        {dom.name}
-                                      </p>
-                                      <p className="text-[11px] opacity-80 mt-0.5 font-normal">
-                                        {dom.description}
-                                      </p>
-                                    </div>
+                                    </SpringCheck>
                                   </label>
                                 );
                               })}
@@ -1550,9 +1567,24 @@ const PublicLanding = () => {
                                           type="checkbox"
                                           value={opt.option_value}
                                           {...register(key, { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select at least one option.' : false })}
-                                          className="w-4 h-4 rounded-none accent-blue-600"
+                                          className="sr-only"
                                         />
-                                        <span>{opt.option_label}</span>
+                                        <SpringCheck
+                                          as="span"
+                                          label={opt.option_label}
+                                          checked={isSelected}
+                                          color={isSelected ? '#ffffff' : (isDark ? '#E2E8F0' : '#1E293B')}
+                                          fillColor={isSelected ? '#ffffff' : '#2563EB'}
+                                          checkColor={isSelected ? '#2563EB' : '#ffffff'}
+                                          boxSize={20}
+                                          boxRadius={6}
+                                          fontSize={12}
+                                          bounce={0.2}
+                                          strikeLag={0.12}
+                                          doneOpacity={0.7}
+                                          strike="left"
+                                          className="pointer-events-none w-full"
+                                        />
                                       </label>
                                     );
                                   })}
