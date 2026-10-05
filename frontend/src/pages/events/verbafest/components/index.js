@@ -23,3 +23,6 @@ export { default as AddEditScheduleModal } from './AddEditScheduleModal';
 export { default as ScheduleSlotDetailsModal } from './ScheduleSlotDetailsModal';
 export { default as ParticipantScheduleModal } from './ParticipantScheduleModal';
 export { default as ScheduleSlotCard } from './ScheduleSlotCard';
+export { default as ParticipantSelector } from './ParticipantSelector';
+export { default as AddEditAllocationModal } from './AddEditAllocationModal';
+export { default as AllocationDetailsModal } from './AllocationDetailsModal';
