@@ -9,3 +9,6 @@ export { default as VerbafestLoader } from './VerbafestLoader';
 export { default as AddEditRoomModal } from './AddEditRoomModal';
 export { default as OccupancyModal } from './OccupancyModal';
 export { default as RoomScheduleModal } from './RoomScheduleModal';
+export { default as CheckinConfirmModal } from './CheckinConfirmModal';
+export { default as ParticipantDetailModal } from './ParticipantDetailModal';
+export { default as ParticipantRegistrations } from './ParticipantRegistrations';

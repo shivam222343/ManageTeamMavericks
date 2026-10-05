@@ -42,6 +42,7 @@ import AddMembersPage from './pages/members/AddMembersPage';
 
 // Events (VERBAFEST) Pages
 import RoomManagementPage from './pages/events/verbafest/RoomManagementPage';
+import ParticipantManagementPage from './pages/events/verbafest/ParticipantManagementPage';
 
 import MajorLoader from './components/ui/MajorLoader';
 
@@ -157,7 +158,7 @@ function App() {
           <Route path="events" element={<Navigate to="verbafest" replace />} />
           <Route path="events/verbafest" element={<PlaceholderPage title="VERBAFEST 2026 Overview" />} />
           <Route path="events/verbafest/rooms" element={<RoomManagementPage />} />
-          <Route path="events/verbafest/participants" element={<PlaceholderPage title="VERBAFEST Participants" />} />
+          <Route path="events/verbafest/participants" element={<ParticipantManagementPage />} />
           <Route path="events/verbafest/panels" element={<PlaceholderPage title="VERBAFEST Panels" />} />
           <Route path="events/verbafest/judges" element={<PlaceholderPage title="VERBAFEST Judges" />} />
           <Route path="events/verbafest/schedule" element={<PlaceholderPage title="VERBAFEST Schedule" />} />
