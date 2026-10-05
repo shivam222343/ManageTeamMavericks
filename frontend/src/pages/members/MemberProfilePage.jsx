@@ -25,6 +25,7 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import { useAuth } from '../../context/AuthContext';
 import ChangePasswordModal from '../../components/ui/ChangePasswordModal';
 import ReflectiveCard from '../../components/ui/ReflectiveCard';
+import CursorPreferenceToggle from '../../components/ui/CursorPreferenceToggle';
 
 const MemberProfilePage = () => {
   const { id } = useParams();
@@ -309,6 +310,11 @@ const MemberProfilePage = () => {
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Cursor & Interface Preference */}
+            <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <CursorPreferenceToggle />
             </div>
 
             {/* Credential & Verification Footer */}

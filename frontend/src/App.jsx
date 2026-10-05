@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
+import { useCursor } from './context/CursorContext';
 import ThemeToggle from './components/ui/ThemeToggle';
 
 // Layouts
@@ -80,10 +81,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
 function App() {
   const { isAuthenticated } = useAuth();
+  const { cursorType } = useCursor();
 
   return (
     <BrowserRouter>
-      {isAuthenticated && (
+      {isAuthenticated && cursorType === 'target' && (
         <TargetCursor
           spinDuration={2}
           hideDefaultCursor

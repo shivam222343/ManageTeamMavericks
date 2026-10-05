@@ -33,6 +33,7 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import Footer from '../../components/layout/Footer';
 import TearTicket from '../../components/ui/TearTicket';
 import ElectricBorder from '../../components/ui/ElectricBorder';
+import CursorPreferenceToggle from '../../components/ui/CursorPreferenceToggle';
 
 const ParticipantDashboard = () => {
   const { user, logout } = useAuth();
@@ -460,8 +461,13 @@ const ParticipantDashboard = () => {
                 </div>
               </div>
 
+              {/* Cursor Experience Preference */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <CursorPreferenceToggle />
+              </div>
+
               {/* Password update */}
-              <div className="space-y-4">
+              <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <h3 className="font-mono-tag text-xs font-black uppercase tracking-widest text-primary-blue">
                   SECURITY &amp; PASSWORD
                 </h3>

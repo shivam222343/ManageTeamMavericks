@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useCursor } from '../../context/CursorContext';
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import BranchedMenu from '../ui/BranchedMenu';
 import {
@@ -30,12 +32,15 @@ import {
   ChevronRight,
   UserPlus,
   Layers,
-  Plus
+  Plus,
+  Crosshair,
+  MousePointer
 } from 'lucide-react';
 
 const AdminLayout = () => {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
+  const { cursorType, toggleCursorType } = useCursor();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -336,6 +341,34 @@ const AdminLayout = () => {
                         <span>Portal Settings</span>
                       </button>
                     )}
+
+                    <button
+                      onClick={() => {
+                        toggleCursorType();
+                        toast.success(
+                          cursorType === 'target'
+                            ? 'Default Classic Cursor enabled'
+                            : 'Target Crosshair Cursor enabled',
+                          {
+                            icon: cursorType === 'target' ? '🖱️' : '🎯',
+                            duration: 2500
+                          }
+                        );
+                      }}
+                      className="flex items-center justify-between w-full px-3 py-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold cursor-pointer transition"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {cursorType === 'target' ? (
+                          <Crosshair size={14} className="text-primary-blue" />
+                        ) : (
+                          <MousePointer size={14} className="text-zinc-500" />
+                        )}
+                        <span>Cursor: {cursorType === 'target' ? 'Target HUD' : 'Classic'}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-400 font-semibold px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800">
+                        Switch
+                      </span>
+                    </button>
 
                     <div className="border-t border-zinc-100 dark:border-zinc-800 my-1" />
 
