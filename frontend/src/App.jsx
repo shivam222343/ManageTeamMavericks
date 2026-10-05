@@ -45,6 +45,7 @@ import RoomManagementPage from './pages/events/verbafest/RoomManagementPage';
 import ParticipantManagementPage from './pages/events/verbafest/ParticipantManagementPage';
 import PanelManagementPage from './pages/events/verbafest/PanelManagementPage';
 import JudgeManagementPage from './pages/events/verbafest/JudgeManagementPage';
+import ScheduleManagementPage from './pages/events/verbafest/ScheduleManagementPage';
 
 import MajorLoader from './components/ui/MajorLoader';
 
@@ -163,7 +164,7 @@ function App() {
           <Route path="events/verbafest/participants" element={<ParticipantManagementPage />} />
           <Route path="events/verbafest/panels" element={<PanelManagementPage />} />
           <Route path="events/verbafest/judges" element={<JudgeManagementPage />} />
-          <Route path="events/verbafest/schedule" element={<PlaceholderPage title="VERBAFEST Schedule" />} />
+          <Route path="events/verbafest/schedule" element={<ScheduleManagementPage />} />
           <Route path="events/verbafest/allocations" element={<PlaceholderPage title="VERBAFEST Allocations" />} />
           <Route path="events/verbafest/settings" element={<PlaceholderPage title="VERBAFEST Settings" />} />
           <Route path="members" element={<Navigate to="mavericks" replace />} />
