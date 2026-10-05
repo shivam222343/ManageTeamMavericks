@@ -30,7 +30,11 @@ import {
   ChevronDown,
   ChevronRight,
   UserPlus,
-  Layers
+  Layers,
+  DoorOpen,
+  Award,
+  Split,
+  Calendar
 } from 'lucide-react';
 
 const AdminLayout = () => {
@@ -40,10 +44,16 @@ const AdminLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Accordion state for sidebars (e.g. 'recruitment')
+  // Accordion state for sidebars (e.g. 'recruitment', 'events')
   const [expandedSection, setExpandedSection] = useState(() => {
     if (window.location.pathname.startsWith('/dashboard/recruitment')) {
       return 'recruitment';
+    }
+    if (window.location.pathname.startsWith('/dashboard/members')) {
+      return 'members';
+    }
+    if (window.location.pathname.startsWith('/dashboard/events')) {
+      return 'events';
     }
     return null;
   });
@@ -126,6 +136,50 @@ const AdminLayout = () => {
     }
   ];
 
+  const verbafestSubItems = [
+    {
+      path: '/dashboard/events/verbafest',
+      label: 'Overview',
+      icon: LayoutDashboard,
+      exact: true
+    },
+    {
+      path: '/dashboard/events/verbafest/participants',
+      label: 'Participants',
+      icon: Users
+    },
+    {
+      path: '/dashboard/events/verbafest/rooms',
+      label: 'Rooms',
+      icon: DoorOpen
+    },
+    {
+      path: '/dashboard/events/verbafest/panels',
+      label: 'Panels',
+      icon: Layers
+    },
+    {
+      path: '/dashboard/events/verbafest/judges',
+      label: 'Judges',
+      icon: Award
+    },
+    {
+      path: '/dashboard/events/verbafest/schedule',
+      label: 'Schedule',
+      icon: Calendar
+    },
+    {
+      path: '/dashboard/events/verbafest/allocations',
+      label: 'Allocations',
+      icon: Split
+    },
+    {
+      path: '/dashboard/events/verbafest/settings',
+      label: 'Settings',
+      icon: Settings
+    }
+  ];
+
   const navItems = [
     {
       path: '/dashboard',
@@ -146,10 +200,11 @@ const AdminLayout = () => {
       roles: ['coordinator', 'core_member', 'member']
     },
     {
-      path: '/dashboard/events',
+      path: '/dashboard/events/verbafest',
       label: 'Events',
       icon: Bookmark,
-      roles: ['coordinator', 'core_member', 'member']
+      roles: ['coordinator', 'core_member', 'member'],
+      subItems: verbafestSubItems
     },
     {
       path: '/dashboard/tasks',
@@ -182,15 +237,24 @@ const AdminLayout = () => {
   const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role));
   const isRecruitmentSection = window.location.pathname.startsWith('/dashboard/recruitment');
   const isMembersSection = window.location.pathname.startsWith('/dashboard/members');
-  const isDoubleSidebar = isRecruitmentSection || isMembersSection;
+  const isVerbafestSection = window.location.pathname.startsWith('/dashboard/events');
+  const isDoubleSidebar = isRecruitmentSection || isMembersSection || isVerbafestSection;
 
   const currentSubItems = isRecruitmentSection
     ? recruitmentSubItems
     : isMembersSection
     ? memberSubItems.filter(sub => sub.roles.includes(user?.role))
+    : isVerbafestSection
+    ? verbafestSubItems
     : [];
 
-  const subSidebarTitle = isRecruitmentSection ? 'Recruitment' : isMembersSection ? 'Members' : '';
+  const subSidebarTitle = isRecruitmentSection
+    ? 'Recruitment'
+    : isMembersSection
+    ? 'Members'
+    : isVerbafestSection
+    ? 'VERBAFEST 2026'
+    : '';
 
   const sidebarVariants = {
     open: { x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
@@ -217,6 +281,8 @@ const AdminLayout = () => {
                   ? window.location.pathname.startsWith('/dashboard/recruitment')
                   : item.path.startsWith('/dashboard/members')
                   ? window.location.pathname.startsWith('/dashboard/members')
+                  : item.path.startsWith('/dashboard/events')
+                  ? window.location.pathname.startsWith('/dashboard/events')
                   : window.location.pathname === item.path;
 
                 return (
@@ -257,9 +323,11 @@ const AdminLayout = () => {
 
             <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
               {currentSubItems.map((subItem) => {
-                const isSubActive = subItem.path === '/dashboard/recruitment/applications'
+                const isSubActive = subItem.exact
+                  ? window.location.pathname === subItem.path
+                  : subItem.path === '/dashboard/recruitment/applications'
                   ? window.location.pathname.startsWith('/dashboard/recruitment/applications')
-                  : window.location.pathname === subItem.path;
+                  : (window.location.pathname === subItem.path || window.location.pathname.startsWith(`${subItem.path}/`));
 
                 return (
                   <NavLink
@@ -433,6 +501,10 @@ const AdminLayout = () => {
                   const isSectionExpanded = expandedSection === item.label.toLowerCase();
                   const isItemActive = item.path.startsWith('/dashboard/recruitment')
                     ? window.location.pathname.startsWith('/dashboard/recruitment')
+                    : item.path.startsWith('/dashboard/members')
+                    ? window.location.pathname.startsWith('/dashboard/members')
+                    : item.path.startsWith('/dashboard/events')
+                    ? window.location.pathname.startsWith('/dashboard/events')
                     : window.location.pathname === item.path;
 
                   return (
@@ -479,9 +551,11 @@ const AdminLayout = () => {
                       {hasSubs && isSectionExpanded && (
                         <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-zinc-200 dark:border-zinc-800 ml-5">
                           {item.subItems.map((sub) => {
-                            const isSubActive = sub.path === '/dashboard/recruitment/applications'
+                            const isSubActive = sub.exact
+                              ? window.location.pathname === sub.path
+                              : sub.path === '/dashboard/recruitment/applications'
                               ? window.location.pathname.startsWith('/dashboard/recruitment/applications')
-                              : window.location.pathname === sub.path;
+                              : (window.location.pathname === sub.path || window.location.pathname.startsWith(`${sub.path}/`));
 
                             return (
                               <NavLink
@@ -554,7 +628,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Content Outlet with smooth transition */}
-        <main className={`flex-1 ${isRecruitmentSection ? 'p-1 md:p-8' : 'p-6 md:p-8'}`}>
+        <main className={`flex-1 ${isRecruitmentSection || isVerbafestSection ? 'p-3 md:p-8' : 'p-6 md:p-8'}`}>
           <Outlet />
         </main>
       </div>

@@ -40,6 +40,9 @@ import MemberProfilePage from './pages/members/MemberProfilePage';
 import MemberCommunicatePage from './pages/members/MemberCommunicatePage';
 import AddMembersPage from './pages/members/AddMembersPage';
 
+// Events (VERBAFEST) Pages
+import RoomManagementPage from './pages/events/verbafest/RoomManagementPage';
+
 import MajorLoader from './components/ui/MajorLoader';
 
 // Protected Route Guard
@@ -148,8 +151,18 @@ function App() {
           {/* New navigation items placeholders */}
           <Route path="approvals" element={<PlaceholderPage title="Approvals" />} />
           <Route path="meetings" element={<PlaceholderPage title="Meetings" />} />
-          <Route path="events" element={<PlaceholderPage title="Events" />} />
           <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
+
+          {/* VERBAFEST Events Management Routes */}
+          <Route path="events" element={<Navigate to="verbafest" replace />} />
+          <Route path="events/verbafest" element={<PlaceholderPage title="VERBAFEST 2026 Overview" />} />
+          <Route path="events/verbafest/rooms" element={<RoomManagementPage />} />
+          <Route path="events/verbafest/participants" element={<PlaceholderPage title="VERBAFEST Participants" />} />
+          <Route path="events/verbafest/panels" element={<PlaceholderPage title="VERBAFEST Panels" />} />
+          <Route path="events/verbafest/judges" element={<PlaceholderPage title="VERBAFEST Judges" />} />
+          <Route path="events/verbafest/schedule" element={<PlaceholderPage title="VERBAFEST Schedule" />} />
+          <Route path="events/verbafest/allocations" element={<PlaceholderPage title="VERBAFEST Allocations" />} />
+          <Route path="events/verbafest/settings" element={<PlaceholderPage title="VERBAFEST Settings" />} />
           <Route path="members" element={<Navigate to="mavericks" replace />} />
           <Route path="members/mavericks" element={<MavericksListPage />} />
           <Route path="members/mavericks/:id" element={<MemberProfilePage />} />
