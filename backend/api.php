@@ -33,6 +33,13 @@ use App\Controllers\AnalyticsController;
 use App\Controllers\FaqController;
 use App\Controllers\MemberController;
 use App\Controllers\PanelController;
+use App\Controllers\Events\Verbafest\ParticipantController as VfParticipantController;
+use App\Controllers\Events\Verbafest\RoomController as VfRoomController;
+use App\Controllers\Events\Verbafest\PanelController as VfPanelController;
+use App\Controllers\Events\Verbafest\JudgeController as VfJudgeController;
+use App\Controllers\Events\Verbafest\ScheduleController as VfScheduleController;
+use App\Controllers\Events\Verbafest\GroupAllocationController as VfGroupAllocationController;
+use App\Controllers\Events\Verbafest\EventSettingsController as VfEventSettingsController;
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: *");
@@ -139,6 +146,74 @@ $router->addRoute('POST', '/evaluation-criteria', [PanelController::class, 'save
 
 // --- ANALYTICS INSIGHTS ROUTES ---
 $router->addRoute('GET', '/analytics', [AnalyticsController::class, 'getStats']);
+
+// ==========================================
+// --- VERBAFEST 2026 EVENT MANAGEMENT ROUTES ---
+// ==========================================
+
+// --- Participants ---
+$router->addRoute('GET', '/events/verbafest/participants', [VfParticipantController::class, 'list']);
+$router->addRoute('POST', '/events/verbafest/participants', [VfParticipantController::class, 'create']);
+$router->addRoute('GET', '/events/verbafest/participants/code/{code}', [VfParticipantController::class, 'getByCode']);
+$router->addRoute('GET', '/events/verbafest/participants/{id}', [VfParticipantController::class, 'get']);
+$router->addRoute('PUT', '/events/verbafest/participants/{id}', [VfParticipantController::class, 'update']);
+$router->addRoute('POST', '/events/verbafest/participants/{id}/checkin', [VfParticipantController::class, 'checkin']);
+$router->addRoute('PATCH', '/events/verbafest/participants/{id}/checkin', [VfParticipantController::class, 'updateCheckinStatus']);
+$router->addRoute('GET', '/events/verbafest/participants/{id}/schedule', [VfParticipantController::class, 'getSchedule']);
+$router->addRoute('GET', '/events/verbafest/participants/{id}/allocations', [VfGroupAllocationController::class, 'getByParticipant']);
+
+// --- Rooms ---
+$router->addRoute('GET', '/events/verbafest/rooms', [VfRoomController::class, 'list']);
+$router->addRoute('POST', '/events/verbafest/rooms', [VfRoomController::class, 'create']);
+$router->addRoute('GET', '/events/verbafest/rooms/{id}/schedule', [VfRoomController::class, 'getSchedule']);
+$router->addRoute('PATCH', '/events/verbafest/rooms/{id}/occupancy', [VfRoomController::class, 'updateOccupancy']);
+$router->addRoute('GET', '/events/verbafest/rooms/{id}', [VfRoomController::class, 'get']);
+$router->addRoute('PUT', '/events/verbafest/rooms/{id}', [VfRoomController::class, 'update']);
+
+// --- Panels ---
+$router->addRoute('GET', '/events/verbafest/panels', [VfPanelController::class, 'list']);
+$router->addRoute('POST', '/events/verbafest/panels', [VfPanelController::class, 'create']);
+$router->addRoute('GET', '/events/verbafest/panels/{id}/judges', [VfPanelController::class, 'getJudges']);
+$router->addRoute('POST', '/events/verbafest/panels/{id}/judges', [VfPanelController::class, 'assignJudge']);
+$router->addRoute('DELETE', '/events/verbafest/panels/{id}/judges/{judgeId}', [VfPanelController::class, 'removeJudge']);
+$router->addRoute('GET', '/events/verbafest/panels/{id}/schedule', [VfPanelController::class, 'getSchedule']);
+$router->addRoute('GET', '/events/verbafest/panels/{id}/group', [VfPanelController::class, 'getCurrentGroup']);
+$router->addRoute('PATCH', '/events/verbafest/panels/{id}/status', [VfPanelController::class, 'updateStatus']);
+$router->addRoute('PATCH', '/events/verbafest/panels/{id}/room', [VfPanelController::class, 'assignRoom']);
+$router->addRoute('GET', '/events/verbafest/panels/{id}', [VfPanelController::class, 'get']);
+$router->addRoute('PUT', '/events/verbafest/panels/{id}', [VfPanelController::class, 'update']);
+
+// --- Judges ---
+$router->addRoute('GET', '/events/verbafest/judges', [VfJudgeController::class, 'list']);
+$router->addRoute('POST', '/events/verbafest/judges', [VfJudgeController::class, 'create']);
+$router->addRoute('GET', '/events/verbafest/judges/{id}/panels', [VfJudgeController::class, 'getPanels']);
+$router->addRoute('POST', '/events/verbafest/judges/{id}/panels', [VfJudgeController::class, 'assignPanel']);
+$router->addRoute('DELETE', '/events/verbafest/judges/{id}/panels/{panelId}', [VfJudgeController::class, 'removePanel']);
+$router->addRoute('GET', '/events/verbafest/judges/{id}', [VfJudgeController::class, 'get']);
+$router->addRoute('PUT', '/events/verbafest/judges/{id}', [VfJudgeController::class, 'update']);
+
+// --- Schedule ---
+$router->addRoute('GET', '/events/verbafest/schedule', [VfScheduleController::class, 'list']);
+$router->addRoute('POST', '/events/verbafest/schedule', [VfScheduleController::class, 'create']);
+$router->addRoute('GET', '/events/verbafest/schedule/{id}/members', [VfScheduleController::class, 'getMembers']);
+$router->addRoute('GET', '/events/verbafest/schedule/{id}', [VfScheduleController::class, 'get']);
+$router->addRoute('PUT', '/events/verbafest/schedule/{id}', [VfScheduleController::class, 'update']);
+$router->addRoute('DELETE', '/events/verbafest/schedule/{id}', [VfScheduleController::class, 'delete']);
+
+// --- Group Allocations ---
+$router->addRoute('GET', '/events/verbafest/allocations', [VfGroupAllocationController::class, 'list']);
+$router->addRoute('POST', '/events/verbafest/allocations', [VfGroupAllocationController::class, 'create']);
+$router->addRoute('GET', '/events/verbafest/allocations/groups/{groupCode}', [VfGroupAllocationController::class, 'getGroupByCode']);
+$router->addRoute('PATCH', '/events/verbafest/allocations/{id}/attendance', [VfGroupAllocationController::class, 'updateAttendance']);
+$router->addRoute('GET', '/events/verbafest/allocations/{id}', [VfGroupAllocationController::class, 'get']);
+$router->addRoute('PUT', '/events/verbafest/allocations/{id}', [VfGroupAllocationController::class, 'update']);
+$router->addRoute('DELETE', '/events/verbafest/allocations/{id}', [VfGroupAllocationController::class, 'delete']);
+
+// --- Event Settings ---
+$router->addRoute('GET', '/events/verbafest/settings', [VfEventSettingsController::class, 'getAll']);
+$router->addRoute('PUT', '/events/verbafest/settings', [VfEventSettingsController::class, 'updateAll']);
+$router->addRoute('GET', '/events/verbafest/settings/{key}', [VfEventSettingsController::class, 'get']);
+$router->addRoute('PUT', '/events/verbafest/settings/{key}', [VfEventSettingsController::class, 'update']);
 
 // --- SEED ROUTE (temporary — remove after seeding) ---
 $router->addRoute('GET', '/seed', function() {
