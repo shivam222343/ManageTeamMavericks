@@ -306,7 +306,7 @@ const ParticipantDashboard = () => {
                 {registrations.map((reg) => (
                   <TearTicket
                     key={reg.id}
-                    image={reg.banner_url || (reg.event_slug === 'bodhantra' ? '/events/bodhantra.jpeg' : null)}
+                    image={reg.banner_url || (reg.event_slug === 'bodhantra' ? '/event-assets/bodhantra.jpeg' : null)}
                     imageAlt={reg.event_name}
                     stub={
                       <div className="flex flex-col items-center justify-between h-full w-full py-1 space-y-2">

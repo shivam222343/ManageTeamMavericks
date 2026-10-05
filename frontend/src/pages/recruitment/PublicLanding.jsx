@@ -982,7 +982,7 @@ const PublicLanding = () => {
                 desc: 'A five-day college event for first-year students featuring technical and non-technical sessions, interactive discussions, team-building challenges, and creative competitions.',
                 tag: 'LEARNING',
                 bg: 'from-blue-950 to-[#070C18]',
-                img: '/events/bodhantra.jpeg'
+                img: '/event-assets/bodhantra.jpeg'
               },
               {
                 number: '02',
@@ -991,7 +991,7 @@ const PublicLanding = () => {
                 desc: 'A workshop series covering technical and non-technical topics including web development, ethical hacking, soft skills, mental health, and more.',
                 tag: 'WORKSHOPS',
                 bg: 'from-indigo-950 to-[#070C18]',
-                img: '/events/invicta.png'
+                img: '/event-assets/invicta.png'
               },
               {
                 number: '03',
@@ -1000,7 +1000,7 @@ const PublicLanding = () => {
                 desc: 'A one-day placement preparation event featuring Group Discussions, debates, and mock interviews to build communication skills, confidence, and recruitment readiness.',
                 tag: 'PLACEMENT',
                 bg: 'from-slate-800 to-[#070C18]',
-                img: '/events/verbafest.JPG'
+                img: '/event-assets/verbafest.JPG'
               },
               {
                 number: '04',
@@ -1009,7 +1009,7 @@ const PublicLanding = () => {
                 desc: 'A school outreach initiative in rural areas of Kolhapur featuring technology demonstrations, workshops, career guidance, and sessions on emerging technologies.',
                 tag: 'COMMUNITY',
                 bg: 'from-blue-900 to-[#070C18]',
-                img: '/events/school_visit.jpg'
+                img: '/event-assets/school_visit.jpg'
               }
             ].map((ev) => (
               <div

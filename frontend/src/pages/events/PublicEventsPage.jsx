@@ -47,7 +47,7 @@ export const FLAGSHIP_EVENTS_DATA = [
     tag: 'LEARNING',
     slug: 'bodhantra',
     bg: 'from-blue-950 to-[#070C18]',
-    img: '/events/bodhantra.jpeg'
+    img: '/event-assets/bodhantra.jpeg'
   },
   {
     id: 'invicta',
@@ -65,7 +65,7 @@ export const FLAGSHIP_EVENTS_DATA = [
     tag: 'WORKSHOPS',
     slug: 'invicta',
     bg: 'from-indigo-950 to-[#070C18]',
-    img: '/events/invicta.png'
+    img: '/event-assets/invicta.png'
   },
   {
     id: 'verbafest',
@@ -83,7 +83,7 @@ export const FLAGSHIP_EVENTS_DATA = [
     tag: 'PLACEMENT',
     slug: 'varba-fest',
     bg: 'from-slate-800 to-[#070C18]',
-    img: '/events/verbafest.JPG'
+    img: '/event-assets/verbafest.JPG'
   },
   {
     id: 'school_visit',
@@ -101,7 +101,7 @@ export const FLAGSHIP_EVENTS_DATA = [
     tag: 'COMMUNITY',
     slug: 'school-visit',
     bg: 'from-blue-900 to-[#070C18]',
-    img: '/events/school_visit.jpg'
+    img: '/event-assets/school_visit.jpg'
   }
 ];
 

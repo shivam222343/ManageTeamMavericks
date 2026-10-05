@@ -51,7 +51,7 @@ const DEFAULT_EVENT_INFO = {
       'Grand finale awards ceremony and certificates for all participants'
     ],
     tag: 'LEARNING & COMPETITIONS',
-    img: '/events/bodhantra.jpeg'
+    img: '/event-assets/bodhantra.jpeg'
   },
   'invicta': {
     subtitle: 'Workshop & Hackathon Series',
@@ -64,7 +64,7 @@ const DEFAULT_EVENT_INFO = {
       'Cash prizes, exclusive merchandise, and internship referral opportunities'
     ],
     tag: 'WORKSHOPS & HACKATHONS',
-    img: '/events/invicta.png'
+    img: '/event-assets/invicta.png'
   },
   'varba-fest': {
     subtitle: 'Placement Preparation & Mock Interviews',
@@ -77,7 +77,7 @@ const DEFAULT_EVENT_INFO = {
       'Stress interview mastery and public speaking masterclasses'
     ],
     tag: 'PLACEMENT & CAREER',
-    img: '/events/verbafest.JPG'
+    img: '/event-assets/verbafest.JPG'
   },
   'verbafest': {
     subtitle: 'Placement Preparation & Mock Interviews',
@@ -90,7 +90,7 @@ const DEFAULT_EVENT_INFO = {
       'Stress interview mastery and public speaking masterclasses'
     ],
     tag: 'PLACEMENT & CAREER',
-    img: '/events/verbafest.JPG'
+    img: '/event-assets/verbafest.JPG'
   },
   'school-visit': {
     subtitle: 'Community Outreach & Rural Tech Initiative',
@@ -103,7 +103,7 @@ const DEFAULT_EVENT_INFO = {
       'Donation of books, educational kits, and tech resources'
     ],
     tag: 'COMMUNITY OUTREACH',
-    img: '/events/school_visit.jpg'
+    img: '/event-assets/school_visit.jpg'
   }
 };
 
