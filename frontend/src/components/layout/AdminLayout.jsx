@@ -192,6 +192,29 @@ const AdminLayout = () => {
       icon: Coins,
       roles: ['coordinator', 'core_member', 'member']
     },
+    ...(user?.role === 'participant' ? [
+      {
+        value: '/user/dashboard',
+        path: '/user/dashboard',
+        label: 'My Passes & Tickets',
+        icon: Bookmark,
+        roles: ['participant']
+      },
+      {
+        value: '/user/profile',
+        path: '/user/profile',
+        label: 'My Profile',
+        icon: User,
+        roles: ['participant']
+      },
+      {
+        value: '/events',
+        path: '/events',
+        label: 'Browse Events',
+        icon: Compass,
+        roles: ['participant']
+      }
+    ] : [])
   ].filter(item => item.roles.includes(user?.role)), [user?.role, isCoordinator, canForms, canApplicants, canPanels, canAnalytics, canCommunicate]);
 
   // Determine active item value based on current pathname
@@ -228,9 +251,7 @@ const AdminLayout = () => {
       <aside className="hidden md:flex flex-col w-64 h-full border-r border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-900/60 backdrop-blur-xl shrink-0">
         {/* Brand */}
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-zinc-900 dark:bg-white flex items-center justify-center p-1.5 shadow-sm">
-            <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-full h-full object-contain invert dark:invert-0" />
-          </div>
+          <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="h-8 w-auto object-contain select-none shrink-0" />
           <div>
             <h1 className="font-logo text-[11px] leading-none">Team Mavericks</h1>
             <p className="text-[9px] font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mt-0.5">Management</p>
@@ -245,7 +266,8 @@ const AdminLayout = () => {
           <BranchedMenu
             items={branchedMenuItems}
             active={currentActivePath}
-            defaultOpen={[1, 2, 3]}
+            defaultOpen={[1]}
+            accordion={true}
             onSelect={handleMenuSelect}
             color={menuInk}
             accentColor={menuAccent}
@@ -373,7 +395,8 @@ const AdminLayout = () => {
                 <BranchedMenu
                   items={branchedMenuItems}
                   active={currentActivePath}
-                  defaultOpen={[1, 2, 3]}
+                  defaultOpen={[1]}
+                  accordion={true}
                   onSelect={handleMenuSelect}
                   color={menuInk}
                   accentColor={menuAccent}

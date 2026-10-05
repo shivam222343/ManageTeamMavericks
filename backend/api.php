@@ -147,6 +147,7 @@ $router->addRoute('GET', '/analytics', [AnalyticsController::class, 'getStats'])
 $router->addRoute('GET',    '/events/public',                   [EventController::class, 'listPublic']);
 $router->addRoute('GET',    '/events',                          [EventController::class, 'list']);
 $router->addRoute('POST',   '/events',                          [EventController::class, 'create']);
+$router->addRoute('POST',   '/events/upload-qr',                [EventController::class, 'uploadQr']);
 $router->addRoute('GET',    '/events/slug/{slug}',              [EventController::class, 'getBySlug']);
 $router->addRoute('GET',    '/events/{id}',                     [EventController::class, 'get']);
 $router->addRoute('PUT',    '/events/{id}',                     [EventController::class, 'update']);
@@ -160,10 +161,17 @@ $router->addRoute('PUT',    '/events/{id}/registration-form/sections', [EventFor
 
 // --- EVENT REGISTRATION ROUTES ---
 $router->addRoute('GET',    '/events/{id}/registrations',          [EventRegistrationController::class, 'listForEvent']);
+$router->addRoute('GET',    '/events/{id}/check-email',            [EventRegistrationController::class, 'checkEmail']);
+$router->addRoute('POST',   '/events/{id}/check-email',            [EventRegistrationController::class, 'checkEmail']);
 $router->addRoute('POST',   '/events/{id}/register',               [EventRegistrationController::class, 'register']);
 $router->addRoute('GET',    '/events/slug/{slug}/form',            [EventRegistrationController::class, 'getPublicForm']);
 $router->addRoute('GET',    '/event-registrations/{id}',           [EventRegistrationController::class, 'get']);
 $router->addRoute('PATCH',  '/event-registrations/{id}/status',    [EventRegistrationController::class, 'updateStatus']);
+$router->addRoute('DELETE', '/event-registrations/{id}',           [EventRegistrationController::class, 'delete']);
+
+// --- PARTICIPANT PORTAL ROUTES ---
+$router->addRoute('GET',    '/participant/dashboard',             [EventRegistrationController::class, 'getParticipantDashboard']);
+$router->addRoute('PUT',    '/participant/profile',               [EventRegistrationController::class, 'updateParticipantProfile']);
 
 // --- SEED ROUTE (temporary — remove after seeding) ---
 $router->addRoute('GET', '/seed', function() {

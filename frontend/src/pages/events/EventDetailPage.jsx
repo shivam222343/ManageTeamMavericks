@@ -202,7 +202,7 @@ const EventDetailPage = () => {
       </div>
 
       {/* Revenue card (if paid event) */}
-      {event.payment_required && (
+      {Boolean(event.payment_required) ? (
         <div className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-3xl p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -215,7 +215,7 @@ const EventDetailPage = () => {
             <Coins size={40} className="text-emerald-500/30" />
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Event Details card */}
       <div className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-6 shadow-md">

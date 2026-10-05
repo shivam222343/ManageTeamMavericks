@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import MajorLoader from '../../components/ui/MajorLoader';
 import {
   ArrowLeft, Search, Users, CheckCircle, Clock, XCircle,
-  Coins, Eye, Download, ChevronDown, Filter,
+  Coins, Eye, Download, ChevronDown, Filter, Trash2, AlertCircle,
 } from 'lucide-react';
 
 const STATUS_STYLE = {
@@ -45,6 +45,8 @@ const EventRegistrationsPage = () => {
   const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting]         = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -71,6 +73,22 @@ const EventRegistrationsPage = () => {
       fetchData();
     } catch (err) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleDeleteParticipant = async () => {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      await axios.delete(`/event-registrations/${deleteTarget.id}`);
+      toast.success(`Participant registration for "${deleteTarget.full_name}" deleted successfully!`);
+      setDeleteTarget(null);
+      fetchData();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      toast.error(err.response?.data?.error || 'Failed to delete participant registration');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -242,12 +260,24 @@ const EventRegistrationsPage = () => {
                       <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{formatDate(reg.registered_at)}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <Link
-                        to={`/dashboard/events/${id}/registrations/${reg.id}`}
-                        className="flex items-center gap-1 h-8 px-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-lg text-[10px] font-extrabold uppercase tracking-widest hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
-                      >
-                        <Eye size={11} /> View
-                      </Link>
+                      <div className="flex items-center gap-1.5">
+                        <Link
+                          to={`/dashboard/events/${id}/registrations/${reg.id}`}
+                          className="flex items-center gap-1 h-8 px-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-lg text-[10px] font-extrabold uppercase tracking-widest hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                        >
+                          <Eye size={11} /> View
+                        </Link>
+                        {isCore && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(reg)}
+                            className="flex items-center gap-1 h-8 px-2.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 rounded-lg text-[10px] font-extrabold uppercase tracking-widest transition cursor-pointer border border-rose-500/20"
+                            title="Delete Participant Registration"
+                          >
+                            <Trash2 size={11} /> Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -256,6 +286,52 @@ const EventRegistrationsPage = () => {
           </div>
           <div className="px-4 py-3 border-t border-zinc-200/40 dark:border-zinc-800/40 text-[10px] text-zinc-500 dark:text-zinc-400 font-bold">
             Showing {filtered.length} of {registrations.length} registrations
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFIRMATION MODAL TO DELETE PARTICIPANT --- */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="max-w-md w-full rounded-3xl border border-rose-500/30 bg-white dark:bg-[#0E172A] p-6 sm:p-7 shadow-2xl space-y-5 text-center relative overflow-hidden">
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto border border-rose-500/20">
+              <Trash2 size={28} />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-rose-500 block">
+                CONFIRM DELETION
+              </span>
+              <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+                Delete Participant?
+              </h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                Are you sure you want to delete the registration for{' '}
+                <strong className="text-zinc-900 dark:text-white font-bold">{deleteTarget.full_name}</strong> ({deleteTarget.email})?
+              </p>
+              <p className="text-[11px] text-rose-500/80 font-medium">
+                This will permanently delete their entry pass, responses, and uploaded documents.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-3 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteParticipant}
+                className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold uppercase tracking-wider transition shadow-lg shadow-rose-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

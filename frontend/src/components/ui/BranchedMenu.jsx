@@ -22,6 +22,7 @@ export default function BranchedMenu({
   active: controlledActive,
   defaultOpen = [0],
   defaultActive = '',
+  accordion = true,
   onSelect,
   onToggle,
   color = 'var(--bm-ink-color, currentColor)',
@@ -48,14 +49,17 @@ export default function BranchedMenu({
 
   const active = controlledActive !== undefined ? controlledActive : internalActive;
 
-  // Automatically keep parent section open if a child inside is active
+  // Automatically keep active section open and (if accordion is true) close all other sections
   useEffect(() => {
     if (active) {
       const parentIdx = items.findIndex(it => 
-        it.value === active || it.children?.some(kid => kid.value === active || kid.path === active)
+        it.value === active || it.path === active || it.children?.some(kid => kid.value === active || kid.path === active)
       );
       if (parentIdx >= 0 && items[parentIdx].children) {
         setOpen(prev => {
+          if (accordion) {
+            return new Set([parentIdx]);
+          }
           if (!prev.has(parentIdx)) {
             const next = new Set(prev);
             next.add(parentIdx);
@@ -65,7 +69,7 @@ export default function BranchedMenu({
         });
       }
     }
-  }, [active, items]);
+  }, [active, items, accordion]);
 
   const navRef = useRef(null);
   const heads = useRef([]);
@@ -74,7 +78,7 @@ export default function BranchedMenu({
   latest.current = { onSelect, onToggle };
 
   const activeSection = items.findIndex(it => 
-    it.value === active || it.children?.some(kid => kid.value === active || kid.path === active)
+    it.value === active || it.path === active || it.children?.some(kid => kid.value === active || kid.path === active)
   );
   const markerShown = activeSection >= 0 && (items[activeSection]?.children ? open.has(activeSection) : true);
 
@@ -114,10 +118,15 @@ export default function BranchedMenu({
 
   const toggle = (i) => {
     setOpen(prev => {
-      const next = new Set(prev);
-      const isOpen = !next.has(i);
-      if (isOpen) next.add(i);
-      else next.delete(i);
+      const isOpen = !prev.has(i);
+      let next;
+      if (accordion) {
+        next = isOpen ? new Set([i]) : new Set();
+      } else {
+        next = new Set(prev);
+        if (isOpen) next.add(i);
+        else next.delete(i);
+      }
       latest.current.onToggle?.(i, isOpen);
       return next;
     });

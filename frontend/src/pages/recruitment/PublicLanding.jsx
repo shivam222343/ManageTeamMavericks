@@ -722,7 +722,7 @@ const PublicLanding = () => {
                   : 'bg-[#0A1128] hover:bg-blue-950 text-white'
                   }`}
               >
-                Register For Drive <ChevronRight size={15} />
+                Register Now<ChevronRight size={15} />
               </a>
 
               <a
@@ -762,7 +762,7 @@ const PublicLanding = () => {
           {/* Right Column - DitherVeil Seamlessly Blended Graphic */}
           <div className="lg:col-span-6 flex justify-center items-center relative w-full select-none">
             {/* Ambient Background Glow matching theme */}
-            <div className={`absolute -inset-4 bg-blue-300 rounded-full blur-3xl opacity-30 pointer-events-none ${isDark ? 'bg-blue-600/40' : 'bg-blue-300/40'
+            <div className={`absolute -inset-4 rounded-full blur-3xl opacity-20 pointer-events-none ${isDark ? 'bg-blue-600/40' : 'bg-blue-100/30'
               }`} />
 
             <div
@@ -776,18 +776,18 @@ const PublicLanding = () => {
               <DitherVeil
                 src="/backgrounds/dekstop_view.png"
                 pattern="floyd"
-                pixelSize={2}
-                inkColor={isDark ? "#070C18" : "#0A1128"}
-                paperColor={isDark ? "#3B82F6" : "#E2E8F0"}
-                revealRadius={240}
-                softness={0.65}
-                linger={1.2}
+                pixelSize={1.5}
+                inkColor={isDark ? "#070C18" : "#FFFFFF"}
+                paperColor={isDark ? "#3B82F6" : "#000000"}
+                revealRadius={280}
+                softness={0.7}
+                linger={1.5}
                 fit="cover"
-                rimColor="#60A5FA"
+                rimColor={isDark ? "#60A5FA" : "#3B82F6"}
                 palette="duotone"
                 levels={2}
-                contrast={1.2}
-                brightness={0}
+                contrast={1.05}
+                brightness={0.20}
                 rim={0.2}
                 reverse={false}
                 wander={true}
@@ -797,11 +797,11 @@ const PublicLanding = () => {
               {/* Edge Gradient Overlays for extra smooth fade into background */}
               <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
                 ? 'bg-gradient-to-t from-[#070C18] via-transparent to-[#070C18]/60'
-                : 'bg-gradient-to-t from-[#F8FAFC] via-transparent to-[#F8FAFC]/60'
+                : 'bg-gradient-to-t from-[#F8FAFC] via-transparent to-transparent'
                 }`} />
               <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
                 ? 'bg-gradient-to-r from-[#070C18]/80 via-transparent to-[#070C18]/80'
-                : 'bg-gradient-to-r from-[#F8FAFC]/80 via-transparent to-[#F8FAFC]/80'
+                : 'bg-gradient-to-r from-[#F8FAFC]/40 via-transparent to-[#F8FAFC]/40'
                 }`} />
             </div>
           </div>
@@ -875,30 +875,36 @@ const PublicLanding = () => {
             height: 100%;
             object-fit: cover;
             opacity: 1;
-            transform: scale(1.05);
+            transform: scale(1);
             transition: transform 0.55s cubic-bezier(0.4,0,0.2,1), filter 0.45s ease;
             z-index: 0;
-            filter: brightness(0.5) saturate(0.6);
+            filter: brightness(1) saturate(1.05);
           }
           .event-card:hover .event-img {
-            transform: scale(1);
-            filter: brightness(0.88) saturate(1.1);
+            transform: scale(1.06);
+            filter: brightness(0.7) saturate(1.1);
           }
           .event-card .event-overlay {
             position: absolute;
             inset: 0;
             background: linear-gradient(
               to top,
-              rgba(4,10,30,0.90) 0%,
-              rgba(10,20,60,0.70) 50%,
-              rgba(5,15,45,0.50) 100%
+              rgba(4,10,30,0.85) 0%,
+              rgba(4,10,30,0.30) 40%,
+              transparent 70%
             );
-            opacity: 1;
-            transition: opacity 0.45s ease;
+            opacity: 0.35;
+            transition: opacity 0.45s ease, background 0.45s ease;
             z-index: 1;
           }
           .event-card:hover .event-overlay {
-            opacity: 0.2;
+            opacity: 1;
+            background: linear-gradient(
+              to top,
+              rgba(4,10,30,0.95) 0%,
+              rgba(10,20,60,0.78) 50%,
+              rgba(5,15,45,0.60) 100%
+            );
           }
           .event-card .event-content {
             position: relative;
@@ -928,11 +934,11 @@ const PublicLanding = () => {
           /* Mobile scroll-reveal: mirrors hover when card is centred in viewport */
           @media (pointer: coarse) {
             .event-card.is-visible .event-img {
-              transform: scale(1);
-              filter: brightness(0.88) saturate(1.1);
+              transform: scale(1.06);
+              filter: brightness(0.7) saturate(1.1);
             }
             .event-card.is-visible .event-overlay {
-              opacity: 0.2;
+              opacity: 1;
             }
             .event-card.is-visible .event-content {
               transform: translateY(-6px);

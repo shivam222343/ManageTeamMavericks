@@ -14,7 +14,9 @@ import PrnVerificationPage from './pages/recruitment/PrnVerificationPage';
 
 // Auth Pages
 import Login from './pages/auth/Login';
+import UserLogin from './pages/auth/UserLogin';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+import ParticipantDashboard from './pages/participant/ParticipantDashboard';
 
 // Admin Pages
 import DashboardHome from './pages/dashboard/DashboardHome';
@@ -51,6 +53,7 @@ import PublicEventsPage from './pages/events/PublicEventsPage';
 import PublicEventRegisterPage from './pages/events/PublicEventRegisterPage';
 
 import MajorLoader from './components/ui/MajorLoader';
+import TargetCursor from './components/ui/TargetCursor';
 
 // Protected Route Guard
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -65,19 +68,31 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/user-login" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={user.role === 'participant' ? '/user/dashboard' : '/dashboard'} replace />;
   }
 
   return children;
 };
 
 function App() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <BrowserRouter>
+      {isAuthenticated && (
+        <TargetCursor
+          spinDuration={2}
+          hideDefaultCursor
+          parallaxOn
+          hoverDuration={0.2}
+          cursorColor="#ffffff"
+          cursorColorOnTarget="#B497CF"
+        />
+      )}
       <Toaster
         position="top-right"
         toastOptions={{
@@ -98,13 +113,33 @@ function App() {
 
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/user-login" element={<UserLogin />} />
+        <Route path="/user/login" element={<UserLogin />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Participant Portal routes */}
+        <Route
+          path="/user/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <ParticipantDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/profile"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <ParticipantDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Dashboard admin routes */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['coordinator', 'core_member', 'member']}>
               <AdminLayout />
             </ProtectedRoute>
           }
@@ -164,6 +199,7 @@ function App() {
           <Route path="events" element={<EventsListPage />} />
           <Route path="events/create" element={<CreateEventPage />} />
           <Route path="events/:id" element={<EventDetailPage />} />
+          <Route path="events/:id/edit" element={<CreateEventPage />} />
           <Route path="events/:id/registration-form" element={<EventFormBuilderPage />} />
           <Route path="events/:id/registrations" element={<EventRegistrationsPage />} />
           <Route path="events/:id/registrations/:regId" element={<EventRegistrationDetailPage />} />

@@ -106,6 +106,25 @@ class EventController {
                 FOREIGN KEY (field_id) REFERENCES form_fields(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+            try {
+                $db->exec("ALTER TABLE events ADD COLUMN qr_code_url VARCHAR(255) DEFAULT NULL");
+            } catch (\Exception $e) {}
+            try {
+                $db->exec("ALTER TABLE events ADD COLUMN payment_instructions TEXT DEFAULT NULL");
+            } catch (\Exception $e) {}
+            try {
+                $db->exec("ALTER TABLE events ADD COLUMN require_payment_screenshot TINYINT(1) NOT NULL DEFAULT 0");
+            } catch (\Exception $e) {}
+            try {
+                $db->exec("ALTER TABLE events ADD COLUMN payment_method VARCHAR(50) NOT NULL DEFAULT 'manual_upi'");
+            } catch (\Exception $e) {}
+            try {
+                $db->exec("ALTER TABLE events ADD COLUMN send_confirmation_email TINYINT(1) NOT NULL DEFAULT 1");
+            } catch (\Exception $e) {}
+            try {
+                $db->exec("ALTER TABLE event_registrations ADD COLUMN payment_screenshot_url VARCHAR(255) DEFAULT NULL");
+            } catch (\Exception $e) {}
+
             // Seed default events if none exist
             $count = $db->query("SELECT COUNT(*) FROM events")->fetchColumn();
             if ($count == 0) {
@@ -118,6 +137,49 @@ class EventController {
         } catch (\Exception $e) {
             // Log but don't fail — migration issues should not block reads
             error_log('Events migration error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * POST /api.php/events/upload-qr
+     * Coordinator/Core: Upload QR code image for payment step
+     */
+    public function uploadQr(): void {
+        AuthMiddleware::requireCore();
+
+        if (empty($_FILES['qr_image'])) {
+            Router::sendJson(['error' => 'No QR image file uploaded'], 400);
+            return;
+        }
+
+        $file = $_FILES['qr_image'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            Router::sendJson(['error' => 'File upload error occurred'], 400);
+            return;
+        }
+
+        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'svg'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowedExts)) {
+            Router::sendJson(['error' => 'Only image files (JPG, PNG, WEBP, SVG) are allowed for QR code'], 400);
+            return;
+        }
+
+        $uploadDir = dirname(__DIR__, 2) . '/uploads/qr_codes';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
+        $filename = 'qr_' . uniqid() . '.' . $ext;
+        $targetPath = $uploadDir . '/' . $filename;
+
+        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+            Router::sendJson([
+                'qr_code_url' => '/uploads/qr_codes/' . $filename,
+                'message'     => 'QR code uploaded successfully'
+            ]);
+        } else {
+            Router::sendJson(['error' => 'Failed to save uploaded QR code image'], 500);
         }
     }
 
@@ -210,7 +272,12 @@ class EventController {
 
         $slug = $params['slug'] ?? '';
         $db = Database::getConnection();
-        $stmt = $db->prepare("SELECT * FROM events WHERE slug = ?");
+        $stmt = $db->prepare("
+            SELECT e.*,
+                (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.status != 'cancelled') as total_registrations
+            FROM events e
+            WHERE slug = ?
+        ");
         $stmt->execute([$slug]);
         $event = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -262,8 +329,10 @@ class EventController {
                 event_status, registration_status,
                 registration_start_date, registration_end_date,
                 max_participants, payment_required, registration_fee,
+                qr_code_url, payment_instructions, require_payment_screenshot, payment_method,
+                send_confirmation_email,
                 tags, organizer_name, contact_email, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $user = AuthMiddleware::authenticate();
@@ -285,10 +354,15 @@ class EventController {
             isset($input['max_participants']) && $input['max_participants'] !== '' ? (int)$input['max_participants'] : null,
             !empty($input['payment_required']) ? 1 : 0,
             isset($input['registration_fee']) ? (float)$input['registration_fee'] : 0.00,
+            $input['qr_code_url'] ?? null,
+            $input['payment_instructions'] ?? null,
+            !empty($input['require_payment_screenshot']) ? 1 : 0,
+            $input['payment_method'] ?? 'manual_upi',
+            isset($input['send_confirmation_email']) ? (!empty($input['send_confirmation_email']) ? 1 : 0) : 1,
             $input['tags'] ?? null,
             trim($input['organizer_name'] ?? ''),
             trim($input['contact_email'] ?? ''),
-            $user['sub'] ?? null
+            $user['userId'] ?? $user['sub'] ?? null
         ]);
 
         $eventId = (int)$db->lastInsertId();
@@ -306,6 +380,7 @@ class EventController {
      */
     public function update(array $params): void {
         AuthMiddleware::requireCore();
+        $this->ensureMigration();
         $id = (int)$params['id'];
 
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -335,6 +410,11 @@ class EventController {
                 max_participants = ?,
                 payment_required = ?,
                 registration_fee = ?,
+                qr_code_url = ?,
+                payment_instructions = ?,
+                require_payment_screenshot = ?,
+                payment_method = ?,
+                send_confirmation_email = ?,
                 tags = ?,
                 organizer_name = ?,
                 contact_email = ?
@@ -357,6 +437,11 @@ class EventController {
             isset($input['max_participants']) && $input['max_participants'] !== '' ? (int)$input['max_participants'] : null,
             !empty($input['payment_required']) ? 1 : 0,
             isset($input['registration_fee']) ? (float)$input['registration_fee'] : 0.00,
+            $input['qr_code_url'] ?? null,
+            $input['payment_instructions'] ?? null,
+            !empty($input['require_payment_screenshot']) ? 1 : 0,
+            $input['payment_method'] ?? 'manual_upi',
+            isset($input['send_confirmation_email']) ? (!empty($input['send_confirmation_email']) ? 1 : 0) : 1,
             $input['tags'] ?? null,
             trim($input['organizer_name'] ?? ''),
             trim($input['contact_email'] ?? ''),

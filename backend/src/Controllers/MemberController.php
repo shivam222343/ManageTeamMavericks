@@ -509,17 +509,17 @@ class MemberController {
      * Coordinator only
      */
     public function deleteMember(array $params): void {
-        $currentUser = AuthMiddleware::authenticate(['coordinator']);
+        $currentUser = AuthMiddleware::requireCoordinator();
         $id = (int)($params['id'] ?? 0);
 
-        if ($id === (int)$currentUser['userId']) {
+        if ($id === (int)($currentUser['userId'] ?? 0)) {
             Router::sendJson(['error' => 'You cannot delete your own coordinator account.'], 400);
             return;
         }
 
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT email, name FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, email, name, role FROM users WHERE id = ?");
         $stmt->execute([$id]);
         $targetUser = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -528,8 +528,18 @@ class MemberController {
             return;
         }
 
-        $db->prepare("DELETE FROM member_invitations WHERE email = ?")->execute([$targetUser['email']]);
-        $db->prepare("DELETE FROM member_email_logs WHERE recipient_email = ?")->execute([$targetUser['email']]);
+        // Clean up references to prevent foreign key errors
+        try {
+            $db->prepare("DELETE FROM member_invitations WHERE email = ?")->execute([$targetUser['email']]);
+            $db->prepare("DELETE FROM member_email_logs WHERE recipient_email = ?")->execute([$targetUser['email']]);
+            $db->prepare("UPDATE member_email_logs SET sender_id = NULL WHERE sender_id = ?")->execute([$id]);
+            $db->prepare("UPDATE application_email_logs SET sender_id = NULL WHERE sender_id = ?")->execute([$id]);
+            $db->prepare("UPDATE member_invitations SET sent_by = NULL WHERE sent_by = ?")->execute([$id]);
+            $db->prepare("UPDATE events SET created_by = NULL WHERE created_by = ?")->execute([$id]);
+            $db->prepare("UPDATE event_registrations SET user_id = NULL WHERE user_id = ?")->execute([$id]);
+            $db->prepare("DELETE FROM panel_interviewers WHERE user_id = ?")->execute([$id]);
+            $db->prepare("DELETE FROM evaluation_scores WHERE evaluator_id = ?")->execute([$id]);
+        } catch (\Exception $e) {}
 
         $delStmt = $db->prepare("DELETE FROM users WHERE id = ?");
         $delStmt->execute([$id]);
