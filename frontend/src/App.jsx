@@ -40,6 +40,16 @@ import MemberProfilePage from './pages/members/MemberProfilePage';
 import MemberCommunicatePage from './pages/members/MemberCommunicatePage';
 import AddMembersPage from './pages/members/AddMembersPage';
 
+// Events Pages
+import EventsListPage from './pages/events/EventsListPage';
+import CreateEventPage from './pages/events/CreateEventPage';
+import EventDetailPage from './pages/events/EventDetailPage';
+import EventFormBuilderPage from './pages/events/EventFormBuilderPage';
+import EventRegistrationsPage from './pages/events/EventRegistrationsPage';
+import EventRegistrationDetailPage from './pages/events/EventRegistrationDetailPage';
+import PublicEventsPage from './pages/events/PublicEventsPage';
+import PublicEventRegisterPage from './pages/events/PublicEventRegisterPage';
+
 import MajorLoader from './components/ui/MajorLoader';
 
 // Protected Route Guard
@@ -80,6 +90,11 @@ function App() {
         <Route path="/teammavericks/verify-prn" element={<PrnVerificationPage />} />
         <Route path="/teammavericks/:slug" element={<PublicLanding />} />
         <Route path="/teammavericks/apply-success" element={<SuccessPage />} />
+
+        {/* Public Events routes */}
+        <Route path="/events" element={<PublicEventsPage />} />
+        <Route path="/events/:slug" element={<PublicEventRegisterPage />} />
+        <Route path="/register/:slug" element={<PublicEventRegisterPage />} />
 
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
@@ -145,10 +160,17 @@ function App() {
             }
           />
 
-          {/* New navigation items placeholders */}
+          {/* Events Management */}
+          <Route path="events" element={<EventsListPage />} />
+          <Route path="events/create" element={<CreateEventPage />} />
+          <Route path="events/:id" element={<EventDetailPage />} />
+          <Route path="events/:id/registration-form" element={<EventFormBuilderPage />} />
+          <Route path="events/:id/registrations" element={<EventRegistrationsPage />} />
+          <Route path="events/:id/registrations/:regId" element={<EventRegistrationDetailPage />} />
+
+          {/* Other navigation items placeholders */}
           <Route path="approvals" element={<PlaceholderPage title="Approvals" />} />
           <Route path="meetings" element={<PlaceholderPage title="Meetings" />} />
-          <Route path="events" element={<PlaceholderPage title="Events" />} />
           <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
           <Route path="members" element={<Navigate to="mavericks" replace />} />
           <Route path="members/mavericks" element={<MavericksListPage />} />

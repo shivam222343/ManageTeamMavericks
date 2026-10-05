@@ -33,6 +33,9 @@ use App\Controllers\AnalyticsController;
 use App\Controllers\FaqController;
 use App\Controllers\MemberController;
 use App\Controllers\PanelController;
+use App\Controllers\EventController;
+use App\Controllers\EventFormController;
+use App\Controllers\EventRegistrationController;
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: *");
@@ -139,6 +142,28 @@ $router->addRoute('POST', '/evaluation-criteria', [PanelController::class, 'save
 
 // --- ANALYTICS INSIGHTS ROUTES ---
 $router->addRoute('GET', '/analytics', [AnalyticsController::class, 'getStats']);
+
+// --- EVENTS MANAGEMENT ROUTES ---
+$router->addRoute('GET',    '/events/public',                   [EventController::class, 'listPublic']);
+$router->addRoute('GET',    '/events',                          [EventController::class, 'list']);
+$router->addRoute('POST',   '/events',                          [EventController::class, 'create']);
+$router->addRoute('GET',    '/events/slug/{slug}',              [EventController::class, 'getBySlug']);
+$router->addRoute('GET',    '/events/{id}',                     [EventController::class, 'get']);
+$router->addRoute('PUT',    '/events/{id}',                     [EventController::class, 'update']);
+$router->addRoute('PATCH',  '/events/{id}/status',              [EventController::class, 'patchStatus']);
+$router->addRoute('DELETE', '/events/{id}',                     [EventController::class, 'delete']);
+
+// --- EVENT REGISTRATION FORM ROUTES ---
+$router->addRoute('GET',    '/events/{id}/registration-form',          [EventFormController::class, 'getForm']);
+$router->addRoute('POST',   '/events/{id}/registration-form',          [EventFormController::class, 'createForm']);
+$router->addRoute('PUT',    '/events/{id}/registration-form/sections', [EventFormController::class, 'saveFormSections']);
+
+// --- EVENT REGISTRATION ROUTES ---
+$router->addRoute('GET',    '/events/{id}/registrations',          [EventRegistrationController::class, 'listForEvent']);
+$router->addRoute('POST',   '/events/{id}/register',               [EventRegistrationController::class, 'register']);
+$router->addRoute('GET',    '/events/slug/{slug}/form',            [EventRegistrationController::class, 'getPublicForm']);
+$router->addRoute('GET',    '/event-registrations/{id}',           [EventRegistrationController::class, 'get']);
+$router->addRoute('PATCH',  '/event-registrations/{id}/status',    [EventRegistrationController::class, 'updateStatus']);
 
 // --- SEED ROUTE (temporary — remove after seeding) ---
 $router->addRoute('GET', '/seed', function() {
