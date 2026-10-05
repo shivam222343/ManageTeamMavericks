@@ -197,12 +197,14 @@ const MemberProfilePage = () => {
               role={memberRoleDisplay}
               idNumber={memberIdFormatted}
               badgeText={member.role === 'coordinator' ? 'COORDINATOR PASS' : 'SECURE ACCESS'}
-              blurStrength={0}
-              displacementStrength={0}
-              glassDistortion={0}
-              metalness={0.5}
-              roughness={0.1}
-              grayscale={0}
+              blurStrength={12}
+              glassDistortion={30}
+              metalness={1}
+              roughness={0.75}
+              displacementStrength={20}
+              noiseScale={1}
+              specularConstant={5}
+              grayscale={0.15}
             />
           </div>
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500 font-medium text-center mt-3 flex items-center gap-1.5">
