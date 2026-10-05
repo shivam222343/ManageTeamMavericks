@@ -122,7 +122,7 @@ const AllocationManagementPage = () => {
       const [allocRes, partRes, slotsRes, panelsRes, roomsRes] = await Promise.all([
         axios.get('/events/verbafest/allocations'),
         axios.get('/events/verbafest/participants'),
-        axios.get('/events/verbafest/schedule/slots'),
+        axios.get('/events/verbafest/schedule'),
         axios.get('/events/verbafest/panels'),
         axios.get('/events/verbafest/rooms'),
       ]);
@@ -425,71 +425,70 @@ const AllocationManagementPage = () => {
       {/* Page Header */}
       <VerbafestHeader
         title="Group Allocations Console"
-        subtitle="Manage participant group rosters, venue assignments, real-time panel capacity, and attendance for VERBAFEST 2026."
-        actions={
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
+        description="Manage participant group rosters, venue assignments, real-time panel capacity, and attendance for VERBAFEST 2026."
+      >
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs"
+            title="Refresh Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
 
-            {canManage && (
-              <button
-                onClick={handleOpenCreateNew}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm shadow-sm shadow-indigo-600/30 transition-all flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Allocation / Group</span>
-              </button>
-            )}
-          </div>
-        }
-      />
+          {canManage && (
+            <button
+              onClick={handleOpenCreateNew}
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm shadow-sm shadow-indigo-600/30 transition-all flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Allocation / Group</span>
+            </button>
+          )}
+        </div>
+      </VerbafestHeader>
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
-          label="Total Allocations"
+          title="Total Allocations"
           value={summaryMetrics.totalAllocations}
           icon={Users}
-          color="indigo"
-          trend={`${summaryMetrics.presentCount} present`}
+          color="blue"
+          subtitle={`${summaryMetrics.presentCount} present`}
         />
         <StatCard
-          label="GD Groups"
+          title="GD Groups"
           value={summaryMetrics.gdGroupsCount}
           icon={Layers}
           color="blue"
         />
         <StatCard
-          label="Debate Groups"
+          title="Debate Groups"
           value={summaryMetrics.debateGroupsCount}
           icon={Clock}
-          color="purple"
+          color="violet"
         />
         <StatCard
-          label="Unallocated"
+          title="Unallocated"
           value={summaryMetrics.unallocatedCount}
           icon={UserX}
           color={summaryMetrics.unallocatedCount > 0 ? 'amber' : 'emerald'}
-          trend="Needs group"
+          subtitle="Needs group"
         />
         <StatCard
-          label="Fully Allocated"
+          title="Fully Allocated"
           value={summaryMetrics.fullyAllocatedCount}
           icon={UserCheck}
           color="emerald"
-          trend="Complete"
+          subtitle="Complete"
         />
         <StatCard
-          label="Pending Attendance"
+          title="Pending Attendance"
           value={summaryMetrics.pendingCount}
           icon={HelpCircle}
-          color={summaryMetrics.pendingCount > 0 ? 'slate' : 'emerald'}
+          color={summaryMetrics.pendingCount > 0 ? 'amber' : 'emerald'}
         />
       </div>
 
