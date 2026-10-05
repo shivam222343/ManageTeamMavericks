@@ -146,8 +146,5 @@ jobs:
           echo "Rsync: Deployment successful"
           echo ".htaccess: Preserved on server"
           echo ""
-<<<<<<< HEAD
           echo "=========================================="
-=======
-          echo "=========================================="
->>>>>>> 8fb5bf8 (fix(api): route frontend requests through api.php and fix static asset URLs)
+
