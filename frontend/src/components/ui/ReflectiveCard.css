@@ -1,0 +1,426 @@
+.reflective-card-container {
+  position: relative;
+  width: 320px;
+  height: 500px;
+  border-radius: 20px;
+  overflow: hidden;
+  isolation: isolate;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: background 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
+  user-select: none;
+}
+
+/* Dark theme styling (default) */
+.reflective-card-container.dark {
+  background: #141416;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+/* Light theme styling */
+.reflective-card-container.light {
+  background: linear-gradient(160deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%);
+  box-shadow:
+    0 20px 45px rgba(15, 23, 42, 0.12),
+    0 4px 14px rgba(15, 23, 42, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+}
+
+.reflective-ambient-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: background 0.3s ease;
+}
+
+.reflective-card-container.dark .reflective-ambient-bg {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(37, 99, 235, 0.15), transparent 60%),
+    linear-gradient(180deg, #18181b 0%, #09090b 100%);
+}
+
+.reflective-card-container.light .reflective-ambient-bg {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(191, 219, 254, 0.45), transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+}
+
+.reflective-svg-filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Clear, sharp image and mirrored webcam video */
+.reflective-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.02) scaleX(-1);
+  image-rendering: -webkit-optimize-contrast;
+  z-index: 0;
+  opacity: 0.98;
+  transition: opacity 0.4s ease;
+}
+
+/* If standard image element (not mirrored video) */
+img.reflective-video {
+  transform: scale(1.02);
+}
+
+.reflective-video.no-stream {
+  opacity: 0;
+  display: none;
+}
+
+.reflective-video.has-stream {
+  opacity: 0.98;
+  display: block;
+}
+
+/* Clear avatar fallback when camera is not running */
+.reflective-clear-avatar {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: none;
+  padding-bottom: 40px;
+}
+
+.reflective-clear-avatar .avatar-circle {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.reflective-card-container.dark .reflective-clear-avatar .avatar-circle {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.4) 0%, rgba(147, 51, 234, 0.3) 100%);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.reflective-card-container.light .reflective-clear-avatar .avatar-circle {
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.9) 0%, rgba(243, 232, 255, 0.8) 100%);
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+.reflective-clear-avatar .avatar-letter {
+  font-size: 46px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.reflective-card-container.dark .reflective-clear-avatar .avatar-letter {
+  color: #ffffff;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.reflective-card-container.light .reflective-clear-avatar .avatar-letter {
+  color: #1d4ed8;
+}
+
+.reflective-clear-avatar .avatar-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+/* Subtle texture overlay without blurring the face */
+.reflective-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  transition: opacity 0.3s ease;
+}
+
+.reflective-card-container.dark .reflective-noise {
+  opacity: calc(var(--roughness, 0.1) * 0.5);
+  mix-blend-mode: overlay;
+}
+
+.reflective-card-container.light .reflective-noise {
+  opacity: calc(var(--roughness, 0.1) * 0.25);
+  mix-blend-mode: multiply;
+}
+
+/* Prismatic metallic sheen */
+.reflective-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: calc(var(--metalness, 0.5) * 0.65);
+  transition: background 0.3s ease, opacity 0.3s ease;
+}
+
+.reflective-card-container.dark .reflective-sheen {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(255, 255, 255, 0.05) 60%,
+    rgba(255, 255, 255, 0.2) 100%
+  );
+  mix-blend-mode: overlay;
+}
+
+.reflective-card-container.light .reflective-sheen {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.15) 35%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(255, 255, 255, 0.15) 65%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  mix-blend-mode: soft-light;
+}
+
+.reflective-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  padding: 1px;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  z-index: 20;
+  pointer-events: none;
+  transition: background 0.3s ease;
+}
+
+.reflective-card-container.dark .reflective-border {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.6) 100%
+  );
+}
+
+.reflective-card-container.light .reflective-border {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(148, 163, 184, 0.4) 50%,
+    rgba(255, 255, 255, 0.9) 100%
+  );
+}
+
+/* Card content without any backdrop blur over the image */
+.reflective-content {
+  position: relative;
+  z-index: 10;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 28px 24px;
+  color: var(--text-color, white);
+  background: var(--overlay-color);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.reflective-card-container .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  transition: border-color 0.3s ease;
+}
+
+.reflective-card-container.dark .card-header {
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
+.reflective-card-container.light .card-header {
+  border-bottom-color: rgba(15, 23, 42, 0.12);
+}
+
+.reflective-card-container .security-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.reflective-card-container.dark .security-badge {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.reflective-card-container.light .security-badge {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.reflective-card-container .status-icon {
+  opacity: 0.9;
+}
+
+.reflective-card-container.dark .status-icon {
+  color: #38bdf8;
+}
+
+.reflective-card-container.light .status-icon {
+  color: #2563eb;
+}
+
+.reflective-card-container .card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  margin-bottom: 1.5em;
+}
+
+.reflective-card-container .user-name {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin: 0 0 6px 0;
+  transition: text-shadow 0.3s ease;
+}
+
+.reflective-card-container.dark .user-name {
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.reflective-card-container.light .user-name {
+  color: #0f172a;
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9);
+}
+
+.reflective-card-container .user-role {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  opacity: 0.9;
+  margin: 0;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.reflective-card-container.dark .user-role {
+  color: #93c5fd;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.reflective-card-container.light .user-role {
+  color: #1d4ed8;
+}
+
+.reflective-card-container .card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  transition: border-color 0.3s ease;
+}
+
+.reflective-card-container.dark .card-footer {
+  border-top-color: rgba(255, 255, 255, 0.18);
+}
+
+.reflective-card-container.light .card-footer {
+  border-top-color: rgba(15, 23, 42, 0.12);
+}
+
+.reflective-card-container .id-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+
+.reflective-card-container .label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  opacity: 0.75;
+  font-weight: 700;
+}
+
+.reflective-card-container.dark .label {
+  color: #cbd5e1;
+}
+
+.reflective-card-container.light .label {
+  color: #64748b;
+}
+
+.reflective-card-container .value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.reflective-card-container.dark .value {
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.reflective-card-container.light .value {
+  color: #0f172a;
+}
+
+.reflective-card-container .fingerprint-icon {
+  opacity: 0.7;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.reflective-card-container.dark .fingerprint-icon {
+  color: #60a5fa;
+}
+
+.reflective-card-container.light .fingerprint-icon {
+  color: #2563eb;
+}
+
+.reflective-card-container:hover .fingerprint-icon {
+  opacity: 1;
+  transform: scale(1.08);
+}
