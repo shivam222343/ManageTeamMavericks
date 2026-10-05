@@ -6,16 +6,16 @@ import { Fingerprint, Activity, Lock } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
 const ReflectiveCard = ({
-  blurStrength = 0,
+  blurStrength = 12,
   color,
-  metalness = 0.5,
-  roughness = 0.1,
+  metalness = 1,
+  roughness = 0.75,
   overlayColor,
-  displacementStrength = 0,
+  displacementStrength = 20,
   noiseScale = 1,
-  specularConstant = 1.2,
-  grayscale = 0,
-  glassDistortion = 0,
+  specularConstant = 5,
+  grayscale = 0.15,
+  glassDistortion = 30,
   className = '',
   style = {},
   // Optional direct photo/avatar URL
@@ -34,7 +34,7 @@ const ReflectiveCard = ({
   const rawId = useId();
   const filterId = `metallic-displacement-${rawId.replace(/[^a-zA-Z0-9-_]/g, '')}`;
 
-  // Theme resolution (detects from context/DOM or takes explicit prop)
+  // Theme resolution (detects from context / document.body or takes explicit prop)
   let contextTheme = 'dark';
   try {
     const themeContext = useTheme();
@@ -56,11 +56,15 @@ const ReflectiveCard = ({
 
   // Suitable defaults for Dark vs Light theme if not explicitly overridden
   const resolvedColor =
-    color !== undefined ? color : isDark ? '#ffffff' : '#0f172a';
+    color !== undefined
+      ? color
+      : isDark
+      ? '#ffffff'
+      : '#0f172a';
 
   const defaultOverlay = isDark
-    ? 'linear-gradient(to bottom, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.06) 25%, rgba(0, 0, 0, 0.06) 65%, rgba(0, 0, 0, 0.7) 100%)'
-    : 'linear-gradient(to bottom, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.12) 25%, rgba(255, 255, 255, 0.12) 65%, rgba(255, 255, 255, 0.8) 100%)';
+    ? 'rgba(0, 0, 0, 0.2)'
+    : 'rgba(255, 255, 255, 0.35)';
 
   const resolvedOverlayColor =
     overlayColor !== undefined ? overlayColor : defaultOverlay;
@@ -78,8 +82,8 @@ const ReflectiveCard = ({
         if (!navigator?.mediaDevices?.getUserMedia) return;
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 1280, min: 640 },
-            height: { ideal: 720, min: 480 },
+            width: { ideal: 640 },
+            height: { ideal: 480 },
             facingMode: 'user'
           }
         });
@@ -89,7 +93,7 @@ const ReflectiveCard = ({
           videoRef.current.play().catch(() => {});
           setHasCamera(true);
         }
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setHasCamera(false);
         }
@@ -116,87 +120,73 @@ const ReflectiveCard = ({
     '--overlay-color': resolvedOverlayColor,
     '--text-color': resolvedColor,
     '--saturation': saturation,
-    '--brightness': isDark ? '102%' : '100%',
-    '--contrast': isDark ? '106%' : '102%',
     ...style
   };
 
-  const hasFilterEffects = displacementStrength > 0 || glassDistortion > 0;
-  const videoFilter = [
-    `saturate(var(--saturation, ${saturation}))`,
-    `contrast(var(--contrast, 105%))`,
-    `brightness(var(--brightness, 100%))`,
-    blurStrength > 0 ? `blur(var(--blur-strength, ${blurStrength}px))` : null,
-    hasFilterEffects ? `url(#${filterId})` : null
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const videoFilter = `saturate(var(--saturation, ${saturation})) contrast(120%) brightness(110%) blur(var(--blur-strength, ${blurStrength}px)) url(#${filterId})`;
 
   return (
     <div
       className={`reflective-card-container ${effectiveTheme} ${className}`}
       style={cssVariables}
     >
-      {/* SVG filter only rendered if displacement effects are requested */}
-      {hasFilterEffects && (
-        <svg className="reflective-svg-filters" aria-hidden="true">
-          <defs>
-            <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
-              <feTurbulence
-                type="turbulence"
-                baseFrequency={baseFrequency}
-                numOctaves="2"
-                result="noise"
-              />
-              <feColorMatrix in="noise" type="luminanceToAlpha" result="noiseAlpha" />
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="noise"
-                scale={displacementStrength}
-                xChannelSelector="R"
-                yChannelSelector="G"
-                result="rippled"
-              />
-              <feSpecularLighting
-                in="noiseAlpha"
-                surfaceScale={displacementStrength}
-                specularConstant={specularConstant}
-                specularExponent="20"
-                lightingColor="#ffffff"
-                result="light"
-              >
-                <fePointLight x="0" y="0" z="300" />
-              </feSpecularLighting>
-              <feComposite in="light" in2="rippled" operator="in" result="light-effect" />
-              <feBlend in="light-effect" in2="rippled" mode="screen" result="metallic-result" />
-              <feColorMatrix
-                in="SourceAlpha"
-                type="matrix"
-                values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
-                result="solidAlpha"
-              />
-              <feMorphology in="solidAlpha" operator="erode" radius="45" result="erodedAlpha" />
-              <feGaussianBlur in="erodedAlpha" stdDeviation="10" result="blurredMap" />
-              <feComponentTransfer in="blurredMap" result="glassMap">
-                <feFuncA type="linear" slope="0.5" intercept="0" />
-              </feComponentTransfer>
-              <feDisplacementMap
-                in="metallic-result"
-                in2="glassMap"
-                scale={glassDistortion}
-                xChannelSelector="A"
-                yChannelSelector="A"
-                result="final"
-              />
-            </filter>
-          </defs>
-        </svg>
-      )}
+      <svg className="reflective-svg-filters" aria-hidden="true">
+        <defs>
+          <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence
+              type="turbulence"
+              baseFrequency={baseFrequency}
+              numOctaves="2"
+              result="noise"
+            />
+            <feColorMatrix in="noise" type="luminanceToAlpha" result="noiseAlpha" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale={displacementStrength}
+              xChannelSelector="R"
+              yChannelSelector="G"
+              result="rippled"
+            />
+            <feSpecularLighting
+              in="noiseAlpha"
+              surfaceScale={displacementStrength}
+              specularConstant={specularConstant}
+              specularExponent="20"
+              lightingColor="#ffffff"
+              result="light"
+            >
+              <fePointLight x="0" y="0" z="300" />
+            </feSpecularLighting>
+            <feComposite in="light" in2="rippled" operator="in" result="light-effect" />
+            <feBlend in="light-effect" in2="rippled" mode="screen" result="metallic-result" />
+            <feColorMatrix
+              in="SourceAlpha"
+              type="matrix"
+              values="0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
+              result="solidAlpha"
+            />
+            <feMorphology in="solidAlpha" operator="erode" radius="45" result="erodedAlpha" />
+            <feGaussianBlur in="erodedAlpha" stdDeviation="10" result="blurredMap" />
+            <feComponentTransfer in="blurredMap" result="glassMap">
+              <feFuncA type="linear" slope="0.5" intercept="0" />
+            </feComponentTransfer>
+            <feDisplacementMap
+              in="metallic-result"
+              in2="glassMap"
+              scale={glassDistortion}
+              xChannelSelector="A"
+              yChannelSelector="A"
+              result="final"
+            />
+          </filter>
+        </defs>
+      </svg>
 
-      {/* Subtle ambient metallic gradient base */}
+      {/* Ambient background behind reflective media */}
       <div className="reflective-ambient-bg" />
 
-      {/* Clear Image or Live Mirrored Webcam Video */}
+      {/* Either custom image or live mirrored webcam video */}
       {displayImage ? (
         <img
           src={displayImage}
@@ -215,7 +205,7 @@ const ReflectiveCard = ({
         />
       )}
 
-      {/* Clear fallback portrait if camera is inactive and no image provided */}
+      {/* Verified portrait fallback if no camera stream and no image */}
       {!displayImage && !hasCamera && (
         <div className="reflective-clear-avatar">
           <div className="avatar-circle">
