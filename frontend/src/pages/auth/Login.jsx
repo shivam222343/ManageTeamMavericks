@@ -106,6 +106,7 @@ const Login = () => {
       <div className="absolute inset-0 bg-black/40 dark:bg-black/55 pointer-events-none" />
 
       {/* Top Left Logo */}
+      {/* Hello */}
       <div className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-3 z-10">
         <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain select-none" />
         <div className="flex flex-col">
