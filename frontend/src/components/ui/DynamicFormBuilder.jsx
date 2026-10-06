@@ -1,16 +1,28 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
-import toast from 'react-hot-toast';
-import { useAuth } from '../../context/AuthContext';
-import MajorLoader from '../../components/ui/MajorLoader';
+/**
+ * DynamicFormBuilder.jsx
+ * 
+ * Shared, reusable form builder engine used by BOTH:
+ *   - Recruitment (RecruitmentPage.jsx — campaign-based)
+ *   - Events (EventFormBuilderPage.jsx — event-based)
+ *
+ * This component is intentionally generic. It does NOT know whether it is building
+ * a recruitment form or an event form — that context is provided by the parent.
+ *
+ * Props:
+ *   sections        — array of section objects (from API)
+ *   setSections     — state setter
+ *   canEdit         — boolean: can user edit this form?
+ *   onSave          — async function called when saving
+ *   saving          — boolean: save in progress
+ *   headerContent   — optional JSX rendered in the top bar (buttons, status, etc.)
+ */
+
+import React, { useState, useCallback } from 'react';
 import {
   Plus,
   Trash2,
-  Save,
   X,
   PlusCircle,
-  Copy,
-  Eye,
   GripVertical,
   ChevronDown,
   ChevronRight,
@@ -25,34 +37,33 @@ import {
   Edit3,
   FolderPlus,
   ToggleLeft,
-  ToggleRight,
-  Settings,
+  Save,
   Star,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  ExternalLink,
-  Lock
+  Link as LinkIcon,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ─── Field type registry ─────────────────────────────────────────────────────
-const FIELD_TYPES = [
-  { value: 'text', label: 'Short Text', icon: AlignLeft },
-  { value: 'email', label: 'Email Address', icon: Mail },
-  { value: 'phone', label: 'Phone / Contact', icon: Phone },
-  { value: 'number', label: 'Number / Count', icon: Hash },
-  { value: 'prn', label: 'PRN / Roll No.', icon: Hash },
-  { value: 'paragraph', label: 'Long Text Area', icon: FileText },
-  { value: 'checkbox', label: 'Checkboxes', icon: CheckSquare },
-  { value: 'radio', label: 'Radio (Single)', icon: Circle },
-  { value: 'file', label: 'File Upload', icon: Upload },
-  { value: 'rating', label: 'Star Rating', icon: Star },
-  { value: 'consent', label: 'Consent Declaration', icon: ToggleLeft },
+// ─── Field type registry ──────────────────────────────────────────────────────
+export const FIELD_TYPES = [
+  { value: 'text',      label: 'Short Text',          icon: AlignLeft  },
+  { value: 'email',     label: 'Email Address',        icon: Mail       },
+  { value: 'phone',     label: 'Phone / Contact',      icon: Phone      },
+  { value: 'number',    label: 'Number / Count',       icon: Hash       },
+  { value: 'prn',       label: 'PRN / Roll No.',       icon: Hash       },
+  { value: 'url',       label: 'URL / Link',           icon: LinkIcon   },
+  { value: 'date',      label: 'Date Picker',          icon: CalendarIcon},
+  { value: 'paragraph', label: 'Long Text Area',       icon: FileText   },
+  { value: 'dropdown',  label: 'Dropdown Select',      icon: ChevronDown},
+  { value: 'checkbox',  label: 'Checkboxes',           icon: CheckSquare},
+  { value: 'radio',     label: 'Radio (Single)',        icon: Circle     },
+  { value: 'file',      label: 'File Upload',          icon: Upload     },
+  { value: 'rating',    label: 'Star Rating',          icon: Star       },
+  { value: 'consent',   label: 'Consent Declaration',  icon: ToggleLeft },
 ];
 
-const blankField = (overrides = {}) => ({
+export const blankField = (overrides = {}) => ({
   id: null,
   label: '',
   placeholder: '',
@@ -65,7 +76,7 @@ const blankField = (overrides = {}) => ({
   ...overrides,
 });
 
-const blankSection = () => ({
+export const blankSection = () => ({
   id: null,
   name: 'New Section',
   description: '',
@@ -73,8 +84,8 @@ const blankSection = () => ({
   fields: [],
 });
 
-// ─── Field Preview (read-only visual) ────────────────────────────────────────
-const FieldPreview = ({ field }) => {
+// ─── Field Preview ────────────────────────────────────────────────────────────
+export const FieldPreview = ({ field }) => {
   const base =
     'w-full px-3.5 py-2.5 border rounded-xl bg-zinc-50/50 border-zinc-200/80 text-zinc-450 dark:bg-zinc-950/20 dark:border-zinc-800 text-[11px] font-semibold text-zinc-405 pointer-events-none transition duration-200';
 
@@ -83,8 +94,11 @@ const FieldPreview = ({ field }) => {
       {field.description && (
         <p className="text-[10px] text-zinc-450 dark:text-zinc-550 font-medium leading-relaxed">{field.description}</p>
       )}
-      {['text', 'email', 'phone', 'prn', 'number'].includes(field.field_type) && (
+      {['text', 'email', 'phone', 'prn', 'number', 'url'].includes(field.field_type) && (
         <input readOnly placeholder={field.placeholder || `Enter ${field.label || 'value'}…`} className={base} />
+      )}
+      {field.field_type === 'date' && (
+        <input type="date" readOnly className={base} />
       )}
       {field.field_type === 'paragraph' && (
         <textarea readOnly rows={3} placeholder={field.placeholder || 'Type your answer here…'} className={`${base} resize-none`} />
@@ -96,6 +110,14 @@ const FieldPreview = ({ field }) => {
           </div>
           <span className="text-[10px] font-bold">Upload file (Max 5MB)</span>
         </div>
+      )}
+      {field.field_type === 'dropdown' && (
+        <select className={base} disabled>
+          <option>{field.placeholder || 'Select an option…'}</option>
+          {(field.options || []).map((opt, i) => (
+            <option key={i} value={opt.option_value}>{opt.option_label}</option>
+          ))}
+        </select>
       )}
       {['checkbox', 'radio'].includes(field.field_type) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
@@ -131,38 +153,24 @@ const FieldPreview = ({ field }) => {
 
 // ─── Field Card ───────────────────────────────────────────────────────────────
 const FieldCard = ({
-  field,
-  sectionIdx,
-  fieldIdx,
-  isCoordinator,
-  onUpdate,
-  onDelete,
-  activeDragField,
-  setActiveDragField,
-  draggingField,
-  dragOverField,
-  onDragStart,
-  onDragEnd,
-  onDragOver,
-  onDrop
+  field, sectionIdx, fieldIdx, canEdit,
+  onUpdate, onDelete,
+  activeDragField, setActiveDragField,
+  draggingField, dragOverField,
+  onDragStart, onDragEnd, onDragOver, onDrop
 }) => {
   const [expanded, setExpanded] = useState(false);
   const TypeIcon = FIELD_TYPES.find(t => t.value === field.field_type)?.icon || AlignLeft;
-  const hasOptions = ['checkbox', 'radio'].includes(field.field_type);
+  const hasOptions = ['checkbox', 'radio', 'dropdown'].includes(field.field_type);
 
   const update = (key, val) => onUpdate(sectionIdx, fieldIdx, key, val);
 
-  const addOption = () => {
-    update('options', [...(field.options || []), { option_value: '', option_label: '' }]);
-  };
+  const addOption = () => update('options', [...(field.options || []), { option_value: '', option_label: '' }]);
   const addOtherOption = () => {
     const existing = field.options || [];
-    if (existing.some(o => (o.option_label || '').toLowerCase() === 'other' || (o.option_value || '').toLowerCase() === 'other')) {
-      return;
-    }
+    if (existing.some(o => (o.option_label || '').toLowerCase() === 'other')) return;
     update('options', [...existing, { option_value: 'Other', option_label: 'Other' }]);
   };
-
   const removeOption = (i) => {
     const opts = [...(field.options || [])];
     opts.splice(i, 1);
@@ -174,9 +182,9 @@ const FieldCard = ({
     update('options', opts);
   };
 
-  const isDragging = draggingField && draggingField.sectionIdx === sectionIdx && draggingField.fieldIdx === fieldIdx;
-  const isDragOver = dragOverField && dragOverField.sectionIdx === sectionIdx && dragOverField.fieldIdx === fieldIdx;
-  const isDraggable = isCoordinator && activeDragField && activeDragField.sectionIdx === sectionIdx && activeDragField.fieldIdx === fieldIdx;
+  const isDragging   = draggingField?.sectionIdx === sectionIdx && draggingField?.fieldIdx === fieldIdx;
+  const isDragOver   = dragOverField?.sectionIdx === sectionIdx && dragOverField?.fieldIdx === fieldIdx;
+  const isDraggable  = canEdit && activeDragField?.sectionIdx === sectionIdx && activeDragField?.fieldIdx === fieldIdx;
 
   return (
     <div
@@ -193,7 +201,7 @@ const FieldCard = ({
     >
       {/* Card header */}
       <div className="flex items-center gap-3 px-4 py-3.5 select-none">
-        {isCoordinator && (
+        {canEdit && (
           <GripVertical
             size={14}
             className="text-zinc-400 dark:text-zinc-600 shrink-0 cursor-grab active:cursor-grabbing hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
@@ -205,12 +213,12 @@ const FieldCard = ({
           <TypeIcon size={14} />
         </div>
         <div className="flex-1 min-w-0">
-          {expanded && isCoordinator ? (
+          {expanded && canEdit ? (
             <input
               type="text"
               value={field.label}
               onChange={e => update('label', e.target.value)}
-              placeholder="Field Label (e.g. GitHub URL)"
+              placeholder="Field Label (e.g. College Name)"
               className="w-full text-xs font-black bg-transparent border-0 border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-blue-500 text-zinc-900 dark:text-white pb-0.5 placeholder:text-zinc-400"
             />
           ) : (
@@ -218,25 +226,14 @@ const FieldCard = ({
               {field.label || <span className="text-zinc-400 dark:text-zinc-600 italic font-normal normal-case">Untitled field</span>}
               {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-red-500 ml-0.5">*</span> : null}
             </p>
-
           )}
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[8px] uppercase tracking-widest font-extrabold text-zinc-400 dark:text-zinc-500 font-mono">
               {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
             </span>
-            {field.show_in_analytics !== false && (
-              <span className="text-[8px] px-1.5 py-0.2 bg-blue-500/10 text-blue-500 rounded font-bold font-mono">
-                Analytics
-              </span>
-            )}
-            {field.is_prn_verify_only && (
-              <span className="text-[8px] px-1.5 py-0.2 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 rounded font-bold font-mono uppercase tracking-wider">
-                PRN Verify Only
-              </span>
-            )}
           </div>
         </div>
-        {isCoordinator && (
+        {canEdit && (
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => setExpanded(e => !e)}
@@ -264,10 +261,10 @@ const FieldCard = ({
       )}
 
       {/* Editor panel (expanded) */}
-      {expanded && isCoordinator && (
+      {expanded && canEdit && (
         <div className="px-5 pb-5 border-t border-zinc-200/60 dark:border-zinc-800/60 pt-4 space-y-4 bg-zinc-50/50 dark:bg-zinc-950/80 text-xs font-semibold">
-          {/* Row: type + required, analytics & PRN verify checkboxes */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+          {/* Row: type + required */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1.5 font-mono">Field Type</label>
               <select
@@ -300,16 +297,6 @@ const FieldCard = ({
               />
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-mono">Show in Analytics</span>
             </label>
-
-            <label className="flex items-center gap-2.5 cursor-pointer select-none pb-3 hover:opacity-90 transition">
-              <input
-                type="checkbox"
-                checked={field.is_prn_verify_only === true}
-                onChange={e => update('is_prn_verify_only', e.target.checked)}
-                className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
-              />
-              <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 font-mono">PRN Verify Only</span>
-            </label>
           </div>
 
           {/* Placeholder + description */}
@@ -320,7 +307,7 @@ const FieldCard = ({
                 type="text"
                 value={field.placeholder || ''}
                 onChange={e => update('placeholder', e.target.value)}
-                placeholder="e.g. Enter your portfolio link…"
+                placeholder="e.g. Enter your college name…"
                 className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
               />
             </div>
@@ -330,13 +317,13 @@ const FieldCard = ({
                 type="text"
                 value={field.description || ''}
                 onChange={e => update('description', e.target.value)}
-                placeholder="e.g. Include full URL starting with https://"
+                placeholder="e.g. Your official college name"
                 className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
               />
             </div>
           </div>
 
-          {/* Options manager */}
+          {/* Options manager for choice types */}
           {hasOptions && (
             <div className="border border-zinc-250/60 dark:border-zinc-800/40 rounded-2xl p-4 bg-zinc-50/40 dark:bg-zinc-950/20 space-y-3">
               <div className="flex items-center justify-between">
@@ -366,13 +353,13 @@ const FieldCard = ({
                   </div>
                 ))}
                 {(field.options || []).length === 0 && (
-                  <p className="text-[10px] italic text-zinc-450 dark:text-zinc-500 pl-1 font-medium">Click "Add option" to build values choice list.</p>
+                  <p className="text-[10px] italic text-zinc-450 dark:text-zinc-500 pl-1 font-medium">Click "Add option" to build the choice list.</p>
                 )}
               </div>
             </div>
           )}
 
-          {/* Live preview wrapper */}
+          {/* Live preview */}
           <div className="border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl p-4 bg-zinc-50/50 dark:bg-zinc-950/20">
             <p className="text-[8px] uppercase tracking-widest font-extrabold text-zinc-400 dark:text-zinc-500 font-mono mb-2.5">Live Preview Layout</p>
             <FieldPreview field={field} />
@@ -423,52 +410,23 @@ const AddFieldButton = ({ sectionIdx, onAdd }) => {
   );
 };
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-const RecruitmentPage = () => {
-  const { user } = useAuth();
-  const isCoordinator = user?.role === 'coordinator';
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [statusChanging, setStatusChanging] = useState(false);
-  const [campaign, setCampaign] = useState(null);
-  const [sections, setSections] = useState([]);
-  const [collapsed, setCollapsed] = useState({});
-  const [addSectionName, setAddSectionName] = useState('');
-  const [showAddSection, setShowAddSection] = useState(false);
-
+// ─── Main DynamicFormBuilder Component ───────────────────────────────────────
+const DynamicFormBuilder = ({
+  sections,
+  setSections,
+  canEdit = false,
+  onSave,
+  saving = false,
+  headerContent = null,
+}) => {
+  const [collapsed, setCollapsed]             = useState({});
+  const [addSectionName, setAddSectionName]   = useState('');
+  const [showAddSection, setShowAddSection]   = useState(false);
   const [activeDragField, setActiveDragField] = useState(null);
-  const [draggingField, setDraggingField] = useState(null);
-  const [dragOverField, setDragOverField] = useState(null);
+  const [draggingField, setDraggingField]     = useState(null);
+  const [dragOverField, setDragOverField]     = useState(null);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [campRes, formRes] = await Promise.all([
-        axios.get('/campaigns/1'),
-        axios.get('/campaigns/1/form'),
-      ]);
-      setCampaign(campRes.data);
-
-      const fetchedSections = Array.isArray(formRes.data) ? formRes.data : [];
-      const sectionsWithDragId = fetchedSections.map(s => ({
-        ...s,
-        fields: (s.fields || []).map(f => ({
-          ...f,
-          dragId: f.id || Math.random().toString(36).substring(2, 9)
-        }))
-      }));
-      setSections(sectionsWithDragId);
-    } catch (err) {
-      toast.error('Failed to load recruitment form configuration');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
-  // ── Drag & Drop Handlers ───────────────────────────────────────────────────
+  // ── Drag & Drop Handlers ─────────────────────────────────────────────────
   const handleDragStart = useCallback((e, sectionIdx, fieldIdx) => {
     setDraggingField({ sectionIdx, fieldIdx });
     e.dataTransfer.effectAllowed = 'move';
@@ -491,56 +449,43 @@ const RecruitmentPage = () => {
   const handleDrop = useCallback((e, targetSectionIdx, targetFieldIdx) => {
     e.preventDefault();
     setDragOverField(null);
-
-    let sourceSectionIdx, sourceFieldIdx;
-    if (draggingField) {
-      sourceSectionIdx = draggingField.sectionIdx;
-      sourceFieldIdx = draggingField.fieldIdx;
-    } else {
+    let sourceSectionIdx = draggingField?.sectionIdx;
+    let sourceFieldIdx   = draggingField?.fieldIdx;
+    if (sourceSectionIdx === undefined) {
       const data = e.dataTransfer.getData('text/plain');
       if (!data) return;
       [sourceSectionIdx, sourceFieldIdx] = data.split(',').map(Number);
     }
-
     if (sourceSectionIdx === undefined || sourceFieldIdx === undefined) return;
     if (sourceSectionIdx === targetSectionIdx && sourceFieldIdx === targetFieldIdx) return;
 
     setSections(prev => {
       const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
       const fieldToMove = next[sourceSectionIdx].fields[sourceFieldIdx];
-
-      // Remove from source
       next[sourceSectionIdx].fields.splice(sourceFieldIdx, 1);
-
-      // Insert into target
       next[targetSectionIdx].fields.splice(targetFieldIdx, 0, fieldToMove);
-
       return next;
     });
-
     setDraggingField(null);
     setActiveDragField(null);
-  }, [draggingField]);
+  }, [draggingField, setSections]);
 
-  // ── Mutators ────────────────────────────────────────────────────────────────
+  // ── Mutators ─────────────────────────────────────────────────────────────
   const updateField = useCallback((secIdx, fldIdx, key, val) => {
     setSections(prev => {
       const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
       next[secIdx].fields[fldIdx] = { ...next[secIdx].fields[fldIdx], [key]: val };
       return next;
     });
-  }, []);
+  }, [setSections]);
 
   const addField = useCallback((secIdx, fieldType) => {
     setSections(prev => {
       const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
-      next[secIdx].fields.push(blankField({
-        field_type: fieldType,
-        dragId: Math.random().toString(36).substring(2, 9)
-      }));
+      next[secIdx].fields.push(blankField({ field_type: fieldType, dragId: Math.random().toString(36).substring(2, 9) }));
       return next;
     });
-  }, []);
+  }, [setSections]);
 
   const deleteField = useCallback((secIdx, fldIdx) => {
     setSections(prev => {
@@ -549,7 +494,7 @@ const RecruitmentPage = () => {
       return next;
     });
     toast('Field removed — save to persist.', { icon: '🗑️' });
-  }, []);
+  }, [setSections]);
 
   const addSection = () => {
     const name = addSectionName.trim() || 'New Section';
@@ -574,196 +519,12 @@ const RecruitmentPage = () => {
 
   const toggleCollapse = (i) => setCollapsed(prev => ({ ...prev, [i]: !prev[i] }));
 
-  // ── Status change ────────────────────────────────────────────────────────────
-  const handleStatusChange = async (newStatus) => {
-    if (!isCoordinator) { toast.error('Only coordinators can change status'); return; }
-    if (campaign?.status === newStatus) return;
-    setStatusChanging(true);
-    const loader = toast.loading(`Setting drive to ${newStatus}…`);
-    try {
-      const res = await axios.patch('/campaigns/1/status', { status: newStatus });
-      setCampaign(res.data.campaign || { ...campaign, status: newStatus });
-      toast.dismiss(loader);
-      toast.success(`Recruitment drive is now ${newStatus.toUpperCase()}! ✅`);
-    } catch (err) {
-      toast.dismiss(loader);
-      toast.error(err.response?.data?.error || 'Failed to update status');
-    } finally {
-      setStatusChanging(false);
-    }
-  };
-
-  // ── Save form structure ───────────────────────────────────────────────────────
-  const isCanEdit = user?.role === 'coordinator' || user?.role === 'core_member';
-
-  const handleSave = async () => {
-    if (!isCanEdit) { toast.error('No permission to save'); return; }
-    setSaving(true);
-    const loader = toast.loading('Saving form configuration…');
-    try {
-      await axios.put('/campaigns/1/form', { sections });
-      toast.dismiss(loader);
-      toast.success('Form saved! Reloading fresh data… 🎉');
-      await fetchData();
-    } catch (err) {
-      toast.dismiss(loader);
-      const msg = err.response?.data?.error || err.message || 'Save failed';
-      toast.error(`Save failed: ${msg}`);
-      console.error('Save error:', err.response?.data || err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const copyPublicUrl = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/teammavericks/recruitment-2026`);
-    toast.success('Public form URL copied!', { icon: '📋' });
-  };
-
-  const canForms = user?.role === 'coordinator' || user?.permissions?.forms !== false;
-
-  if (loading) return <MajorLoader fullPage />;
-
-  if (!canForms) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6">
-        <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-          <Lock className="text-zinc-500" />
-        </div>
-        <h2 className="text-xl font-bold">Access Restricted</h2>
-        <p className="text-zinc-500 mt-2 max-w-sm">You do not have the necessary permissions to access recruitment form management.</p>
-      </div>
-    );
-  }
-
-  const statusStyle = {
-    draft: {
-      pill: 'bg-amber-500/10 text-amber-500 border border-amber-500/20',
-      active: 'bg-gradient-to-r from-amber-550 to-orange-500 text-white shadow-lg shadow-amber-500/20 font-bold border border-amber-400/20'
-    },
-    open: {
-      pill: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20',
-      active: 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/20 font-bold border border-emerald-400/20'
-    },
-    closed: {
-      pill: 'bg-red-500/10 text-red-500 border border-red-500/20',
-      active: 'bg-gradient-to-r from-rose-500 to-red-655 text-white shadow-lg shadow-rose-500/20 font-bold border border-red-400/20'
-    },
-  };
-
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-24 px-0 sm:px-4">
-      {/* ── Top controls ────────────────────────────────────────────────────── */}
-      <div className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
-        {/* Glow overlay */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/[0.015] rounded-full blur-3xl pointer-events-none" />
+    <div className="space-y-4">
+      {/* Optional header slot */}
+      {headerContent}
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white uppercase font-mono">Recruitment Form Builder</h1>
-              <span className={`px-3 py-1 rounded-xl text-[9px] font-extrabold uppercase tracking-widest animate-fadeIn ${statusStyle[campaign?.status || 'draft']?.pill}`}>
-                {campaign?.status || 'draft'}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 shrink-0 text-[10px] font-extrabold uppercase tracking-widest">
-            <button onClick={copyPublicUrl} className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95">
-              <Copy size={13} /> Copy URL
-            </button>
-            <a href="/teammavericks/recruitment-2026" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95">
-              <Eye size={13} /> View Live
-            </a>
-            {isCoordinator && (
-              <Link to="/dashboard/settings/portal" className="flex items-center gap-1.5 h-10 px-4 border border-zinc-200 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/70 text-zinc-500 hover:text-blue-500 dark:text-zinc-400 dark:hover:text-blue-400 rounded-xl transition duration-150 cursor-pointer shadow-sm active:scale-95" title="Portal Settings">
-                <Settings size={13} /> Settings
-              </Link>
-            )}
-            {isCanEdit && (
-              <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 h-10 px-5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl shadow-md hover:shadow-lg hover:shadow-blue-500/25 transition duration-150 cursor-pointer disabled:opacity-50 active:scale-95">
-                <Save size={13} /> <span>{saving ? 'Saving…' : 'Save Form'}</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Status toggling & deadline config row */}
-        {isCanEdit && (
-          <div className="border-t border-zinc-200/60 dark:border-zinc-800/40 mt-5 pt-5 space-y-4 relative z-10">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-500 font-mono">Recruitment Status:</span>
-              <div className="flex border border-zinc-200/80 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950 w-fit rounded-2xl p-1 gap-1 select-none">
-                {['draft', 'open', 'closed'].map(s => (
-                  <button
-                    key={s}
-                    onClick={() => handleStatusChange(s)}
-                    disabled={statusChanging}
-                    className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition duration-200 cursor-pointer disabled:opacity-60
-                      ${campaign?.status === s
-                        ? statusStyle[s]?.active
-                        : 'text-zinc-405 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100/60 dark:hover:bg-zinc-900/60'
-                      }
-                    `}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold flex items-center gap-1.5">
-                {campaign?.status === 'open' && <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" /> <span>Form is active and open to candidates</span></>}
-                {campaign?.status === 'closed' && <><span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> <span>Form is closed — candidate form shows notice</span></>}
-                {campaign?.status === 'draft' && <><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" /> <span>Form is in draft — invisible to public candidates</span></>}
-              </span>
-            </div>
-
-            {/* Deadline Timer Setting */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 border-t border-zinc-200/40 dark:border-zinc-800/20 pt-4">
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-500 font-mono">Application Deadline:</span>
-              <div className="flex items-center gap-3">
-                <div className="relative flex items-center">
-                  <input
-                    type="datetime-local"
-                    value={campaign?.deadline ? campaign.deadline.substring(0, 16) : ''}
-                    onChange={async (e) => {
-                      const newDeadline = e.target.value;
-                      const loader = toast.loading('Updating deadline timer…');
-                      try {
-                        await axios.put('/campaigns/1', {
-                          ...campaign,
-                          deadline: newDeadline
-                        });
-                        setCampaign(prev => ({ ...prev, deadline: newDeadline }));
-                        toast.dismiss(loader);
-                        toast.success('Deadline timer updated successfully! ⏰');
-                      } catch (err) {
-                        toast.dismiss(loader);
-                        toast.error('Failed to update deadline');
-                      }
-                    }}
-                    className="pl-9 pr-3.5 h-10 border border-zinc-250 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition duration-200"
-                  />
-                  <Clock size={13} className="absolute left-3 text-zinc-400 pointer-events-none" />
-                </div>
-                {campaign?.deadline && (
-                  <span className="text-[10px] text-zinc-450 dark:text-zinc-500 font-extrabold font-mono bg-zinc-100/50 dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 px-3 h-10 flex items-center rounded-xl shadow-sm">
-                    Ends: {new Date(campaign.deadline).toLocaleString()}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Read-only banner for regular members only */}
-      {!isCanEdit && (
-        <div className="flex items-center gap-3 px-5 py-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl text-xs font-bold text-amber-600 dark:text-amber-500/80 shadow-inner">
-          <AlertCircle size={14} className="shrink-0" />
-          <span>Read-only Mode: Only coordinators and core committee members can modify recruitment form settings.</span>
-        </div>
-      )}
-
-      {/* ── Sections list ──────────────────────────────────────────────────────── */}
+      {/* Sections list */}
       <div className="space-y-4">
         {sections.map((section, secIdx) => (
           <div key={section.id || secIdx} className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl overflow-hidden shadow-md transition duration-300">
@@ -776,7 +537,7 @@ const RecruitmentPage = () => {
                 <div className="w-6 h-6 rounded-lg bg-zinc-200/40 dark:bg-zinc-800/40 flex items-center justify-center text-zinc-450 dark:text-zinc-500 shrink-0">
                   {collapsed[secIdx] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                 </div>
-                {isCanEdit ? (
+                {canEdit ? (
                   <input
                     type="text"
                     value={section.name}
@@ -793,7 +554,7 @@ const RecruitmentPage = () => {
                   {section.fields?.length || 0} fields
                 </span>
               </div>
-              {isCanEdit && (
+              {canEdit && (
                 <button
                   onClick={e => { e.stopPropagation(); deleteSection(secIdx); }}
                   className="p-2 rounded-xl text-zinc-400 dark:text-zinc-650 hover:text-red-550 hover:bg-red-500/10 transition cursor-pointer shrink-0 border border-transparent hover:border-red-500/10"
@@ -804,23 +565,22 @@ const RecruitmentPage = () => {
               )}
             </div>
 
-            {/* Fields list container */}
+            {/* Fields list */}
             {!collapsed[secIdx] && (
               <div className="p-5 space-y-4">
                 {(section.fields || []).length === 0 && (
                   <div className="py-8 text-center text-zinc-400 dark:text-zinc-650 text-xs font-bold border-2 border-dashed border-zinc-200 dark:border-zinc-800/80 rounded-2xl bg-zinc-50/10">
                     No fields configured in this section yet.
-                    {isCanEdit && <span className="block text-[9px] mt-1 font-extrabold uppercase tracking-widest text-zinc-450 dark:text-zinc-500 font-mono">Use the action card below to append field elements.</span>}
+                    {canEdit && <span className="block text-[9px] mt-1 font-extrabold uppercase tracking-widest text-zinc-450 dark:text-zinc-500 font-mono">Use the action card below to append field elements.</span>}
                   </div>
                 )}
-
                 {(section.fields || []).map((field, fldIdx) => (
                   <FieldCard
                     key={field.dragId || field.id || fldIdx}
                     field={field}
                     sectionIdx={secIdx}
                     fieldIdx={fldIdx}
-                    isCoordinator={isCanEdit}
+                    canEdit={canEdit}
                     onUpdate={updateField}
                     onDelete={deleteField}
                     activeDragField={activeDragField}
@@ -833,8 +593,7 @@ const RecruitmentPage = () => {
                     onDrop={handleDrop}
                   />
                 ))}
-
-                {isCanEdit && (
+                {canEdit && (
                   <AddFieldButton sectionIdx={secIdx} onAdd={addField} />
                 )}
               </div>
@@ -843,8 +602,8 @@ const RecruitmentPage = () => {
         ))}
       </div>
 
-      {/* Empty sections state */}
-      {sections.length === 0 && !loading && (
+      {/* Empty state */}
+      {sections.length === 0 && (
         <div className="py-20 text-center border-2 border-dashed border-zinc-200/80 dark:border-zinc-800/60 rounded-3xl bg-white/20 dark:bg-zinc-900/10">
           <FileText size={32} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-4" />
           <p className="text-zinc-800 dark:text-white text-sm font-black uppercase tracking-wider">No form sections configured</p>
@@ -852,8 +611,8 @@ const RecruitmentPage = () => {
         </div>
       )}
 
-      {/* Add Section input block */}
-      {isCanEdit && (
+      {/* Add Section control */}
+      {canEdit && (
         <div className="animate-fadeIn">
           {showAddSection ? (
             <div className="flex gap-3 items-center bg-white/60 dark:bg-zinc-900/60 border border-blue-500/20 rounded-2xl p-4 shadow-lg backdrop-blur-xl">
@@ -864,7 +623,7 @@ const RecruitmentPage = () => {
                 value={addSectionName}
                 onChange={e => setAddSectionName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addSection(); if (e.key === 'Escape') setShowAddSection(false); }}
-                placeholder="Section Name (e.g. Personal Details, Project Links)…"
+                placeholder="Section Name (e.g. Personal Details, Experience)…"
                 className="flex-1 bg-transparent text-sm font-bold text-zinc-900 dark:text-white focus:outline-none placeholder:text-zinc-400"
               />
               <button onClick={addSection} className="px-4 py-2 bg-zinc-950 dark:bg-white dark:text-zinc-950 text-white rounded-xl text-xs font-bold cursor-pointer hover:opacity-90 active:scale-95 transition">Add Section</button>
@@ -884,15 +643,15 @@ const RecruitmentPage = () => {
         </div>
       )}
 
-      {/* Sticky save controls footer bar */}
-      {isCanEdit && sections.length > 0 && (
+      {/* Sticky save footer */}
+      {canEdit && sections.length > 0 && onSave && (
         <div className="sticky bottom-6 z-50">
-          <div className="bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl px-6 py-4.5 shadow-2xl flex items-center justify-between gap-4 animate-slideUp">
+          <div className="bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl px-6 py-4 shadow-2xl flex items-center justify-between gap-4 animate-slideUp">
             <p className="text-[9px] text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-widest font-mono">
               {sections.reduce((acc, s) => acc + (s.fields?.length || 0), 0)} fields &bull; {sections.length} sections active
             </p>
             <button
-              onClick={handleSave}
+              onClick={onSave}
               disabled={saving}
               className="flex items-center gap-2 h-11 px-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-650 text-white rounded-xl text-xs font-extrabold uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition duration-150 cursor-pointer disabled:opacity-50 active:scale-95"
             >
@@ -906,4 +665,4 @@ const RecruitmentPage = () => {
   );
 };
 
-export default RecruitmentPage;
+export default DynamicFormBuilder;

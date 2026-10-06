@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
+import { useCursor } from './context/CursorContext';
 import ThemeToggle from './components/ui/ThemeToggle';
 
 // Layouts
@@ -14,7 +15,9 @@ import PrnVerificationPage from './pages/recruitment/PrnVerificationPage';
 
 // Auth Pages
 import Login from './pages/auth/Login';
+import UserLogin from './pages/auth/UserLogin';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+import ParticipantDashboard from './pages/participant/ParticipantDashboard';
 
 // Admin Pages
 import DashboardHome from './pages/dashboard/DashboardHome';
@@ -40,7 +43,26 @@ import MemberProfilePage from './pages/members/MemberProfilePage';
 import MemberCommunicatePage from './pages/members/MemberCommunicatePage';
 import AddMembersPage from './pages/members/AddMembersPage';
 
+// Events Pages
+import EventsListPage from './pages/events/EventsListPage';
+import CreateEventPage from './pages/events/CreateEventPage';
+import EventDetailPage from './pages/events/EventDetailPage';
+import EventFormBuilderPage from './pages/events/EventFormBuilderPage';
+import EventRegistrationsPage from './pages/events/EventRegistrationsPage';
+import EventRegistrationDetailPage from './pages/events/EventRegistrationDetailPage';
+import PublicEventsPage from './pages/events/PublicEventsPage';
+import PublicEventRegisterPage from './pages/events/PublicEventRegisterPage';
+import EventAttendancePage from './pages/events/EventAttendancePage';
+import SubEventControlRoomPage from './pages/events/SubEventControlRoomPage';
+import CreateSubEventGroupPage from './pages/events/CreateSubEventGroupPage';
+import AutoGroupSubEventPage from './pages/events/AutoGroupSubEventPage';
+
+// Judge Portal Pages
+import JudgeLoginPage from './pages/judge/JudgeLoginPage';
+import JudgePortalPage from './pages/judge/JudgePortalPage';
+
 import MajorLoader from './components/ui/MajorLoader';
+import TargetCursor from './components/ui/TargetCursor';
 
 // Protected Route Guard
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -55,19 +77,32 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/user-login" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={user.role === 'participant' ? '/user/dashboard' : '/dashboard'} replace />;
   }
 
   return children;
 };
 
 function App() {
+  const { isAuthenticated } = useAuth();
+  const { cursorType } = useCursor();
+
   return (
     <BrowserRouter>
+      {isAuthenticated && cursorType === 'target' && (
+        <TargetCursor
+          spinDuration={2}
+          hideDefaultCursor
+          parallaxOn
+          hoverDuration={0.2}
+          cursorColor="#ffffff"
+          cursorColorOnTarget="#B497CF"
+        />
+      )}
       <Toaster
         position="top-right"
         toastOptions={{
@@ -81,15 +116,47 @@ function App() {
         <Route path="/teammavericks/:slug" element={<PublicLanding />} />
         <Route path="/teammavericks/apply-success" element={<SuccessPage />} />
 
+        {/* Public Events routes */}
+        <Route path="/events" element={<PublicEventsPage />} />
+        <Route path="/events/:slug" element={<PublicEventRegisterPage />} />
+        <Route path="/register/:slug" element={<PublicEventRegisterPage />} />
+
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/user-login" element={<UserLogin />} />
+        <Route path="/user/login" element={<UserLogin />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Judge Portal Public & Session Routes */}
+        <Route path="/judge" element={<JudgeLoginPage />} />
+        <Route path="/judge-login" element={<JudgeLoginPage />} />
+        <Route path="/judge/login" element={<JudgeLoginPage />} />
+        <Route path="/judge/portal" element={<JudgePortalPage />} />
+        <Route path="/judge/dashboard" element={<JudgePortalPage />} />
+
+        {/* Participant Portal routes */}
+        <Route
+          path="/user/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <ParticipantDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/profile"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <ParticipantDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Dashboard admin routes */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['coordinator', 'core_member', 'member']}>
               <AdminLayout />
             </ProtectedRoute>
           }
@@ -145,10 +212,22 @@ function App() {
             }
           />
 
-          {/* New navigation items placeholders */}
+          {/* Events Management */}
+          <Route path="events" element={<EventsListPage />} />
+          <Route path="events/create" element={<CreateEventPage />} />
+          <Route path="events/:id" element={<EventDetailPage />} />
+          <Route path="events/:id/attendance" element={<EventAttendancePage />} />
+          <Route path="events/:id/sub-events/:subId" element={<SubEventControlRoomPage />} />
+          <Route path="events/:id/sub-events/:subId/create-group" element={<CreateSubEventGroupPage />} />
+          <Route path="events/:id/sub-events/:subId/auto-group" element={<AutoGroupSubEventPage />} />
+          <Route path="events/:id/edit" element={<CreateEventPage />} />
+          <Route path="events/:id/registration-form" element={<EventFormBuilderPage />} />
+          <Route path="events/:id/registrations" element={<EventRegistrationsPage />} />
+          <Route path="events/:id/registrations/:regId" element={<EventRegistrationDetailPage />} />
+
+          {/* Other navigation items placeholders */}
           <Route path="approvals" element={<PlaceholderPage title="Approvals" />} />
           <Route path="meetings" element={<PlaceholderPage title="Meetings" />} />
-          <Route path="events" element={<PlaceholderPage title="Events" />} />
           <Route path="tasks" element={<PlaceholderPage title="Tasks" />} />
           <Route path="members" element={<Navigate to="mavericks" replace />} />
           <Route path="members/mavericks" element={<MavericksListPage />} />

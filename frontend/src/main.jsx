@@ -4,13 +4,16 @@ import App from './App.jsx'
 import './index.css'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
+import { CursorProvider } from './context/CursorContext'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ThemeProvider>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <CursorProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </CursorProvider>
     </ThemeProvider>
   </React.StrictMode>,
 )

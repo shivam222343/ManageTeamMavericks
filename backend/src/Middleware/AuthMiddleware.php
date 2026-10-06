@@ -62,4 +62,11 @@ class AuthMiddleware {
     public static function requireCore(): array {
         return self::requireRoles(['coordinator', 'core_member']);
     }
+
+    /**
+     * Alias for authenticate
+     */
+    public static function requireAuth(): array {
+        return self::authenticate();
+    }
 }
