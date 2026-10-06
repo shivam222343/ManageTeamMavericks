@@ -100,7 +100,7 @@ const Login = () => {
 
   return (
     <div
-      className="min-h-screen bg-cover bg-center flex items-center justify-center p-4 transition-all duration-500 relative overflow-hidden"
+      className="min-h-screen bg-cover bg-center flex items-center justify-center p-2 sm:p-4 transition-all duration-500 relative overflow-hidden"
       style={{ backgroundImage: `url("${isMobile ? '/backgrounds/mobile_view.png' : '/backgrounds/dekstop_view.png'}")` }}
     >
       <div className="absolute inset-0 bg-black/40 dark:bg-black/55 pointer-events-none" />
@@ -117,7 +117,7 @@ const Login = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md glass-card-shine rounded-3xl p-8 sm:p-10 shadow-2xl z-10 border border-white/20 dark:border-white/15"
+        className="w-full max-w-md glass-card-shine rounded-3xl p-4 sm:p-10 shadow-2xl z-10 border border-white/20 dark:border-white/15"
       >
         <div className="text-center mb-8 flex flex-col items-center">
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white mb-2 drop-shadow-sm">Management Portal</h2>

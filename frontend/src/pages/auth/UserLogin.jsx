@@ -83,7 +83,7 @@ const UserLogin = () => {
 
   return (
     <div
-      className="min-h-screen bg-cover bg-center flex items-center justify-center p-4 transition-all duration-500 relative overflow-hidden font-sans"
+      className="min-h-screen bg-cover bg-center flex items-center justify-center p-2 sm:p-4 transition-all duration-500 relative overflow-hidden font-sans"
       style={{ backgroundImage: `url("${isMobile ? '/backgrounds/mobile_view.png' : '/backgrounds/dekstop_view.png'}")` }}
     >
       <div className="absolute inset-0 bg-black/50 dark:bg-black/65 pointer-events-none" />
@@ -121,7 +121,7 @@ const UserLogin = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md glass-card-shine rounded-3xl p-8 sm:p-10 shadow-2xl z-10 border border-white/20 dark:border-white/15 relative overflow-hidden"
+        className="w-full max-w-md glass-card-shine rounded-3xl p-4 sm:p-10 shadow-2xl z-10 border border-white/20 dark:border-white/15 relative overflow-hidden"
       >
         <div className="text-center mb-6 flex flex-col items-center">
           <div className="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-300 flex items-center justify-center mb-3 border border-blue-400/30">

@@ -36,6 +36,9 @@ use App\Controllers\PanelController;
 use App\Controllers\EventController;
 use App\Controllers\EventFormController;
 use App\Controllers\EventRegistrationController;
+use App\Controllers\EventSubEventController;
+use App\Controllers\EventAttendanceController;
+use App\Controllers\SubEventControlRoomController;
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: *");
@@ -168,6 +171,52 @@ $router->addRoute('GET',    '/events/slug/{slug}/form',            [EventRegistr
 $router->addRoute('GET',    '/event-registrations/{id}',           [EventRegistrationController::class, 'get']);
 $router->addRoute('PATCH',  '/event-registrations/{id}/status',    [EventRegistrationController::class, 'updateStatus']);
 $router->addRoute('DELETE', '/event-registrations/{id}',           [EventRegistrationController::class, 'delete']);
+
+// --- EVENT SUB-EVENTS ROUTES ---
+$router->addRoute('GET',    '/events/{id}/sub-events',                 [EventSubEventController::class, 'list']);
+$router->addRoute('POST',   '/events/{id}/sub-events',                 [EventSubEventController::class, 'create']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subEventId}',    [EventSubEventController::class, 'update']);
+$router->addRoute('PATCH',  '/events/{id}/sub-events/{subEventId}/status', [EventSubEventController::class, 'patchStatus']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subEventId}',    [EventSubEventController::class, 'delete']);
+
+// --- SUB-EVENT CONTROL ROOM & ROUND MANAGEMENT ROUTES ---
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/control-room',          [SubEventControlRoomController::class, 'getControlRoom']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/rounds',                [SubEventControlRoomController::class, 'listRounds']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/rounds',                [SubEventControlRoomController::class, 'createRound']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/rounds/{roundId}',      [SubEventControlRoomController::class, 'updateRound']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/rounds/{roundId}',      [SubEventControlRoomController::class, 'deleteRound']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/participants',          [SubEventControlRoomController::class, 'listParticipants']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/participants',          [SubEventControlRoomController::class, 'addSpotParticipant']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/groups',                [SubEventControlRoomController::class, 'listGroups']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/groups',                [SubEventControlRoomController::class, 'createGroup']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/groups/auto-generate',  [SubEventControlRoomController::class, 'autoGenerateGroups']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/groups/{groupId}',      [SubEventControlRoomController::class, 'deleteGroup']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/panels',                [SubEventControlRoomController::class, 'listPanels']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/panels',                [SubEventControlRoomController::class, 'createPanel']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/panels/{panelId}/assign-group',     [SubEventControlRoomController::class, 'assignGroupToPanel']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/panels/{panelId}/regenerate-codes', [SubEventControlRoomController::class, 'regenerateJudgeCodes']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/panels/{panelId}',      [SubEventControlRoomController::class, 'deletePanel']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/shortlist',             [SubEventControlRoomController::class, 'getShortlist']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/shortlist/promote',     [SubEventControlRoomController::class, 'promoteShortlist']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/evaluations',           [SubEventControlRoomController::class, 'getEvaluations']);
+
+// --- JUDGE PORTAL & ACCESS CODE AUTHENTICATION ROUTES ---
+$router->addRoute('POST',   '/judge/auth/login',                                     [SubEventControlRoomController::class, 'judgeLogin']);
+$router->addRoute('GET',    '/judge/panel-data',                                     [SubEventControlRoomController::class, 'getJudgePanelData']);
+$router->addRoute('POST',   '/judge/submit-evaluation',                              [SubEventControlRoomController::class, 'submitJudgeEvaluation']);
+
+// --- EVENT & SUB-EVENT ATTENDANCE ROUTES ---
+$router->addRoute('GET',    '/events/{id}/attendance',                              [EventAttendanceController::class, 'listEventAttendance']);
+$router->addRoute('POST',   '/events/{id}/attendance/mark',                         [EventAttendanceController::class, 'markEventAttendance']);
+$router->addRoute('POST',   '/events/{id}/attendance/bulk-mark',                    [EventAttendanceController::class, 'bulkMarkEventAttendance']);
+$router->addRoute('GET',    '/events/{id}/attendance/qr-code',                      [EventAttendanceController::class, 'getAttendanceQr']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subEventId}/attendance',      [EventAttendanceController::class, 'listSubEventAttendance']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subEventId}/attendance/mark', [EventAttendanceController::class, 'markSubEventAttendance']);
+$router->addRoute('POST',   '/events/attendance/scan',                              [EventAttendanceController::class, 'scanAttendance']);
 
 // --- PARTICIPANT PORTAL ROUTES ---
 $router->addRoute('GET',    '/participant/dashboard',             [EventRegistrationController::class, 'getParticipantDashboard']);

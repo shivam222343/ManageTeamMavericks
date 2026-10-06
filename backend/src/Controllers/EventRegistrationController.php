@@ -186,12 +186,40 @@ class EventRegistrationController {
         $stmt->execute($bind);
         $registrations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Fetch sub-events for all registrations of this event
+        $subStmt = $db->prepare("
+            SELECT ers.registration_id, ers.sub_event_id, ers.attendance as sub_attendance,
+                   ers.team_name, ers.team_members, ers.fee as sub_fee,
+                   es.name as sub_event_name, es.type as sub_event_type, es.fee as sub_event_fee
+            FROM event_registration_sub_events ers
+            JOIN event_sub_events es ON ers.sub_event_id = es.id
+            JOIN event_registrations er ON ers.registration_id = er.id
+            WHERE er.event_id = ?
+        ");
+        $subStmt->execute([$eventId]);
+        $subRegs = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $subByReg = [];
+        foreach ($subRegs as $sr) {
+            $rid = $sr['registration_id'];
+            if (!isset($subByReg[$rid])) $subByReg[$rid] = [];
+            if (is_string($sr['team_members'])) {
+                $sr['team_members'] = json_decode($sr['team_members'], true);
+            }
+            $subByReg[$rid][] = $sr;
+        }
+
+        foreach ($registrations as &$r) {
+            $r['attendance'] = (int)($r['attendance'] ?? 0);
+            $r['sub_events'] = $subByReg[$r['id']] ?? [];
+        }
+
         Router::sendJson($registrations);
     }
 
     /**
      * GET /api.php/event-registrations/{id}
-     * Admin: get single registration with full dynamic form answers
+     * Admin: get single registration with full dynamic form answers and sub-events
      */
     public function get(array $params): void {
         AuthMiddleware::authenticate();
@@ -214,6 +242,22 @@ class EventRegistrationController {
             Router::sendJson(['error' => 'Registration not found'], 404);
             return;
         }
+
+        // Fetch sub-events
+        $subStmt = $db->prepare("
+            SELECT ers.*, es.name as sub_event_name, es.type as sub_event_type, es.fee as sub_event_fee
+            FROM event_registration_sub_events ers
+            JOIN event_sub_events es ON ers.sub_event_id = es.id
+            WHERE ers.registration_id = ?
+        ");
+        $subStmt->execute([$regId]);
+        $subList = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($subList as &$s) {
+            if (is_string($s['team_members'])) {
+                $s['team_members'] = json_decode($s['team_members'], true);
+            }
+        }
+        $reg['sub_events'] = $subList;
 
         // Fetch dynamic answers
         $ansStmt = $db->prepare("
@@ -419,10 +463,80 @@ class EventRegistrationController {
             return;
         }
 
+        // Fetch active sub-events for this event
+        $subEventsStmt = $db->prepare("SELECT * FROM event_sub_events WHERE event_id = ? AND is_active = 1 ORDER BY display_order ASC");
+        $subEventsStmt->execute([$eventId]);
+        $availableSubEvents = $subEventsStmt->fetchAll(PDO::FETCH_ASSOC);
+        $availableSubById = [];
+        foreach ($availableSubEvents as $s) {
+            $availableSubById[(int)$s['id']] = $s;
+        }
+
+        $processedSubEvents = [];
+        $totalSubFee = 0.00;
+
+        if (!empty($availableSubEvents)) {
+            $rawSelected = $input['selected_sub_events'] ?? $input['sub_events'] ?? [];
+            if (is_string($rawSelected)) {
+                $rawSelected = json_decode($rawSelected, true) ?? [];
+            }
+            if (is_array($rawSelected)) {
+                foreach ($rawSelected as $item) {
+                    $sId = is_array($item) ? (int)($item['sub_event_id'] ?? $item['id'] ?? 0) : (int)$item;
+                    if ($sId > 0 && isset($availableSubById[$sId])) {
+                        $subObj = $availableSubById[$sId];
+
+                        // Check if sub-event is manually closed
+                        if (($subObj['registration_status'] ?? 'open') === 'closed') {
+                            Router::sendJson(['error' => "Registration for track '{$subObj['name']}' is closed"], 400);
+                            return;
+                        }
+
+                        // Check if sub-event capacity is reached
+                        if (!empty($subObj['max_participants']) && (int)$subObj['max_participants'] > 0) {
+                            $subCountStmt = $db->prepare("SELECT COUNT(*) FROM event_registration_sub_events WHERE sub_event_id = ?");
+                            $subCountStmt->execute([$sId]);
+                            $subCount = (int)$subCountStmt->fetchColumn();
+                            if ($subCount >= (int)$subObj['max_participants']) {
+                                Router::sendJson(['error' => "Registrations are full (capacity reached) for track '{$subObj['name']}'"], 400);
+                                return;
+                            }
+                        }
+
+                        $teamName = is_array($item) ? trim($item['team_name'] ?? '') : null;
+                        $teamMembers = is_array($item) ? ($item['team_members'] ?? null) : null;
+                        
+                        $processedSubEvents[] = [
+                            'sub_event_id' => $sId,
+                            'sub_event'    => $subObj,
+                            'team_name'    => $teamName,
+                            'team_members' => $teamMembers,
+                            'fee'          => (float)$subObj['fee']
+                        ];
+                        $totalSubFee += (float)$subObj['fee'];
+                    }
+                }
+            }
+
+            // Fee calculation logic:
+            // If all available sub-events are selected and event has combo_fee > 0:
+            $isAllSelected = count($processedSubEvents) === count($availableSubEvents) && count($availableSubEvents) > 0;
+            $comboFee = !empty($event['combo_fee']) ? (float)$event['combo_fee'] : null;
+
+            if ($isAllSelected && $comboFee !== null && $comboFee > 0) {
+                $paymentAmount = $comboFee;
+            } elseif (!empty($processedSubEvents)) {
+                $paymentAmount = $totalSubFee;
+            } else {
+                $paymentAmount = (float)($event['registration_fee'] ?? 0.00);
+            }
+        } else {
+            $paymentAmount = (float)($event['registration_fee'] ?? 0.00);
+        }
+
         // Determine initial payment status
-        $paymentRequired = !empty($event['payment_required']) && (float)($event['registration_fee'] ?? 0) > 0;
-        $paymentStatus   = $paymentRequired ? (!empty($transactionId) ? 'pending' : 'pending') : 'not_required';
-        $paymentAmount   = $paymentRequired ? (float)$event['registration_fee'] : 0.00;
+        $paymentRequired = !empty($event['payment_required']) && $paymentAmount > 0;
+        $paymentStatus   = $paymentRequired ? 'pending' : 'not_required';
 
         // Generate unique registration token
         $token = 'EVT-' . strtoupper(substr(md5(uniqid((string)$eventId, true)), 0, 10));
@@ -430,6 +544,8 @@ class EventRegistrationController {
         // Generate plain participant password
         $tempPassword = $this->generateParticipantPassword(8);
         $passwordHash = password_hash($tempPassword, PASSWORD_DEFAULT);
+
+        $selectedIds = array_map(fn($ps) => $ps['sub_event_id'], $processedSubEvents);
 
         $db->beginTransaction();
         try {
@@ -458,8 +574,8 @@ class EventRegistrationController {
             $regStmt = $db->prepare("
                 INSERT INTO event_registrations
                     (event_id, event_form_id, user_id, full_name, email, phone,
-                     status, payment_status, payment_amount, transaction_id, payment_gateway, registration_token)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                     status, payment_status, payment_amount, transaction_id, payment_gateway, registration_token, selected_sub_event_ids)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $regStmt->execute([
                 $eventId,
@@ -473,9 +589,28 @@ class EventRegistrationController {
                 $paymentAmount,
                 $transactionId ?: null,
                 $paymentGateway ?: null,
-                $token
+                $token,
+                !empty($selectedIds) ? json_encode($selectedIds) : null
             ]);
             $regId = (int)$db->lastInsertId();
+
+            // Insert each sub-event registration
+            if (!empty($processedSubEvents)) {
+                $insSub = $db->prepare("
+                    INSERT INTO event_registration_sub_events 
+                        (registration_id, sub_event_id, team_name, team_members, fee)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                foreach ($processedSubEvents as $ps) {
+                    $insSub->execute([
+                        $regId,
+                        $ps['sub_event_id'],
+                        $ps['team_name'] ?: null,
+                        !empty($ps['team_members']) ? (is_string($ps['team_members']) ? $ps['team_members'] : json_encode($ps['team_members'])) : null,
+                        $ps['fee']
+                    ]);
+                }
+            }
 
             // 3. Store dynamic form answers
             $ansStmt = $db->prepare(
@@ -618,8 +753,11 @@ class EventRegistrationController {
         $regStmt->execute([$email, $userId]);
         $registrations = $regStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Fetch dynamic answers for each registration
+        // Fetch dynamic answers & sub-events for each registration
         foreach ($registrations as &$reg) {
+            $reg['attendance'] = (int)($reg['attendance'] ?? 0);
+
+            // Fetch dynamic answers
             $ansStmt = $db->prepare("
                 SELECT era.field_id, era.answer_text, ff.label, ff.field_type
                 FROM event_registration_answers era
@@ -629,6 +767,24 @@ class EventRegistrationController {
             ");
             $ansStmt->execute([$reg['id']]);
             $reg['answers'] = $ansStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch sub-events registered
+            $subStmt = $db->prepare("
+                SELECT ers.*, es.name as sub_event_name, es.type as sub_event_type, es.fee as sub_event_fee
+                FROM event_registration_sub_events ers
+                JOIN event_sub_events es ON ers.sub_event_id = es.id
+                WHERE ers.registration_id = ?
+                ORDER BY es.display_order ASC
+            ");
+            $subStmt->execute([$reg['id']]);
+            $subList = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($subList as &$s) {
+                $s['attendance'] = (int)($s['attendance'] ?? 0);
+                if (is_string($s['team_members'])) {
+                    $s['team_members'] = json_decode($s['team_members'], true);
+                }
+            }
+            $reg['sub_events'] = $subList;
         }
 
         Router::sendJson([
@@ -788,6 +944,7 @@ class EventRegistrationController {
         try {
             $db->prepare("DELETE FROM event_registration_files WHERE registration_id = ?")->execute([$regId]);
             $db->prepare("DELETE FROM event_registration_answers WHERE registration_id = ?")->execute([$regId]);
+            $db->prepare("DELETE FROM event_registration_sub_events WHERE registration_id = ?")->execute([$regId]);
         } catch (\Exception $e) {}
 
         // Delete primary registration record
@@ -836,6 +993,17 @@ class EventRegistrationController {
             return;
         }
 
+        // Fetch sub-events for this event
+        $subStmt = $db->prepare("
+            SELECT s.*,
+                   (SELECT COUNT(*) FROM event_registration_sub_events ers WHERE ers.sub_event_id = s.id) as total_registrations
+            FROM event_sub_events s
+            WHERE s.event_id = ? AND s.is_active = 1
+            ORDER BY s.display_order ASC, s.id ASC
+        ");
+        $subStmt->execute([$event['id']]);
+        $subEvents = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+
         $formStmt = $db->prepare("SELECT * FROM event_registration_forms WHERE event_id = ?");
         $formStmt->execute([$event['id']]);
         $form = $formStmt->fetch(PDO::FETCH_ASSOC);
@@ -843,6 +1011,7 @@ class EventRegistrationController {
         if (!$form) {
             Router::sendJson([
                 'event'             => $event,
+                'sub_events'        => $subEvents,
                 'form'              => null,
                 'sections'          => [],
                 'registration_open' => $event['registration_status'] === 'open'
@@ -884,6 +1053,7 @@ class EventRegistrationController {
 
         Router::sendJson([
             'event'             => $event,
+            'sub_events'        => $subEvents,
             'form'              => $form,
             'sections'          => $formStructure,
             'registration_open' => $event['registration_status'] === 'open'

@@ -31,7 +31,15 @@ import {
   Award,
   Copy,
   Check,
-  Mail
+  Mail,
+  LogIn,
+  Layers,
+  Plus,
+  Trash2,
+  UserPlus,
+  CheckSquare,
+  Square,
+  Lock
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
@@ -118,6 +126,8 @@ const PublicEventRegisterPage = () => {
   const [event, setEvent] = useState(null);
   const [formConfig, setFormConfig] = useState(null);
   const [sections, setSections] = useState([]);
+  const [subEvents, setSubEvents] = useState([]);
+  const [selectedSubEvents, setSelectedSubEvents] = useState({});
   const [activeStep, setActiveStep] = useState(0);
   const [fileInputs, setFileInputs] = useState({});
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
@@ -197,13 +207,37 @@ const PublicEventRegisterPage = () => {
       const eventRes = await axios.get(`/events/slug/${slug}`);
       setEvent(eventRes.data);
 
-      // Fetch dynamic form structure for this event
+      // Fetch dynamic form structure & sub-events for this event
       try {
         const formRes = await axios.get(`/events/slug/${slug}/form`);
         setFormConfig(formRes.data.form || null);
         setSections(formRes.data.sections || []);
+        const subs = formRes.data.sub_events || [];
+        setSubEvents(subs);
+
+        // Auto-select open sub-events by default if available
+        if (subs.length > 0) {
+          const initMap = {};
+          subs.forEach((s) => {
+            const isFull = Boolean(s.max_participants && s.max_participants > 0 && (s.total_registrations || 0) >= parseInt(s.max_participants));
+            const isClosed = s.registration_status === 'closed' || isFull;
+            const minMembers = s.type === 'group' ? (s.min_team_size || 2) : 1;
+            initMap[s.id] = {
+              selected: !isClosed,
+              team_name: '',
+              team_members: Array.from({ length: minMembers }, () => ({
+                name: '',
+                email: '',
+                phone: '',
+                prn: ''
+              }))
+            };
+          });
+          setSelectedSubEvents(initMap);
+        }
       } catch (err) {
         setSections([]);
+        setSubEvents([]);
       }
     } catch (err) {
       console.error('Failed to load event details:', err);
@@ -211,6 +245,130 @@ const PublicEventRegisterPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleToggleSubEvent = (subId) => {
+    const subObj = subEvents.find((s) => s.id === subId);
+    const maxPart = subObj?.max_participants ? parseInt(subObj.max_participants) : null;
+    const totalRegs = subObj?.total_registrations ? parseInt(subObj.total_registrations) : 0;
+    const isFull = Boolean(maxPart && maxPart > 0 && totalRegs >= maxPart);
+    const isClosed = subObj?.registration_status === 'closed' || isFull;
+
+    if (isClosed) {
+      toast.error(isFull ? `Registrations for ${subObj.name} are full (Capacity reached)` : `Registrations for ${subObj.name} are currently closed.`);
+      return;
+    }
+
+    setSelectedSubEvents((prev) => {
+      const current = prev[subId];
+      const isSelected = !current?.selected;
+      const minMembers = subObj?.type === 'group' ? (subObj.min_team_size || 2) : 1;
+
+      const defaultMembers = Array.from({ length: minMembers }, () => ({
+        name: '',
+        email: '',
+        phone: '',
+        prn: ''
+      }));
+
+      return {
+        ...prev,
+        [subId]: {
+          selected: isSelected,
+          team_name: current?.team_name || '',
+          team_members: current?.team_members?.length ? current.team_members : defaultMembers
+        }
+      };
+    });
+  };
+
+  const handleSelectAllSubEvents = () => {
+    const openSubs = subEvents.filter((s) => {
+      const maxPart = s.max_participants ? parseInt(s.max_participants) : null;
+      const totalRegs = s.total_registrations ? parseInt(s.total_registrations) : 0;
+      return s.registration_status !== 'closed' && !(maxPart && maxPart > 0 && totalRegs >= maxPart);
+    });
+
+    if (openSubs.length === 0) {
+      toast.error('All sub-events are currently closed or full.');
+      return;
+    }
+
+    const allOpenSelected = openSubs.every((s) => selectedSubEvents[s.id]?.selected);
+    const updated = { ...selectedSubEvents };
+
+    openSubs.forEach((s) => {
+      const minMembers = s.type === 'group' ? (s.min_team_size || 2) : 1;
+      updated[s.id] = {
+        selected: !allOpenSelected,
+        team_name: selectedSubEvents[s.id]?.team_name || '',
+        team_members: selectedSubEvents[s.id]?.team_members?.length
+          ? selectedSubEvents[s.id].team_members
+          : Array.from({ length: minMembers }, () => ({ name: '', email: '', phone: '', prn: '' }))
+      };
+    });
+    setSelectedSubEvents(updated);
+  };
+
+  const handleUpdateTeamName = (subId, name) => {
+    setSelectedSubEvents((prev) => ({
+      ...prev,
+      [subId]: {
+        ...(prev[subId] || {}),
+        team_name: name
+      }
+    }));
+  };
+
+  const handleUpdateTeamMember = (subId, memberIndex, field, value) => {
+    setSelectedSubEvents((prev) => {
+      const members = [...(prev[subId]?.team_members || [])];
+      members[memberIndex] = {
+        ...(members[memberIndex] || {}),
+        [field]: value
+      };
+      return {
+        ...prev,
+        [subId]: {
+          ...(prev[subId] || {}),
+          team_members: members
+        }
+      };
+    });
+  };
+
+  const handleAddTeamMember = (subId) => {
+    const subObj = subEvents.find((s) => s.id === subId);
+    const max = subObj?.max_team_size || 5;
+    const currentMembers = selectedSubEvents[subId]?.team_members || [];
+    if (currentMembers.length >= max) {
+      toast.error(`Maximum ${max} members allowed for this competition`);
+      return;
+    }
+    setSelectedSubEvents((prev) => ({
+      ...prev,
+      [subId]: {
+        ...(prev[subId] || {}),
+        team_members: [...(prev[subId]?.team_members || []), { name: '', email: '', phone: '', prn: '' }]
+      }
+    }));
+  };
+
+  const handleRemoveTeamMember = (subId, memberIndex) => {
+    const subObj = subEvents.find((s) => s.id === subId);
+    const min = subObj?.min_team_size || 1;
+    const currentMembers = selectedSubEvents[subId]?.team_members || [];
+    if (currentMembers.length <= min) {
+      toast.error(`Minimum ${min} members required for this competition`);
+      return;
+    }
+    setSelectedSubEvents((prev) => ({
+      ...prev,
+      [subId]: {
+        ...(prev[subId] || {}),
+        team_members: currentMembers.filter((_, idx) => idx !== memberIndex)
+      }
+    }));
   };
 
   const handleFileChange = (fieldId, file) => {
@@ -245,11 +403,53 @@ const PublicEventRegisterPage = () => {
     'Networking and career development opportunities'
   ];
 
-  const isPaid = Boolean(event?.payment_required && parseFloat(event?.registration_fee || 0) > 0);
+  // Dynamic Sub-Events & Combo Pricing Calculation
+  const selectedSubList = subEvents.filter((s) => selectedSubEvents[s.id]?.selected);
+  const isAllSubSelected = subEvents.length > 0 && selectedSubList.length === subEvents.length;
+  const comboFeeVal = event?.combo_fee ? parseFloat(event.combo_fee) : null;
+  const individualSumFee = selectedSubList.reduce((acc, s) => acc + parseFloat(s.fee || 0), 0);
+
+  const effectiveFee =
+    subEvents.length > 0
+      ? isAllSubSelected && comboFeeVal !== null && comboFeeVal > 0
+        ? comboFeeVal
+        : individualSumFee
+      : parseFloat(event?.registration_fee || 0);
+
+  const isPaid = Boolean(event?.payment_required && effectiveFee > 0);
   const totalSteps = sections.length + (isPaid ? 1 : 0);
 
   const validateCurrentStep = async () => {
     if (sections.length === 0 && !isPaid) return true;
+
+    // Validate sub-events on step 0 if sub-events exist
+    if (activeStep === 0 && subEvents.length > 0) {
+      if (selectedSubList.length === 0) {
+        toast.error('Please select at least one sub-event / competition track to participate in.');
+        return false;
+      }
+      for (const sub of selectedSubList) {
+        if (sub.type === 'group') {
+          const subData = selectedSubEvents[sub.id];
+          if (!subData?.team_name?.trim()) {
+            toast.error(`Please provide a Team Name for ${sub.name}`);
+            return false;
+          }
+          const members = subData?.team_members || [];
+          const min = sub.min_team_size || 2;
+          if (members.length < min) {
+            toast.error(`At least ${min} team members are required for ${sub.name}`);
+            return false;
+          }
+          for (let i = 0; i < members.length; i++) {
+            if (!members[i]?.name?.trim()) {
+              toast.error(`Please fill in Name for Member ${i + 1} in ${sub.name}`);
+              return false;
+            }
+          }
+        }
+      }
+    }
 
     if (activeStep < sections.length) {
       const currentSection = sections[activeStep];
@@ -405,6 +605,16 @@ const PublicEventRegisterPage = () => {
       formData.append('payment_gateway', event?.payment_method === 'razorpay' ? 'Razorpay' : (data.payment_gateway || 'Manual/UPI'));
       formData.append('answers', JSON.stringify(dynamicAnswers));
 
+      // Append selected sub-events
+      if (subEvents.length > 0) {
+        const subEventsPayload = selectedSubList.map((s) => ({
+          sub_event_id: s.id,
+          team_name: selectedSubEvents[s.id]?.team_name || '',
+          team_members: selectedSubEvents[s.id]?.team_members || []
+        }));
+        formData.append('selected_sub_events', JSON.stringify(subEventsPayload));
+      }
+
       // Append files
       Object.keys(fileInputs).forEach((fieldId) => {
         if (fileInputs[fieldId]) {
@@ -497,7 +707,7 @@ const PublicEventRegisterPage = () => {
       event.send_confirmation_email !== '0';
 
     return (
-      <div className={`min-h-screen font-sans flex flex-col justify-between pt-10 pb-16 px-4 sm:px-6 transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-[#070C18] text-white' : 'bg-[#FAFAF9] text-slate-900'
+      <div className={`min-h-screen font-sans flex flex-col justify-between pt-10 pb-16 px-2.5 sm:px-6 transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-[#070C18] text-white' : 'bg-[#FAFAF9] text-slate-900'
         }`}>
         {/* Background ambient glow */}
         <div className="fixed inset-0 pointer-events-none z-0">
@@ -769,7 +979,7 @@ const PublicEventRegisterPage = () => {
         {/* Navigation Bar */}
         <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-colors ${isDark ? 'bg-[#070C18]/80 border-[#1E293B]' : 'bg-white/80 border-slate-200'
           }`}>
-          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-2.5 sm:px-6 h-20 flex items-center justify-between">
             <Link to="/events" className="flex items-center gap-3 group">
               <img
                 src="/Logos/Mavericks_Logo.png"
@@ -786,10 +996,10 @@ const PublicEventRegisterPage = () => {
               </div>
             </Link>
 
-            <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-xl border transition cursor-pointer ${isDark
+                className={`hidden sm:flex p-2 rounded-xl border transition cursor-pointer ${isDark
                   ? 'border-slate-800 bg-slate-900 text-yellow-400 hover:bg-slate-800'
                   : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
@@ -800,26 +1010,29 @@ const PublicEventRegisterPage = () => {
 
               <Link
                 to="/user-login"
-                className={`hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                title="Participant Login"
+                className={`inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
               >
-                <span>Participant Login</span>
+                <LogIn size={15} />
+                <span className="hidden sm:inline">Participant Login</span>
               </Link>
 
               <Link
                 to="/events"
-                className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                title="All Events"
+                className={`inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
               >
                 <ArrowLeft size={14} />
-                <span>All Events</span>
+                <span className="hidden sm:inline">All Events</span>
               </Link>
             </div>
           </div>
         </header>
 
         {/* Hero Section */}
-        <section className="pt-16 pb-12 px-6 max-w-7xl mx-auto">
+        <section className="pt-16 pb-12 px-2.5 sm:px-6 max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row items-start justify-between gap-10">
             <div className="flex-1 max-w-3xl">
               <motion.div
@@ -978,7 +1191,7 @@ const PublicEventRegisterPage = () => {
         </section>
 
         {/* --- REGISTRATION FORM SECTION (Matching Recruitment Public Landing Style) --- */}
-        <section id="registration-form-section" className="py-16 px-6 max-w-4xl mx-auto">
+        <section id="registration-form-section" className="py-16 px-2 sm:px-6 max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
               APPLY &amp; PARTICIPATE
@@ -1093,8 +1306,260 @@ const PublicEventRegisterPage = () => {
               ) : null}
 
               {/* Form Container */}
-              <div className={`p-8 sm:p-10 rounded-3xl border shadow-xl space-y-8 ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-white border-slate-200'
+              <div className={`p-3.5 sm:p-10 rounded-3xl border shadow-xl space-y-8 ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-white border-slate-200'
                 }`}>
+                {/* Sub-Events / Tracks Selection (Shown on Step 0 if sub-events exist) */}
+                {activeStep === 0 && subEvents.length > 0 && (
+                  <div className="space-y-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Layers size={18} className="text-primary-blue" />
+                          <h4 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+                            Select Sub-Events / Competition Tracks <span className="text-rose-500">*</span>
+                          </h4>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
+                          Choose the tracks you wish to participate in. Individual and group entries supported.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSelectAllSubEvents}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                          isAllSubSelected
+                            ? 'bg-blue-500/15 border-blue-500/40 text-primary-blue'
+                            : isDark
+                            ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                            : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {isAllSubSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+                        <span>{isAllSubSelected ? 'Deselect All' : 'Select All Sub-Events'}</span>
+                      </button>
+                    </div>
+
+                    {/* Combo Deal Banner if applicable */}
+                    {comboFeeVal !== null && comboFeeVal > 0 && (
+                      <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${
+                        isAllSubSelected
+                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                          : isDark
+                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                          : 'bg-blue-50 border-blue-200 text-blue-900'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <Sparkles size={20} className={isAllSubSelected ? 'text-emerald-500 animate-pulse' : 'text-primary-blue'} />
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-wider">
+                              Special Combo Offer: All {subEvents.length} Sub-Events for ₹{comboFeeVal.toFixed(0)}
+                            </p>
+                            <p className="text-[11px] opacity-80 mt-0.5">
+                              {isAllSubSelected
+                                ? '✓ Combo discount active! You are registered for all tracks.'
+                                : `Select all ${subEvents.length} sub-events to unlock the flat combo fee of ₹${comboFeeVal.toFixed(0)}.`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="px-3 py-1 rounded-xl bg-white/50 dark:bg-black/20 font-mono text-xs font-black shrink-0 border border-current">
+                          ₹{comboFeeVal.toFixed(0)} Total
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Sub-Events List */}
+                    <div className="space-y-4">
+                      {subEvents.map((sub) => {
+                        const isSelected = Boolean(selectedSubEvents[sub.id]?.selected);
+                        const subData = selectedSubEvents[sub.id] || {};
+                        const isGroup = sub.type === 'group';
+                        const minTeam = sub.min_team_size || (isGroup ? 2 : 1);
+                        const maxTeam = sub.max_team_size || 5;
+                        const maxPart = sub.max_participants ? parseInt(sub.max_participants) : null;
+                        const totalRegs = sub.total_registrations ? parseInt(sub.total_registrations) : 0;
+                        const isFull = Boolean(maxPart && maxPart > 0 && totalRegs >= maxPart);
+                        const isClosed = sub.registration_status === 'closed' || isFull;
+
+                        return (
+                          <div
+                            key={sub.id}
+                            className={`rounded-2xl border transition-all ${
+                              isClosed
+                                ? 'border-slate-300 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/20 opacity-60'
+                                : isSelected
+                                ? 'border-primary-blue/50 bg-blue-500/5 shadow-md shadow-blue-500/5'
+                                : isDark
+                                ? 'border-slate-800 bg-slate-900/30 opacity-80 hover:opacity-100'
+                                : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+                            }`}
+                          >
+                            {/* Card Header & Checkbox Toggle */}
+                            <div
+                              onClick={() => handleToggleSubEvent(sub.id)}
+                              className={`p-4 sm:p-5 flex items-start justify-between gap-4 select-none ${
+                                isClosed ? 'cursor-not-allowed' : 'cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3.5">
+                                <div className="mt-1">
+                                  {isClosed ? (
+                                    <Lock size={18} className="text-slate-400" />
+                                  ) : isSelected ? (
+                                    <CheckSquare size={20} className="text-primary-blue" />
+                                  ) : (
+                                    <Square size={20} className="text-slate-400" />
+                                  )}
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h5 className="text-sm font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+                                      {sub.name}
+                                    </h5>
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${
+                                        isGroup
+                                          ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
+                                          : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                      }`}
+                                    >
+                                      {isGroup ? `Group (${minTeam}-${maxTeam} members)` : 'Individual'}
+                                    </span>
+
+                                    {/* Status Badge */}
+                                    {isClosed && (
+                                      <span className="px-2 py-0.5 rounded text-[9px] font-mono font-black uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                                        {isFull ? 'Housefull (Capacity Full)' : 'Registration Closed'}
+                                      </span>
+                                    )}
+
+                                    {/* Capacity indicator if open */}
+                                    {!isClosed && maxPart && maxPart > 0 && (
+                                      <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                        ({totalRegs}/{maxPart} filled)
+                                      </span>
+                                    )}
+                                  </div>
+                                  {sub.description && (
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                                      {sub.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="font-mono text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                  {parseFloat(sub.fee || 0) > 0 ? `₹${parseFloat(sub.fee).toFixed(0)}` : 'Free'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Group Team Information & Dynamic Member Rows (If Checked and Group) */}
+                            {isSelected && isGroup && (
+                              <div className="px-5 pb-5 pt-2 border-t border-slate-200/80 dark:border-slate-800/80 space-y-4">
+                                <div>
+                                  <label className="block text-xs font-black uppercase tracking-wider mb-1.5 text-slate-800 dark:text-slate-200">
+                                    Team Name for {sub.name} <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. CodeMavericks / TheDebaters"
+                                    value={subData.team_name || ''}
+                                    onChange={(e) => handleUpdateTeamName(sub.id, e.target.value)}
+                                    className={inputClass}
+                                  />
+                                </div>
+
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                      Team Members ({subData.team_members?.length || 0} / max {maxTeam})
+                                    </span>
+                                    {(subData.team_members?.length || 0) < maxTeam && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddTeamMember(sub.id)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-blue hover:underline cursor-pointer"
+                                      >
+                                        <Plus size={14} />
+                                        <span>Add Member</span>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {(subData.team_members || []).map((member, mIdx) => (
+                                    <div
+                                      key={mIdx}
+                                      className={`p-3.5 rounded-xl border space-y-3 ${
+                                        isDark ? 'bg-[#0E172A] border-slate-800' : 'bg-white border-slate-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-mono text-[11px] font-bold uppercase text-slate-400">
+                                          {mIdx === 0 ? 'Member 1 (Team Leader / Primary)' : `Member ${mIdx + 1}`}
+                                        </span>
+                                        {mIdx >= minTeam && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveTeamMember(sub.id, mIdx)}
+                                            className="text-rose-500 hover:text-rose-400 p-1 cursor-pointer"
+                                            title="Remove member"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <input
+                                          type="text"
+                                          placeholder="Full Name *"
+                                          value={member.name || ''}
+                                          onChange={(e) => handleUpdateTeamMember(sub.id, mIdx, 'name', e.target.value)}
+                                          className="w-full px-3 py-2 rounded-lg border text-xs font-semibold bg-transparent border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-primary-blue text-slate-900 dark:text-white"
+                                        />
+                                        <input
+                                          type="email"
+                                          placeholder="Email Address"
+                                          value={member.email || ''}
+                                          onChange={(e) => handleUpdateTeamMember(sub.id, mIdx, 'email', e.target.value)}
+                                          className="w-full px-3 py-2 rounded-lg border text-xs font-semibold bg-transparent border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-primary-blue text-slate-900 dark:text-white"
+                                        />
+                                        <input
+                                          type="tel"
+                                          placeholder="Phone Number"
+                                          value={member.phone || ''}
+                                          onChange={(e) => handleUpdateTeamMember(sub.id, mIdx, 'phone', e.target.value)}
+                                          className="w-full px-3 py-2 rounded-lg border text-xs font-semibold bg-transparent border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-primary-blue text-slate-900 dark:text-white"
+                                        />
+                                        <input
+                                          type="text"
+                                          placeholder="PRN / Roll No"
+                                          value={member.prn || ''}
+                                          onChange={(e) => handleUpdateTeamMember(sub.id, mIdx, 'prn', e.target.value)}
+                                          className="w-full px-3 py-2 rounded-lg border text-xs font-semibold bg-transparent border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-primary-blue text-slate-900 dark:text-white"
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {isSelected && !isGroup && (
+                              <div className="px-5 pb-4 pt-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                                ✓ Individual entry — Primary registrant information will be used for this track.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Active Dynamic Form Section */}
                 {activeStep < sections.length && sections[activeStep] ? (
                   <div className="space-y-6">
@@ -1231,13 +1696,23 @@ const PublicEventRegisterPage = () => {
                             {event?.payment_method === 'razorpay' ? 'Razorpay Secure Payment' : 'Payment Verification'}
                           </h4>
                           <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                            Registration fee: <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹{parseFloat(event.registration_fee).toFixed(0)}</span>
+                            {subEvents.length > 0 ? (
+                              <span>
+                                {selectedSubList.length} track(s) selected •{' '}
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹{effectiveFee.toFixed(0)}</span>
+                                {isAllSubSelected && comboFeeVal !== null && ' (Combo Package)'}
+                              </span>
+                            ) : (
+                              <span>
+                                Registration fee: <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹{effectiveFee.toFixed(0)}</span>
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
 
                       <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-mono text-xs font-black border border-emerald-500/30">
-                        ₹{parseFloat(event.registration_fee).toFixed(0)} INR
+                        ₹{effectiveFee.toFixed(0)} INR
                       </span>
                     </div>
 
@@ -1291,7 +1766,7 @@ const PublicEventRegisterPage = () => {
                                 src={
                                   event?.qr_code_url
                                     ? (event.qr_code_url.startsWith('http') ? event.qr_code_url : `http://localhost:8000${event.qr_code_url}`)
-                                    : `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=upi://pay?pa=teammavericks@okaxis&pn=Team%20Mavericks&am=${parseFloat(event.registration_fee).toFixed(0)}&cu=INR`
+                                    : `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=upi://pay?pa=teammavericks@okaxis&pn=Team%20Mavericks&am=${effectiveFee.toFixed(0)}&cu=INR`
                                 }
                                 alt="Payment QR Code"
                                 className="w-36 h-36 object-contain rounded-lg mx-auto"
@@ -1310,7 +1785,7 @@ const PublicEventRegisterPage = () => {
                             </div>
                             <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1 shadow-sm">
                               <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Payable Amount</span>
-                              <p className="font-bold text-emerald-600 dark:text-emerald-400 text-base font-mono">₹{parseFloat(event.registration_fee).toFixed(2)}</p>
+                              <p className="font-bold text-emerald-600 dark:text-emerald-400 text-base font-mono">₹{effectiveFee.toFixed(2)}</p>
                             </div>
                           </div>
                         </div>
@@ -1438,7 +1913,7 @@ const PublicEventRegisterPage = () => {
         </section>
 
         {/* --- EXPLORE MORE FLAGSHIP EVENTS --- */}
-        <section className={`py-20 px-6 border-t ${isDark ? 'bg-[#070C18] border-[#1E293B]' : 'bg-slate-50 border-slate-200'
+        <section className={`py-20 px-2.5 sm:px-6 border-t ${isDark ? 'bg-[#070C18] border-[#1E293B]' : 'bg-slate-50 border-slate-200'
           }`}>
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
@@ -1533,7 +2008,7 @@ const PublicEventRegisterPage = () => {
               {FLAGSHIP_EVENTS_DATA.map((ev) => (
                 <div
                   key={ev.number}
-                  className={`event-card min-h-[340px] sm:min-h-[380px] p-6 sm:p-7 border flex flex-col justify-between rounded-2xl bg-gradient-to-b ${ev.bg} ${isDark ? 'border-[#1E293B]' : 'border-slate-800'
+                  className={`event-card min-h-[340px] sm:min-h-[380px] p-4 sm:p-7 border flex flex-col justify-between rounded-2xl bg-gradient-to-b ${ev.bg} ${isDark ? 'border-[#1E293B]' : 'border-slate-800'
                     } text-white group shadow-lg`}
                 >
                   {/* Background image (clear on hover) */}

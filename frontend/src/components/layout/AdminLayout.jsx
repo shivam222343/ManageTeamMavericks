@@ -464,11 +464,11 @@ const AdminLayout = () => {
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto relative">
 
         {/* Header Bar */}
-        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md flex items-center justify-between px-6">
+        <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md flex items-center justify-between px-2.5 sm:px-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="p-2 -ml-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 md:hidden cursor-pointer"
+              className="p-2 -ml-1 sm:-ml-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 md:hidden cursor-pointer"
             >
               <Menu size={20} />
             </button>
@@ -489,7 +489,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Content Outlet */}
-        <main className="flex-1 p-6 md:p-8">
+        <main className="flex-1 px-2 py-4 sm:p-6 md:p-8">
           <Outlet />
         </main>
       </div>

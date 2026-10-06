@@ -52,6 +52,14 @@ import EventRegistrationsPage from './pages/events/EventRegistrationsPage';
 import EventRegistrationDetailPage from './pages/events/EventRegistrationDetailPage';
 import PublicEventsPage from './pages/events/PublicEventsPage';
 import PublicEventRegisterPage from './pages/events/PublicEventRegisterPage';
+import EventAttendancePage from './pages/events/EventAttendancePage';
+import SubEventControlRoomPage from './pages/events/SubEventControlRoomPage';
+import CreateSubEventGroupPage from './pages/events/CreateSubEventGroupPage';
+import AutoGroupSubEventPage from './pages/events/AutoGroupSubEventPage';
+
+// Judge Portal Pages
+import JudgeLoginPage from './pages/judge/JudgeLoginPage';
+import JudgePortalPage from './pages/judge/JudgePortalPage';
 
 import MajorLoader from './components/ui/MajorLoader';
 import TargetCursor from './components/ui/TargetCursor';
@@ -118,6 +126,13 @@ function App() {
         <Route path="/user-login" element={<UserLogin />} />
         <Route path="/user/login" element={<UserLogin />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Judge Portal Public & Session Routes */}
+        <Route path="/judge" element={<JudgeLoginPage />} />
+        <Route path="/judge-login" element={<JudgeLoginPage />} />
+        <Route path="/judge/login" element={<JudgeLoginPage />} />
+        <Route path="/judge/portal" element={<JudgePortalPage />} />
+        <Route path="/judge/dashboard" element={<JudgePortalPage />} />
 
         {/* Participant Portal routes */}
         <Route
@@ -201,6 +216,10 @@ function App() {
           <Route path="events" element={<EventsListPage />} />
           <Route path="events/create" element={<CreateEventPage />} />
           <Route path="events/:id" element={<EventDetailPage />} />
+          <Route path="events/:id/attendance" element={<EventAttendancePage />} />
+          <Route path="events/:id/sub-events/:subId" element={<SubEventControlRoomPage />} />
+          <Route path="events/:id/sub-events/:subId/create-group" element={<CreateSubEventGroupPage />} />
+          <Route path="events/:id/sub-events/:subId/auto-group" element={<AutoGroupSubEventPage />} />
           <Route path="events/:id/edit" element={<CreateEventPage />} />
           <Route path="events/:id/registration-form" element={<EventFormBuilderPage />} />
           <Route path="events/:id/registrations" element={<EventRegistrationsPage />} />

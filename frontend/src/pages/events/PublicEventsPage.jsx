@@ -22,7 +22,8 @@ import {
   X,
   ExternalLink,
   ShieldCheck,
-  Building2
+  Building2,
+  LogIn
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
@@ -171,6 +172,47 @@ const PublicEventsPage = () => {
     return matchesSearch && matchesMode;
   });
 
+  const searchAndFilterControls = (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="space-y-3 pt-2 w-full"
+    >
+      <div className="relative w-full">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search events by name, location..."
+          className={`w-full pl-11 pr-4 py-3.5 rounded-2xl border text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue/30 focus:border-primary-blue transition shadow-sm ${isDark ? 'bg-[#0E172A] border-[#1E293B] text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+            }`}
+        />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] font-mono uppercase font-bold text-slate-400">Mode:</span>
+        <div className={`flex items-center gap-1.5 p-1 border rounded-2xl ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-slate-100 border-slate-200'
+          }`}>
+          {['all', 'offline', 'online', 'hybrid'].map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setSelectedMode(mode)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider capitalize transition cursor-pointer ${selectedMode === mode
+                  ? isDark
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                  : 'text-slate-400 hover:text-slate-200'
+                }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+
   return (
     <div className={`min-h-screen font-sans transition-colors duration-300 relative selection:bg-primary-blue selection:text-white flex flex-col justify-between overflow-x-hidden ${isDark ? 'bg-[#070C18] text-slate-100' : 'bg-[#FAFAF9] text-slate-900'
       }`}>
@@ -184,7 +226,7 @@ const PublicEventsPage = () => {
         {/* Navigation Bar */}
         <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-colors ${isDark ? 'bg-[#070C18]/80 border-[#1E293B]' : 'bg-white/80 border-slate-200'
           }`}>
-          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-2.5 sm:px-6 h-20 flex items-center justify-between">
             <Link to="/" className="flex items-center gap-3 group">
               <img
                 src="/Logos/Mavericks_Logo.png"
@@ -201,10 +243,10 @@ const PublicEventsPage = () => {
               </div>
             </Link>
 
-            <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-xl border transition cursor-pointer ${isDark
+                className={`hidden sm:flex p-2 rounded-xl border transition cursor-pointer ${isDark
                     ? 'border-slate-800 bg-slate-900 text-yellow-400 hover:bg-slate-800'
                     : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
@@ -215,10 +257,12 @@ const PublicEventsPage = () => {
 
               <Link
                 to="/user-login"
-                className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                title="Participant Login"
+                className={`inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
               >
-                <span>Participant Login</span>
+                <LogIn size={15} />
+                <span className="hidden sm:inline">Participant Login</span>
               </Link>
 
               <button
@@ -228,17 +272,19 @@ const PublicEventsPage = () => {
                     el.scrollIntoView({ behavior: 'smooth' });
                   }
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold bg-primary-blue text-white hover:bg-blue-600 shadow-md shadow-primary-blue/20 transition cursor-pointer"
+                title="Register Now"
+                className="inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold bg-primary-blue text-white hover:bg-blue-600 shadow-md shadow-primary-blue/20 transition cursor-pointer"
               >
-                <span>Register Now</span>
-                <ArrowRight size={13} />
+                <Calendar size={15} className="sm:hidden" />
+                <span className="hidden sm:inline">Register Now</span>
+                <ArrowRight size={13} className="hidden sm:inline" />
               </button>
             </div>
           </div>
         </header>
 
         {/* Hero Section (Side text + DitherVeil on right) */}
-        <section className="px-5 sm:px-8 md:px-10 pt-10 md:pt-16 pb-12 max-w-7xl mx-auto">
+        <section className="px-2.5 sm:px-8 md:px-10 pt-10 md:pt-16 pb-12 max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-14 items-center">
 
             {/* Left Column - Large Editorial Headline & Search */}
@@ -265,54 +311,19 @@ const PublicEventsPage = () => {
                 </p>
               </div>
 
-              {/* Search & Mode Filters */}
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="space-y-3 pt-2"
-              >
-                <div className="relative w-full">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search events by name, location..."
-                    className={`w-full pl-11 pr-4 py-3.5 rounded-2xl border text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue/30 focus:border-primary-blue transition shadow-sm ${isDark ? 'bg-[#0E172A] border-[#1E293B] text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
-                      }`}
-                  />
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-mono uppercase font-bold text-slate-400">Mode:</span>
-                  <div className={`flex items-center gap-1.5 p-1 border rounded-2xl ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-slate-100 border-slate-200'
-                    }`}>
-                    {['all', 'offline', 'online', 'hybrid'].map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setSelectedMode(mode)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider capitalize transition cursor-pointer ${selectedMode === mode
-                            ? isDark
-                              ? 'bg-blue-600 text-white shadow-md'
-                              : 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                            : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
+              {/* Desktop Search & Mode Filters */}
+              <div className="hidden lg:block">
+                {searchAndFilterControls}
+              </div>
             </div>
 
             {/* Right Column - DitherVeil Visual Animation (All Events Landing) */}
-            <div className="lg:col-span-6 flex justify-center items-center relative w-full select-none">
+            <div className="lg:col-span-6 flex flex-col justify-center items-center relative w-full">
               <div className={`absolute -inset-4 rounded-full blur-3xl opacity-20 pointer-events-none ${isDark ? 'bg-indigo-600/30' : 'bg-blue-100/30'
                 }`} />
 
               <div
-                className="w-full h-[450px] sm:h-[520px] md:h-[580px] relative overflow-hidden"
+                className="w-full h-[420px] sm:h-[520px] md:h-[580px] relative overflow-hidden select-none"
                 style={{
                   WebkitMaskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
                   maskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
@@ -344,13 +355,18 @@ const PublicEventsPage = () => {
                     : 'bg-gradient-to-t from-[#FAFAF9] via-transparent to-transparent'
                   }`} />
               </div>
+
+              {/* Mobile Search & Mode Filters (below idol) */}
+              <div className="block lg:hidden w-full pt-4">
+                {searchAndFilterControls}
+              </div>
             </div>
 
           </div>
         </section>
 
         {/* Live Active Events Grid */}
-        <section id="events-grid" className="px-6 max-w-7xl mx-auto pb-16">
+        <section id="events-grid" className="px-2.5 sm:px-6 max-w-7xl mx-auto pb-16">
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
             <div>
               <p className="font-mono-tag text-[10px] font-black uppercase tracking-widest text-primary-blue">
@@ -654,7 +670,7 @@ const PublicEventsPage = () => {
         </section>
 
         {/* --- FAQ SECTION --- */}
-        <section className={`py-20 px-6 border-t ${isDark ? 'bg-[#0E172A]/40 border-[#1E293B]' : 'bg-slate-50 border-slate-200'
+        <section className={`py-16 sm:py-20 px-2.5 sm:px-6 border-t ${isDark ? 'bg-[#0E172A]/40 border-[#1E293B]' : 'bg-slate-50 border-slate-200'
           }`}>
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">

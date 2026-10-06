@@ -613,7 +613,7 @@ const PublicLanding = () => {
       `}</style>
 
       {/* --- TOP FLAT NAVIGATION --- */}
-      <header className={`sticky top-0 z-40 h-[72px] border-b flex items-center justify-between px-5 sm:px-8 md:px-14 backdrop-blur-md transition-colors duration-200 ${isDark ? 'bg-[#070C18]/95 border-[#1E293B]' : 'bg-[#F8FAFC]/95 border-[#E2E8F0]'
+      <header className={`sticky top-0 z-40 h-[72px] border-b flex items-center justify-between px-2.5 sm:px-8 md:px-14 backdrop-blur-md transition-colors duration-200 ${isDark ? 'bg-[#070C18]/95 border-[#1E293B]' : 'bg-[#F8FAFC]/95 border-[#E2E8F0]'
         }`}>
         {/* Brand - Mavericks Logo */}
         <div className="flex items-center gap-3">
@@ -669,7 +669,7 @@ const PublicLanding = () => {
       </header>
 
       {/* --- HERO SECTION (EDITORIAL BRUTALIST STYLE) --- */}
-      <section ref={heroRef} className="relative z-10 px-5 sm:px-8 md:px-10 pt-10 md:pt-20 pb-10 max-w-7xl mx-auto">
+      <section ref={heroRef} className="relative z-10 px-2.5 sm:px-8 md:px-10 pt-10 md:pt-20 pb-10 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-14 items-center">
 
           {/* Left Column - Large Editorial Headline */}
@@ -841,7 +841,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- QUICK METADATA ROW --- */}
-      <section className={`border-b py-6 px-5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/40' : 'border-slate-200 bg-slate-50'
+      <section className={`border-b py-6 px-2.5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/40' : 'border-slate-200 bg-slate-50'
         }`}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-1">
@@ -860,7 +860,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- OUR FLAGSHIP EVENTS (4 Cards with hover image effect) --- */}
-      <section id="events" className={`py-20 px-5 sm:px-8 md:px-14 border-b ${isDark ? 'border-[#1E293B]' : 'border-slate-200'
+      <section id="events" className={`py-20 px-2.5 sm:px-8 md:px-14 border-b ${isDark ? 'border-[#1E293B]' : 'border-slate-200'
         }`}>
         <style>{`
           .event-card {
@@ -1069,7 +1069,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "PICK YOUR PLAYFIELD." (DOMAINS BENTO GRID) --- */}
-      <section id="domains" className="py-20 px-5 sm:px-8 md:px-14 max-w-7xl mx-auto">
+      <section id="domains" className="py-20 px-2.5 sm:px-8 md:px-14 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
             <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">
@@ -1143,7 +1143,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "BIG IDEAS. REAL ENERGY." (ABOUT MAVERICKS) --- */}
-      <section id="about" className={`border-y py-20 px-5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/50' : 'border-slate-200 bg-slate-100/60'
+      <section id="about" className={`border-y py-20 px-2.5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/50' : 'border-slate-200 bg-slate-100/60'
         }`}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           <div className="lg:col-span-6 space-y-4">
@@ -1192,7 +1192,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "SEE YOU AT KIT COEK." / "GET READY TO JOIN." --- */}
-      <section id="venue" className="py-20 px-5 sm:px-8 md:px-14 max-w-7xl mx-auto">
+      <section id="venue" className="py-20 px-2.5 sm:px-8 md:px-14 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
 
           {/* Left Info Card */}
@@ -1253,7 +1253,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "A FEW USEFUL ANSWERS." (FLAT ACCORDION FAQS) --- */}
-      <section id="faqs" className={`border-t py-20 px-5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/30' : 'border-slate-200 bg-slate-50'
+      <section id="faqs" className={`border-t py-20 px-2.5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/30' : 'border-slate-200 bg-slate-50'
         }`}>
         <div className="max-w-4xl mx-auto space-y-10">
           <div>
@@ -1310,7 +1310,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- DYNAMIC CANDIDATE REGISTRATION FORM (FLAT UI) --- */}
-      <section id="apply-form" className="py-20 px-5 sm:px-8 md:px-14 border-t border-[#1E293B]">
+      <section id="apply-form" className="py-20 px-2 sm:px-8 md:px-14 border-t border-[#1E293B]">
         <div className="max-w-3xl mx-auto space-y-8">
 
           {campaign.status === 'closed' || campaignClosed ? (
@@ -1362,7 +1362,7 @@ const PublicLanding = () => {
               {/* Flat Form Box */}
               <form
                 onSubmit={handleSubmit(onSubmitForm)}
-                className={`border p-6 sm:p-10 space-y-8 ${isDark ? 'border-[#1E293B] bg-[#0E172A]' : 'border-slate-300 bg-white shadow-sm'
+                className={`border p-3.5 sm:p-10 space-y-8 ${isDark ? 'border-[#1E293B] bg-[#0E172A]' : 'border-slate-300 bg-white shadow-sm'
                   }`}
               >
                 {/* Current Section Title */}
@@ -1892,7 +1892,7 @@ const PublicLanding = () => {
       )}
 
       {/* --- BIG BOTTOM DISPLAY BRANDING --- */}
-      <section className={`border-t py-16 px-5 sm:px-8 md:px-14 select-none overflow-hidden ${isDark ? 'border-[#1E293B] bg-[#070C18]' : 'border-slate-200 bg-[#F8FAFC]'
+      <section className={`border-t py-16 px-2.5 sm:px-8 md:px-14 select-none overflow-hidden ${isDark ? 'border-[#1E293B] bg-[#070C18]' : 'border-slate-200 bg-[#F8FAFC]'
         }`}>
       </section>
 

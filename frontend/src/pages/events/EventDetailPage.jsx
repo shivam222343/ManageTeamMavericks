@@ -7,9 +7,10 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import {
   ArrowLeft, Calendar, Users, Coins, MapPin, Edit3, FileText,
   ExternalLink, BarChart2, Zap, Radio, Clock, CheckCircle, AlertCircle,
-  Globe, Save, Trash2, ChevronDown,
+  Globe, Save, Trash2, ChevronDown, QrCode, Layers
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import EventSubEventsManager from './components/EventSubEventsManager';
 
 const EVENT_STATUS = ['draft', 'published', 'ongoing', 'completed', 'archived'];
 const REG_STATUS   = ['open', 'closed', 'scheduled'];
@@ -89,9 +90,9 @@ const EventDetailPage = () => {
   const revenue = (parseInt(event.paid_registrations) || 0) * parseFloat(event.registration_fee || 0);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-24 px-4 sm:px-6">
+    <div className="max-w-5xl mx-auto space-y-6 pb-24 px-0 sm:px-4">
       {/* Header */}
-      <div className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+      <div className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/[0.02] rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-5 relative z-10">
@@ -114,6 +115,12 @@ const EventDetailPage = () => {
           </div>
 
           <div className="flex flex-wrap gap-2 shrink-0">
+            <Link
+              to={`/dashboard/events/${id}/attendance`}
+              className="flex items-center gap-1.5 h-9 px-4 bg-primary-blue text-white rounded-xl text-[10px] font-extrabold uppercase tracking-widest hover:bg-blue-600 transition cursor-pointer shadow-md shadow-primary-blue/20"
+            >
+              <QrCode size={13} /> Attendance &amp; QR
+            </Link>
             <Link
               to={`/dashboard/events/${id}/edit`}
               className="flex items-center gap-1.5 h-9 px-4 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-zinc-600 dark:text-zinc-300 rounded-xl text-[10px] font-extrabold uppercase tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-800 transition cursor-pointer"
@@ -242,10 +249,14 @@ const EventDetailPage = () => {
         </div>
       </div>
 
+      {/* Sub-Events Management Section */}
+      <EventSubEventsManager eventId={id} event={event} onUpdate={fetchEvent} />
+
       {/* Quick Links */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Manage Registration Form', to: `/dashboard/events/${id}/registration-form`, icon: FileText, desc: 'Customize form fields and sections', color: 'from-blue-500 to-indigo-500' },
+          { label: 'Attendance & QR',          to: `/dashboard/events/${id}/attendance`,      icon: QrCode,   desc: 'Live QR & attendance verification', color: 'from-blue-600 to-indigo-600' },
+          { label: 'Registration Form',        to: `/dashboard/events/${id}/registration-form`, icon: FileText, desc: 'Customize form fields & sections', color: 'from-blue-500 to-cyan-500' },
           { label: 'View Registrations',       to: `/dashboard/events/${id}/registrations`,    icon: Users,   desc: 'See all registered participants', color: 'from-emerald-500 to-teal-500' },
           { label: 'Edit Event Details',        to: `/dashboard/events/${id}/edit`,            icon: Edit3,   desc: 'Update event info, dates, payment', color: 'from-amber-500 to-orange-500' },
         ].map(item => (
