@@ -30,6 +30,7 @@ import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
+import TechText from '../../components/ui/TechText';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
@@ -587,19 +588,70 @@ const PublicEventsPage = () => {
 
           <div className="max-w-7xl mx-auto">
             {/* Section Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
               <div>
                 <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
                   WHAT WE BUILD &amp; RUN
                 </p>
-                <h2 className="font-display-heavy text-4xl sm:text-5xl md:text-6xl uppercase tracking-tight text-zinc-900 dark:text-white">
-                  FLAGSHIP <br />
-                  EVENTS.
-                </h2>
+                <h2 className="sr-only">FLAGSHIP EVENTS</h2>
+                <div className="flex items-center gap-2 font-mono-tag text-[11px] text-slate-500">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping inline-block" />
+                  <span className="uppercase tracking-wider">Interactive Blueprint • Drag Glyphs or Hover</span>
+                </div>
               </div>
               <p className={`max-w-sm text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 From multi-day college symposiums to placement boot camps and rural tech outreaches — Team Mavericks runs it all.
               </p>
+            </div>
+
+            {/* Interactive TechText Banner for Flagship Events */}
+            <div
+              style={{ width: '100%', position: 'relative' }}
+              className={`h-[240px] sm:h-[320px] md:h-[400px] lg:h-[480px] rounded-3xl border mb-12 overflow-hidden flex items-center justify-center transition-colors ${
+                isDark
+                  ? 'bg-gradient-to-b from-[#091124] to-[#070C18] border-[#1E293B] shadow-[0_0_60px_rgba(37,99,235,0.08)]'
+                  : 'bg-gradient-to-b from-slate-100/90 to-slate-50/50 border-slate-200 shadow-sm'
+              }`}
+            >
+              {/* Technical Grid Pattern Accent */}
+              <div
+                className="absolute inset-0 pointer-events-none opacity-[0.05]"
+                style={{
+                  backgroundImage: `linear-gradient(${isDark ? '#60a5fa' : '#2563eb'} 1px, transparent 1px), linear-gradient(90deg, ${isDark ? '#60a5fa' : '#2563eb'} 1px, transparent 1px)`,
+                  backgroundSize: '36px 36px',
+                }}
+              />
+
+              {/* Technical HUD labels */}
+              <div className="absolute top-4 left-5 font-mono-tag text-[9px] uppercase tracking-widest text-slate-400/70 pointer-events-none select-none hidden sm:block">
+                SYS.SPEC // FLAGSHIP_SERIES
+              </div>
+              <div className="absolute top-4 right-5 font-mono-tag text-[9px] uppercase tracking-widest text-blue-500/80 pointer-events-none select-none hidden sm:block">
+                COORD: LIVE [DASHED]
+              </div>
+
+              <TechText
+                text="FLAGSHIP EVENTS"
+                fontWeight={600}
+                fontSize={150}
+                reveal="letter"
+                dashLength={4}
+                dashGap={2}
+                specks={15}
+                fontFamily=""
+                color={isDark ? '#ffffff' : '#0f172a'}
+                accentColor={isDark ? '#ffffff' : '#2563eb'}
+                letterSpacing={-0.05}
+                reach={200}
+                softness={0.7}
+                strokeWidth={1.5}
+                speed={1}
+                lineStyle="dashed"
+                selection
+                labels
+                draggable
+                sweep
+              />
             </div>
 
             {/* 4 Interactive Event Cards matching Recruitment Page */}
