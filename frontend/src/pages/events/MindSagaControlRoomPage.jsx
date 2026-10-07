@@ -43,7 +43,10 @@ import {
   Key,
   Mail,
   Copy,
-  User
+  User,
+  Maximize2,
+  Minimize2,
+  Ban
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
@@ -112,6 +115,24 @@ const MindSagaControlRoomPage = () => {
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [promoteTarget, setPromoteTarget] = useState('qualified_round_2');
   const [selectedRegIds, setSelectedRegIds] = useState([]);
+  const [maximizedSession, setMaximizedSession] = useState(null);
+  const [blockModal, setBlockModal] = useState({
+    isOpen: false,
+    session: null,
+    reason: 'Frequent tab-switching & full-screen exit violation.'
+  });
+
+  // Gaming Pipeline State & Modal
+  const [gameModalOpen, setGameModalOpen] = useState(false);
+  const [editingGame, setEditingGame] = useState(null);
+  const [gameForm, setGameForm] = useState({
+    title: 'Deductive Symbol Matrix Deduction',
+    game_key: 'deductive_logic',
+    difficulty: 'medium',
+    duration_seconds: 180,
+    max_score: 100,
+    is_active: 1
+  });
 
   // Weight Configuration Form
   const [configForm, setConfigForm] = useState({
@@ -121,7 +142,10 @@ const MindSagaControlRoomPage = () => {
     sfu_server_url: 'wss://sfu.teammavericks.org',
     require_camera_r1: true,
     require_camera_r2: true,
-    max_violations_allowed: 3
+    max_violations_allowed: 3,
+    active_round: 1,
+    max_attempts_r1: 1,
+    max_attempts_r2: 1
   });
 
   // Fetch Overview Data
@@ -136,13 +160,16 @@ const MindSagaControlRoomPage = () => {
       setGames(res.data.games || []);
       if (res.data.config) {
         setConfigForm({
-          round1_weight: parseFloat(res.data.config.round1_weight),
-          round2_weight: parseFloat(res.data.config.round2_weight),
-          round3_weight: parseFloat(res.data.config.round3_weight),
+          round1_weight: parseFloat(res.data.config.round1_weight) || 30,
+          round2_weight: parseFloat(res.data.config.round2_weight) || 30,
+          round3_weight: parseFloat(res.data.config.round3_weight) || 40,
           sfu_server_url: res.data.config.sfu_server_url || 'wss://sfu.teammavericks.org',
           require_camera_r1: Boolean(res.data.config.require_camera_r1),
           require_camera_r2: Boolean(res.data.config.require_camera_r2),
-          max_violations_allowed: res.data.config.max_violations_allowed || 3
+          max_violations_allowed: res.data.config.max_violations_allowed || 3,
+          active_round: parseInt(res.data.config.active_round) || 1,
+          max_attempts_r1: parseInt(res.data.config.max_attempts_r1) || 1,
+          max_attempts_r2: parseInt(res.data.config.max_attempts_r2) || 1
         });
       }
     } catch (err) {
@@ -154,12 +181,19 @@ const MindSagaControlRoomPage = () => {
     }
   }, [eventId, subEventId]);
 
-  // Fetch Live Proctoring Grid
+  // Fetch Live Proctoring Grid (Realtime Camera Telemetry)
   const fetchProctoring = useCallback(async () => {
     try {
       const res = await axios.get(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/live?filter=${proctorFilter}`);
       const data = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.sessions) ? res.data.sessions : []);
       setProctoringList(data);
+
+      // Also keep maximized modal session synced with freshest telemetry
+      setMaximizedSession((prev) => {
+        if (!prev) return null;
+        const fresh = data.find((s) => s.session_id === prev.session_id || s.session_token === prev.session_token);
+        return fresh || prev;
+      });
     } catch (err) {
       console.error('Failed to fetch proctoring:', err);
       setProctoringList([]);
@@ -190,18 +224,19 @@ const MindSagaControlRoomPage = () => {
 
   useEffect(() => {
     fetchOverview();
-  }, [fetchOverview]);
+    fetchLeaderboard();
+  }, [fetchOverview, fetchLeaderboard]);
 
   useEffect(() => {
     if (activeTab === 'overview' || activeTab === 'aptitude') {
       fetchProctoring();
-      const interval = setInterval(fetchProctoring, 10000); // 10s live poll
+      const interval = setInterval(fetchProctoring, 3000); // 3s realtime live camera poll
       return () => clearInterval(interval);
     }
   }, [activeTab, fetchProctoring]);
 
   useEffect(() => {
-    if (activeTab === 'scores') {
+    if (activeTab === 'scores' || activeTab === 'keys' || activeTab === 'overview') {
       fetchLeaderboard();
     }
   }, [activeTab, fetchLeaderboard]);
@@ -276,6 +311,48 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
+  // Gaming Pipeline CRUD Handlers
+  const handleSaveGame = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingGame) {
+        await axios.put(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/${editingGame.id}`, gameForm);
+        toast.success('Game challenge updated successfully!');
+      } else {
+        await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games`, gameForm);
+        toast.success('Game challenge added to pipeline!');
+      }
+      setGameModalOpen(false);
+      setEditingGame(null);
+      fetchOverview(true);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save game');
+    }
+  };
+
+  const handleDeleteGame = async (gameId) => {
+    if (!window.confirm('Are you sure you want to remove this game challenge from the pipeline?')) return;
+    try {
+      await axios.delete(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/${gameId}`);
+      toast.success('Game challenge removed.');
+      fetchOverview(true);
+    } catch (err) {
+      toast.error('Failed to delete game');
+    }
+  };
+
+  const handleToggleGameActive = async (g) => {
+    try {
+      await axios.put(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/${g.id}`, {
+        is_active: g.is_active ? 0 : 1
+      });
+      toast.success(g.is_active ? 'Game deactivated' : 'Game activated');
+      fetchOverview(true);
+    } catch (err) {
+      toast.error('Failed to update game status');
+    }
+  };
+
   // Handle Save Config
   const handleSaveConfig = async (e) => {
     e.preventDefault();
@@ -293,15 +370,25 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
-  // Handle Terminate Session
-  const handleTerminateSession = async (sessionId, name) => {
-    if (!window.confirm(`Are you sure you want to immediately terminate test session for ${name}?`)) return;
+  // Handle Terminate Session & Direct Block
+  const handleTerminateSession = async (session, customReason = null) => {
+    const reasonToUse = customReason || blockModal.reason || 'Terminated by proctor admin for anti-cheating breach.';
+    const sessionId = typeof session === 'object' ? session.session_id : session;
+    const sessionToken = typeof session === 'object' ? session.session_token : null;
+    const name = typeof session === 'object' ? session.full_name : 'Candidate';
+
     try {
       await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/terminate-session`, {
         session_id: sessionId,
-        reason: 'Terminated by proctor admin for anti-cheating violation.'
+        session_token: sessionToken,
+        round: typeof session === 'object' ? session.round_number : 1,
+        reason: reasonToUse
       });
-      toast.success(`Session for ${name} terminated.`);
+      toast.success(`Session for ${name} blocked and terminated with warning.`);
+      setBlockModal({ isOpen: false, session: null, reason: '' });
+      if (maximizedSession?.session_id === sessionId) {
+        setMaximizedSession((prev) => (prev ? { ...prev, status: 'terminated' } : null));
+      }
       fetchProctoring();
     } catch (err) {
       toast.error('Failed to terminate session');
@@ -332,6 +419,19 @@ const MindSagaControlRoomPage = () => {
   const [sendingEmails, setSendingEmails] = useState(false);
   const [regeneratingKeys, setRegeneratingKeys] = useState(false);
   const [platformStatus, setPlatformStatus] = useState('locked');
+
+  // Handle Active Round Progression Stage
+  const handleSetActiveRound = async (roundNum) => {
+    try {
+      const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/active-round`, {
+        active_round: roundNum
+      });
+      toast.success(res.data.message || `Round ${roundNum} is now active!`, { icon: '🎯' });
+      fetchOverview(true);
+    } catch (err) {
+      toast.error('Failed to change active round stage');
+    }
+  };
 
   // Handle Platform Status Toggle (Live, Locked, Paused)
   const handleTogglePlatformStatus = async (newStatus) => {
@@ -365,7 +465,7 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
-  // Handle Regenerate Keys
+  // Handle Regenerate Keys (All)
   const handleRegenerateKeys = async () => {
     if (!window.confirm('Are you sure you want to regenerate unique keys for all participants? Old keys will become invalid.')) {
       return;
@@ -380,6 +480,20 @@ const MindSagaControlRoomPage = () => {
       toast.error('Failed to regenerate keys');
     } finally {
       setRegeneratingKeys(false);
+    }
+  };
+
+  // Handle Regenerate Single Candidate Key
+  const handleRegenerateSingleKey = async (registrationId, name) => {
+    try {
+      const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/regenerate-keys`, {
+        registration_id: registrationId
+      });
+      toast.success(`Generated new key for ${name}: ${res.data.access_key}`);
+      fetchLeaderboard();
+      fetchOverview(true);
+    } catch (err) {
+      toast.error('Failed to regenerate key for candidate');
     }
   };
 
@@ -429,6 +543,36 @@ const MindSagaControlRoomPage = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Active Round Stage Switcher */}
+              <div className="flex items-center bg-zinc-950/80 p-1 rounded-2xl border border-zinc-800 shadow-inner">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-2 sm:px-2.5">
+                  Stage:
+                </span>
+                {[
+                  { num: 1, label: 'Round 1', title: 'Round 1 (Aptitude) Active' },
+                  { num: 2, label: 'Round 2', title: 'Round 1 + 2 (Gaming) Active' },
+                  { num: 3, label: 'Round 3', title: 'Round 1 + 2 + 3 (Interview) Active' }
+                ].map((r) => {
+                  const currentActive = parseInt(overviewData?.config?.active_round) || 1;
+                  const isSelected = currentActive === r.num;
+                  return (
+                    <button
+                      key={r.num}
+                      type="button"
+                      onClick={() => handleSetActiveRound(r.num)}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30'
+                          : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                      }`}
+                      title={r.title}
+                    >
+                      <span>{r.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Platform Status Go Live / Lock Button */}
               {overviewData?.config?.platform_status === 'live' || platformStatus === 'live' ? (
                 <div className="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-2xl border border-emerald-500/40 shadow-lg shadow-emerald-500/10">
@@ -610,34 +754,44 @@ const MindSagaControlRoomPage = () => {
                   <p className="text-xs text-zinc-500 mt-1">When participants start Round 1 or 2, their live CCTV feed will stream here.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {proctoringList.map((session) => {
-                    const isHighRisk = session.violation_count >= 3;
+                    const isHighRisk = session.violation_count >= 3 || session.status === 'terminated';
                     const hasWarning = session.violation_count > 0 && session.violation_count < 3;
                     const isOnline = session.status === 'in_progress' && session.camera_status === 'connected';
 
                     return (
                       <div
-                        key={session.session_id}
-                        className={`bg-zinc-950 border rounded-2xl overflow-hidden transition-all hover:border-indigo-500/50 flex flex-col ${
-                          isHighRisk ? 'border-red-500/60 ring-1 ring-red-500/30' : hasWarning ? 'border-amber-500/50' : 'border-zinc-800'
+                        key={`${session.round_number || 1}-${session.session_id}`}
+                        className={`bg-zinc-950 border rounded-2xl overflow-hidden transition-all hover:border-indigo-500/50 flex flex-col group ${
+                          session.status === 'terminated'
+                            ? 'border-red-600 bg-red-950/10 ring-1 ring-red-600/40'
+                            : isHighRisk
+                            ? 'border-red-500/60 ring-1 ring-red-500/30'
+                            : hasWarning
+                            ? 'border-amber-500/50'
+                            : 'border-zinc-800'
                         }`}
                       >
-                        {/* Video / Camera simulation tile */}
-                        <div className="relative aspect-video bg-zinc-900 flex items-center justify-center overflow-hidden">
-                          {session.camera_status === 'connected' ? (
+                        {/* Real-time Video Stream Tile */}
+                        <div 
+                          onClick={() => setMaximizedSession(session)}
+                          className="relative aspect-video bg-zinc-900 flex items-center justify-center overflow-hidden cursor-pointer group/cam"
+                          title="Click to Maximize Live Feed"
+                        >
+                          {session.latest_snapshot ? (
+                            <img
+                              src={session.latest_snapshot}
+                              alt={session.full_name}
+                              className="w-full h-full object-cover transform -scale-x-100 transition duration-300 group-hover/cam:scale-105"
+                            />
+                          ) : session.camera_status === 'connected' ? (
                             <div className="w-full h-full bg-gradient-to-tr from-slate-950 via-zinc-900 to-indigo-950/40 flex flex-col items-center justify-center p-4 text-center relative">
                               <div className="w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-sm mb-2 shadow-inner">
                                 {session.full_name?.slice(0, 2).toUpperCase() || 'P'}
                               </div>
                               <span className="text-xs font-semibold text-white truncate max-w-[90%]">{session.full_name}</span>
-                              <span className="text-[10px] text-zinc-500 font-mono">WebRTC SFU Feed</span>
-
-                              {/* Live dot */}
-                              <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-[10px] text-emerald-400 font-mono">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                LIVE
-                              </div>
+                              <span className="text-[10px] text-zinc-500 font-mono">Camera Connecting...</span>
                             </div>
                           ) : (
                             <div className="w-full h-full bg-red-950/20 flex flex-col items-center justify-center p-4 text-center">
@@ -647,9 +801,24 @@ const MindSagaControlRoomPage = () => {
                             </div>
                           )}
 
-                          {/* Top right status badge */}
-                          <div className="absolute top-2 right-2">
-                            {isHighRisk ? (
+                          {/* Top Left: Live Status & Round Tag */}
+                          <div className="absolute top-2 left-2 flex items-center gap-1.5 z-10">
+                            <span className="flex items-center gap-1 bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-full text-[10px] text-emerald-400 font-mono font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                              LIVE
+                            </span>
+                            <span className="bg-indigo-950/80 border border-indigo-500/40 backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] text-indigo-300 font-bold">
+                              {session.round_name || (session.round_number === 2 ? 'R2: Gaming' : 'R1: Aptitude')}
+                            </span>
+                          </div>
+
+                          {/* Top Right: Status Badge & Maximize Button */}
+                          <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+                            {session.status === 'terminated' ? (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-700 text-white shadow-sm">
+                                TERMINATED / BLOCKED
+                              </span>
+                            ) : isHighRisk ? (
                               <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-600 text-white shadow-sm">
                                 FLAGGED ({session.violation_count})
                               </span>
@@ -658,45 +827,80 @@ const MindSagaControlRoomPage = () => {
                                 {session.violation_count} WARN
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
                                 {session.status}
                               </span>
                             )}
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMaximizedSession(session);
+                              }}
+                              className="p-1 rounded-md bg-black/70 hover:bg-indigo-600 text-white transition backdrop-blur-md shadow"
+                              title="Maximize Stream"
+                            >
+                              <Maximize2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Hover Overlay Hint */}
+                          <div className="absolute inset-0 bg-indigo-950/20 opacity-0 group-hover/cam:opacity-100 transition flex items-center justify-center pointer-events-none">
+                            <span className="px-3 py-1 rounded-xl bg-black/80 text-white text-[10px] font-bold backdrop-blur-md flex items-center gap-1 border border-indigo-500/30">
+                              <Maximize2 className="w-3 h-3" /> Click to Maximize
+                            </span>
                           </div>
                         </div>
 
                         {/* Telemetry info */}
-                        <div className="p-3 space-y-2 flex-1 flex flex-col justify-between text-xs">
+                        <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between text-xs">
                           <div>
-                            <div className="flex items-center justify-between text-zinc-400">
-                              <span>Time Remaining:</span>
-                              <span className="font-mono font-semibold text-white">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-white text-xs truncate max-w-[170px]" title={session.full_name}>
+                                {session.full_name}
+                              </span>
+                              <span className="text-[10px] font-mono text-zinc-400">
+                                {session.email?.split('@')[0]}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-zinc-400 mt-2 text-[11px]">
+                              <span>Remaining Time:</span>
+                              <span className="font-mono font-bold text-white">
                                 {Math.floor(session.remaining_seconds / 60)}m {session.remaining_seconds % 60}s
                               </span>
                             </div>
-                            <div className="flex items-center justify-between text-zinc-400 mt-1">
-                              <span>Score / Status:</span>
-                              <span className="font-semibold text-indigo-400">
-                                {session.total_score} pts ({session.percentage}%)
+
+                            <div className="flex items-center justify-between text-zinc-400 mt-1 text-[11px]">
+                              <span>Violations:</span>
+                              <span className={`font-bold ${session.violation_count >= 3 ? 'text-red-400' : session.violation_count > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                {session.violation_count} / 3 Strikes
                               </span>
                             </div>
                           </div>
 
-                          <div className="pt-2 border-t border-zinc-900 flex items-center gap-1.5">
+                          <div className="pt-2.5 border-t border-zinc-900 flex items-center gap-2">
                             <button
                               onClick={() => setSelectedSessionDetail(session)}
-                              className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg font-medium text-[11px] flex items-center justify-center gap-1 transition"
+                              className="flex-1 py-1.5 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1 transition"
                             >
-                              <Eye className="w-3 h-3" /> Inspect Logs
+                              <Eye className="w-3 h-3 text-indigo-400" /> Inspect Logs
                             </button>
-                            {session.status === 'in_progress' && (
+
+                            {session.status === 'in_progress' ? (
                               <button
-                                onClick={() => handleTerminateSession(session.session_id, session.full_name)}
-                                className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition"
-                                title="Force Terminate Session"
+                                onClick={() => setBlockModal({ isOpen: true, session, reason: 'Frequent tab-switching & full-screen exit violation.' })}
+                                className="px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white rounded-xl font-bold text-[11px] flex items-center gap-1 transition border border-red-500/30"
+                                title="Block Participant & Terminate Round"
                               >
-                                <ShieldAlert className="w-3.5 h-3.5" />
+                                <Ban className="w-3 h-3" />
+                                <span>Block</span>
                               </button>
+                            ) : (
+                              <span className="text-[10px] text-zinc-500 font-mono italic px-2">
+                                {session.status}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -816,17 +1020,27 @@ const MindSagaControlRoomPage = () => {
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                            <button
-                              onClick={() => {
-                                handleCopyLink(
-                                  `Hello ${cand.full_name}, your Mind Saga Access Key is: ${cand.access_key}\nEnter here: ${window.location.origin}/events/${eventId}/sub-events/${subEventId}/mind-saga/enter`,
-                                  'Candidate Access Credentials'
-                                );
-                              }}
-                              className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-[11px] font-medium transition"
-                            >
-                              Copy Message
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleRegenerateSingleKey(cand.registration_id, cand.full_name)}
+                                className="px-2 py-1 bg-zinc-800/80 hover:bg-zinc-700 text-indigo-300 hover:text-white rounded-lg text-[11px] font-medium flex items-center gap-1 transition"
+                                title="Regenerate unique key for this candidate"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                <span>Regen Key</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleCopyLink(
+                                    `Hello ${cand.full_name}, your Mind Saga Access Key is: ${cand.access_key}\nEnter here: ${window.location.origin}/events/${eventId}/sub-events/${subEventId}/mind-saga/enter`,
+                                    'Candidate Access Credentials'
+                                  );
+                                }}
+                                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-[11px] font-medium transition"
+                              >
+                                Copy Message
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1077,52 +1291,147 @@ const MindSagaControlRoomPage = () => {
         {/* TAB 3: ROUND 2 GAMING ENGINE */}
         {activeTab === 'gaming' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex items-center justify-between">
+            <div className="bg-zinc-900/50 p-5 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-bold text-white text-base flex items-center gap-2">
                   <Gamepad2 className="w-5 h-5 text-indigo-400" />
-                  Round 2: Pluggable Gaming Engine
+                  Round 2: Sequential Multi-Game Pipeline Manager
                 </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Cognitive reaction and symbol logic puzzles with authoritative server verification.
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  Configure the sequence of games, individual timers, and difficulty levels (Easy, Medium, Hard). Difficulty tiers are automatically hidden from participants during live gameplay.
                 </p>
               </div>
+
+              <button
+                onClick={() => {
+                  setEditingGame(null);
+                  setGameForm({
+                    title: games.length % 2 === 0 ? 'Deductive Symbol Matrix Deduction' : 'Motion Matrix Reflex Challenge',
+                    game_key: games.length % 2 === 0 ? 'deductive_logic' : 'motion_challenge',
+                    difficulty: games.length === 0 ? 'easy' : games.length === 1 ? 'medium' : 'hard',
+                    duration_seconds: 180,
+                    max_score: 100,
+                    is_active: 1
+                  });
+                  setGameModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/25 transition cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Game to Pipeline</span>
+              </button>
             </div>
 
+            {/* Pipeline Order Summary Banner */}
+            <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold font-mono">
+                  {games.length}
+                </div>
+                <div>
+                  <span className="font-semibold text-indigo-300">Active Game Sequence:</span>
+                  <p className="text-zinc-400 text-[11px] mt-0.5">
+                    {games.length === 0
+                      ? 'No games configured yet. Add games to create the Round 2 tournament pipeline.'
+                      : `Participants will play ${games.length} game(s) in sequence with individual timers and automated transition.`}
+                  </p>
+                </div>
+              </div>
+
+              {games.length > 0 && (
+                <div className="flex items-center gap-4 text-[11px] font-mono font-medium text-zinc-300">
+                  <span>Total Duration: {Math.round(games.reduce((acc, g) => acc + (g.duration_seconds || 0), 0) / 60)} Mins</span>
+                  <span>•</span>
+                  <span>Total Max: {games.reduce((acc, g) => acc + (g.max_score || 0), 0)} Pts</span>
+                </div>
+              )}
+            </div>
+
+            {/* Configured Games Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {games.map((g) => (
-                <div key={g.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                  <div className="flex items-center justify-between">
+              {games.map((g, idx) => (
+                <div key={g.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-4 hover:border-zinc-700 transition">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                        {g.game_key === 'deductive_logic' ? <BrainCircuit className="w-6 h-6" /> : <Target className="w-6 h-6" />}
+                      <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-xs">
+                        #{idx + 1}
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-base">{g.title}</h4>
-                        <span className="text-[11px] text-zinc-400 font-mono">Key: {g.game_key}</span>
+                        <h4 className="font-bold text-white text-base leading-tight">{g.title}</h4>
+                        <span className="text-[11px] text-zinc-400 font-mono">
+                          {g.game_key === 'deductive_logic' ? 'Deductive Symbol Grid' : 'Motion Challenge Matrix'}
+                        </span>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      {g.difficulty}
-                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                        g.difficulty === 'easy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                        g.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                        'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                      }`}>
+                        {g.difficulty}
+                      </span>
+                    </div>
                   </div>
 
-                  <p className="text-xs text-zinc-300 leading-relaxed">
-                    {g.rules_json?.objective || 'Complete the interactive game challenge within time limit.'}
+                  <p className="text-xs text-zinc-300 leading-relaxed line-clamp-2">
+                    {g.rules_json?.objective || 'Sequential gameplay challenge verified authoritatively by server.'}
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-                      <span className="text-zinc-500 block">Duration</span>
-                      <span className="font-bold text-white">{g.duration_seconds}s</span>
+                      <span className="text-zinc-500 block text-[10px]">Timer</span>
+                      <span className="font-bold text-white font-mono">{g.duration_seconds}s ({Math.floor(g.duration_seconds / 60)}m {g.duration_seconds % 60}s)</span>
                     </div>
                     <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-                      <span className="text-zinc-500 block">Max Score</span>
-                      <span className="font-bold text-indigo-400">{g.max_score} pts</span>
+                      <span className="text-zinc-500 block text-[10px]">Max Score</span>
+                      <span className="font-bold text-indigo-400 font-mono">{g.max_score} pts</span>
                     </div>
                     <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-                      <span className="text-zinc-500 block">Total Attempts</span>
-                      <span className="font-bold text-white">{g.total_attempts || 0}</span>
+                      <span className="text-zinc-500 block text-[10px]">Status</span>
+                      <span className={`font-bold text-[11px] ${g.is_active ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                        {g.is_active ? 'Active' : 'Disabled'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-zinc-800/80">
+                    <button
+                      onClick={() => handleToggleGameActive(g)}
+                      className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg ${
+                        g.is_active ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
+                      }`}
+                    >
+                      {g.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setEditingGame(g);
+                          setGameForm({
+                            title: g.title,
+                            game_key: g.game_key,
+                            difficulty: g.difficulty || 'medium',
+                            duration_seconds: g.duration_seconds || 180,
+                            max_score: g.max_score || 100,
+                            is_active: g.is_active ?? 1
+                          });
+                          setGameModalOpen(true);
+                        }}
+                        className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition"
+                        title="Edit Game"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGame(g.id)}
+                        className="p-1.5 text-zinc-400 hover:text-red-400 rounded-lg hover:bg-zinc-800 transition"
+                        title="Delete Game"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1353,6 +1662,78 @@ const MindSagaControlRoomPage = () => {
                 </span>
               </div>
 
+              {/* Tournament Progression & Sequential Unlock */}
+              <div className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-zinc-200 font-bold block">
+                    Active Tournament Progression Stage
+                  </label>
+                  <span className="text-[10px] text-indigo-400 font-semibold uppercase">Sequential Gate</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {[
+                    { val: 1, title: 'Round 1 Only', desc: 'Aptitude Test unlocked' },
+                    { val: 2, title: 'Round 1 + Round 2', desc: 'Aptitude & Gaming unlocked' },
+                    { val: 3, title: 'Round 1 + 2 + 3', desc: 'All rounds unlocked' }
+                  ].map((st) => (
+                    <button
+                      type="button"
+                      key={st.val}
+                      onClick={() => setConfigForm({ ...configForm, active_round: st.val })}
+                      className={`p-3 rounded-xl border text-left transition ${
+                        Number(configForm.active_round) === st.val
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                      }`}
+                    >
+                      <span className="font-bold text-xs block">{st.title}</span>
+                      <span className="text-[10px] opacity-80 mt-0.5 block">{st.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Allowed Attempts Configuration */}
+              <div className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-zinc-200 font-bold block">
+                    Participant Attempt Limits per Round
+                  </label>
+                  <span className="text-[10px] text-amber-400 font-semibold">Configurable Retakes</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-zinc-400 font-semibold block mb-1">
+                      Round 1 (Aptitude) Max Attempts
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={configForm.max_attempts_r1}
+                      onChange={(e) => setConfigForm({ ...configForm, max_attempts_r1: parseInt(e.target.value) || 1 })}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono font-bold"
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">Default: 1 attempt</span>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 font-semibold block mb-1">
+                      Round 2 (Gaming Arena) Max Attempts
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={configForm.max_attempts_r2}
+                      onChange={(e) => setConfigForm({ ...configForm, max_attempts_r2: parseInt(e.target.value) || 1 })}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono font-bold"
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">Default: 1 tournament run</span>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="text-zinc-400 font-semibold block mb-1">WebRTC SFU Signaling Server URL</label>
                 <input
@@ -1371,7 +1752,7 @@ const MindSagaControlRoomPage = () => {
                   min="1"
                   max="10"
                   value={configForm.max_violations_allowed}
-                  onChange={(e) => setConfigForm({ ...configForm, max_violations_allowed: e.target.value })}
+                  onChange={(e) => setConfigForm({ ...configForm, max_violations_allowed: parseInt(e.target.value) || 3 })}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white"
                 />
               </div>
@@ -1668,6 +2049,439 @@ const MindSagaControlRoomPage = () => {
                 className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-semibold"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GAME CHALLENGE CONFIGURATION MODAL */}
+      {gameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div>
+                <h3 className="font-bold text-white text-base">
+                  {editingGame ? 'Edit Game Challenge' : 'Add Game Challenge to Pipeline'}
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Configure game type, difficulty level, and individual game timer.
+                </p>
+              </div>
+              <button onClick={() => setGameModalOpen(false)} className="text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveGame} className="space-y-4 text-xs">
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1">Game Challenge Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    onClick={() => {
+                      setGameForm({
+                        ...gameForm,
+                        game_key: 'deductive_logic',
+                        title: editingGame ? gameForm.title : 'Deductive Symbol Matrix Deduction'
+                      });
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${
+                      gameForm.game_key === 'deductive_logic'
+                        ? 'bg-purple-950/30 border-purple-500 text-white ring-1 ring-purple-500'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <BrainCircuit className="w-5 h-5 text-purple-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-xs">Deductive Symbol Grid</span>
+                      <span className="text-[10px] text-zinc-400">4x4 Latin Square Logic</span>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      setGameForm({
+                        ...gameForm,
+                        game_key: 'motion_challenge',
+                        title: editingGame ? gameForm.title : 'Motion Matrix Reflex Challenge'
+                      });
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${
+                      gameForm.game_key === 'motion_challenge'
+                        ? 'bg-indigo-950/30 border-indigo-500 text-white ring-1 ring-indigo-500'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <Target className="w-5 h-5 text-indigo-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-xs">Motion Challenge</span>
+                      <span className="text-[10px] text-zinc-400">Precision Reflex Matrix</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1">Challenge Title / Display Name</label>
+                <input
+                  type="text"
+                  required
+                  value={gameForm.title}
+                  onChange={(e) => setGameForm({ ...gameForm, title: e.target.value })}
+                  placeholder="e.g. Deductive Symbol Matrix Deduction"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              {/* Difficulty Selection */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-zinc-300 font-semibold block">Difficulty Level (Configured by Admin)</label>
+                  <span className="text-[10px] text-amber-400 font-medium">Hidden from candidate view</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'easy', label: 'Easy', desc: '10 Clues / 1200ms targets' },
+                    { id: 'medium', label: 'Medium', desc: '8 Clues / 850ms targets' },
+                    { id: 'hard', label: 'Hard', desc: '6 Clues / 600ms targets' }
+                  ].map((lvl) => (
+                    <button
+                      type="button"
+                      key={lvl.id}
+                      onClick={() => setGameForm({ ...gameForm, difficulty: lvl.id })}
+                      className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
+                        gameForm.difficulty === lvl.id
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <span className="font-bold uppercase text-xs">{lvl.label}</span>
+                      <span className="text-[9px] opacity-75 mt-0.5">{lvl.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timer and Max Score */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-300 font-semibold block mb-1">
+                    Game Timer (Seconds)
+                  </label>
+                  <input
+                    type="number"
+                    min="30"
+                    max="1800"
+                    step="10"
+                    required
+                    value={gameForm.duration_seconds}
+                    onChange={(e) => setGameForm({ ...gameForm, duration_seconds: parseInt(e.target.value) || 180 })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                  <span className="text-[10px] text-zinc-500 block mt-1">
+                    = {Math.floor(gameForm.duration_seconds / 60)}m {gameForm.duration_seconds % 60}s
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 font-semibold block mb-1">
+                    Max Score (Points)
+                  </label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="1000"
+                    required
+                    value={gameForm.max_score}
+                    onChange={(e) => setGameForm({ ...gameForm, max_score: parseInt(e.target.value) || 100 })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                  <span className="text-[10px] text-zinc-500 block mt-1">
+                    Cumulative Round 2 score
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setGameModalOpen(false)}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl font-medium text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-semibold text-xs shadow-md"
+                >
+                  {editingGame ? 'Update Game' : 'Add Game to Sequence'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MAXIMIZED CCTV LIVE STREAM MODAL */}
+      {maximizedSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-xl animate-in fade-in">
+          <div className="bg-zinc-900 border border-indigo-500/40 rounded-3xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-400">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-base">{maximizedSession.full_name}</h3>
+                    <span className="bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                      {maximizedSession.round_name || (maximizedSession.round_number === 2 ? 'Round 2: Gaming' : 'Round 1: Aptitude')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 font-mono mt-0.5">
+                    {maximizedSession.email} • ID #{maximizedSession.registration_id}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMaximizedSession(null)}
+                  className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition"
+                  title="Minimize View"
+                >
+                  <Minimize2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Video & Telemetry Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
+              {/* High-Resolution Stream Screen */}
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-zinc-800 shadow-2xl flex items-center justify-center">
+                {maximizedSession.latest_snapshot ? (
+                  <img
+                    src={maximizedSession.latest_snapshot}
+                    alt={maximizedSession.full_name}
+                    className="w-full h-full object-contain transform -scale-x-100"
+                  />
+                ) : maximizedSession.camera_status === 'connected' ? (
+                  <div className="flex flex-col items-center justify-center text-center p-6 space-y-2">
+                    <div className="w-16 h-16 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center text-xl font-bold">
+                      {maximizedSession.full_name?.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-semibold text-white">Live Camera Active</span>
+                    <span className="text-xs text-zinc-500 font-mono">Receiving live stream frames...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-6 space-y-2 text-red-400">
+                    <ShieldAlert className="w-12 h-12" />
+                    <span className="text-sm font-bold">Camera Feed Offline</span>
+                    <span className="text-xs text-zinc-500">Candidate webcam disconnected or denied</span>
+                  </div>
+                )}
+
+                {/* Stream Overlay Indicators */}
+                <div className="absolute top-3 left-3 flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-mono font-bold text-emerald-400 border border-emerald-500/30">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    LIVE SURVEILLANCE
+                  </span>
+                  <span className="bg-black/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-mono text-zinc-300 border border-zinc-700">
+                    {maximizedSession.last_snapshot_at ? `Frame: ${maximizedSession.last_snapshot_at}` : 'Realtime Stream'}
+                  </span>
+                </div>
+
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border ${
+                    maximizedSession.status === 'terminated'
+                      ? 'bg-red-950/80 border-red-500 text-red-300'
+                      : maximizedSession.violation_count >= 3
+                      ? 'bg-red-600 text-white'
+                      : maximizedSession.violation_count > 0
+                      ? 'bg-amber-500 text-black font-extrabold'
+                      : 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                  }`}>
+                    {maximizedSession.status === 'terminated'
+                      ? 'TERMINATED'
+                      : `${maximizedSession.violation_count} / 3 Strikes`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Real-time Telemetry Stats Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800">
+                  <span className="text-zinc-500 block font-medium">Session Status</span>
+                  <span className="font-bold text-white uppercase text-sm mt-0.5 block">{maximizedSession.status}</span>
+                </div>
+
+                <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800">
+                  <span className="text-zinc-500 block font-medium">Time Remaining</span>
+                  <span className="font-mono font-bold text-white text-sm mt-0.5 block">
+                    {Math.floor(maximizedSession.remaining_seconds / 60)}m {maximizedSession.remaining_seconds % 60}s
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800">
+                  <span className="text-zinc-500 block font-medium">Camera Feed</span>
+                  <span className={`font-bold text-sm mt-0.5 block ${
+                    maximizedSession.camera_status === 'connected' ? 'text-emerald-400' : 'text-red-400'
+                  }`}>
+                    {maximizedSession.camera_status === 'connected' ? '● Connected' : '✕ Disconnected'}
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800">
+                  <span className="text-zinc-500 block font-medium">Security Strikes</span>
+                  <span className={`font-bold text-sm mt-0.5 block ${
+                    maximizedSession.violation_count >= 3 ? 'text-red-400' : maximizedSession.violation_count > 0 ? 'text-amber-400' : 'text-emerald-400'
+                  }`}>
+                    {maximizedSession.violation_count} of 3
+                  </span>
+                </div>
+              </div>
+
+              {/* Telemetry Timeline Events */}
+              <div className="space-y-2">
+                <h5 className="font-bold text-zinc-300 text-xs flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                  Live Proctoring Events Telemetry
+                </h5>
+                <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800 max-h-48 overflow-y-auto space-y-2 text-xs">
+                  {(!maximizedSession.proctoring_events || maximizedSession.proctoring_events.length === 0) ? (
+                    <p className="text-zinc-500 italic text-[11px]">No violations recorded. Candidate test stream is clean.</p>
+                  ) : (
+                    maximizedSession.proctoring_events.map((ev, idx) => (
+                      <div key={idx} className="flex items-start gap-2.5 pb-2 border-b border-zinc-900 last:border-none">
+                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[10px] font-mono text-zinc-500">{ev.timestamp}</span>
+                          <p className="font-semibold text-zinc-200">{ev.type}</p>
+                          {ev.details && <p className="text-[11px] text-zinc-400">{ev.details}</p>}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="p-4 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between gap-3">
+              <button
+                onClick={() => setMaximizedSession(null)}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-semibold"
+              >
+                Close Maximize
+              </button>
+
+              {maximizedSession.status === 'in_progress' && (
+                <button
+                  onClick={() => {
+                    setBlockModal({
+                      isOpen: true,
+                      session: maximizedSession,
+                      reason: 'Proctor Admin Block: Repeated tab-switching & full-screen exit violation.'
+                    });
+                  }}
+                  className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-red-600/25 transition"
+                >
+                  <Ban className="w-4 h-4" />
+                  <span>Block Candidate &amp; Terminate Test</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BLOCK CANDIDATE WITH WARNING MODAL */}
+      {blockModal.isOpen && blockModal.session && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in">
+          <div className="bg-zinc-900 border border-red-500/60 rounded-3xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center shrink-0">
+                <Ban className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Block Candidate &amp; Auto-Submit Round</h3>
+                <p className="text-xs text-zinc-400">
+                  Instantly terminate {blockModal.session.full_name}'s session with an authoritative warning.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-1 text-xs">
+              <div className="flex justify-between text-zinc-400">
+                <span>Candidate:</span>
+                <span className="font-bold text-white">{blockModal.session.full_name}</span>
+              </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Round:</span>
+                <span className="font-semibold text-indigo-400">
+                  {blockModal.session.round_name || 'Current Active Round'}
+                </span>
+              </div>
+            </div>
+
+            {/* Preset Warning Chips */}
+            <div className="space-y-1.5 text-xs">
+              <label className="text-zinc-300 font-semibold block">Select Warning Reason Preset</label>
+              <div className="grid grid-cols-1 gap-1.5">
+                {[
+                  'Repeated full-screen exits and window blurring detected.',
+                  'Multiple faces / unauthorized persons detected in camera frame.',
+                  'External electronic device / notes detected during test.',
+                  'Browser inspection tools / developer console opened.',
+                  'Proctoring camera intentionally covered or disconnected.'
+                ].map((reasonText, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setBlockModal({ ...blockModal, reason: reasonText })}
+                    className={`p-2 rounded-xl border text-left text-xs transition ${
+                      blockModal.reason === reasonText
+                        ? 'bg-red-950/40 border-red-500 text-red-200'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {reasonText}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Warning Reason Input */}
+            <div className="space-y-1.5 text-xs">
+              <label className="text-zinc-300 font-semibold block">Custom Warning Notice (Shown to Participant)</label>
+              <textarea
+                rows="2"
+                required
+                value={blockModal.reason}
+                onChange={(e) => setBlockModal({ ...blockModal, reason: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs"
+                placeholder="Enter exact warning reason that will be displayed to the candidate..."
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setBlockModal({ isOpen: false, session: null, reason: '' })}
+                className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTerminateSession(blockModal.session, blockModal.reason)}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-600/25 flex items-center gap-1.5"
+              >
+                <Ban className="w-4 h-4" />
+                <span>Confirm Block &amp; Terminate</span>
               </button>
             </div>
           </div>

@@ -57,6 +57,17 @@ const ParticipantDashboard = () => {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
 
+  // Mind Saga Key Challenge Modal State (Always ask for key before entry)
+  const [mindSagaModal, setMindSagaModal] = useState({
+    isOpen: false,
+    eventId: null,
+    subEventId: null,
+    subEventName: '',
+    defaultKey: ''
+  });
+  const [keyInput, setKeyInput] = useState('');
+  const [verifyingKey, setVerifyingKey] = useState(false);
+
   // Profile Edit State
   const [name, setName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -109,6 +120,54 @@ const ParticipantDashboard = () => {
       toast.error(errMsg, { duration: 5000 });
     } finally {
       setScanning(false);
+    }
+  };
+
+  const openMindSagaKeyPrompt = (eventId, subEventId, subEventName, defaultKey) => {
+    setMindSagaModal({
+      isOpen: true,
+      eventId,
+      subEventId,
+      subEventName: subEventName || 'Mind Saga',
+      defaultKey: defaultKey || ''
+    });
+    setKeyInput('');
+  };
+
+  const handleVerifyMindSagaKey = async (e) => {
+    e?.preventDefault?.();
+    const keyToTest = keyInput.trim().toUpperCase();
+    if (!keyToTest) {
+      toast.error('Please enter your unique Mind Saga Access Key.');
+      return;
+    }
+
+    try {
+      setVerifyingKey(true);
+      const res = await axios.post('/mindsaga/auth/login-with-key', {
+        access_key: keyToTest,
+        email: data.user?.email || user?.email
+      });
+
+      if (res.data.token) {
+        sessionStorage.setItem('mind_saga_auth_token', res.data.token);
+        sessionStorage.setItem('mind_saga_key', keyToTest);
+        sessionStorage.setItem('mind_saga_sub_id', String(mindSagaModal.subEventId));
+        localStorage.setItem('mind_saga_access_key', keyToTest);
+      }
+
+      toast.success('Access Key verified! Entering Mind Saga Arena...', { icon: '🚀' });
+      const targetEventId = mindSagaModal.eventId;
+      const targetSubId = mindSagaModal.subEventId;
+      setMindSagaModal({ isOpen: false, eventId: null, subEventId: null, subEventName: '', defaultKey: '' });
+      setSelectedPass(null);
+      navigate(`/events/${targetEventId}/sub-events/${targetSubId}/mind-saga`);
+    } catch (err) {
+      console.error('Key verification failed:', err);
+      const errMsg = err.response?.data?.error || 'Invalid Access Key. Please enter the key shown on your pass.';
+      toast.error(errMsg);
+    } finally {
+      setVerifyingKey(false);
     }
   };
 
@@ -368,7 +427,9 @@ const ParticipantDashboard = () => {
                       stub={
                         <div className="flex flex-col items-center justify-between h-full w-full py-1 space-y-2">
                           <div className="text-center">
-                            <span className="font-mono-tag text-[8px] font-black uppercase tracking-widest text-emerald-400 block">
+                            <span className={`font-mono-tag text-[8px] font-black uppercase tracking-widest block ${
+                              isDark ? 'text-emerald-400' : 'text-emerald-700'
+                            }`}>
                               ★ ADMIT ONE ★
                             </span>
                             <span className="text-[10px] font-bold font-mono text-primary-blue mt-0.5 block truncate max-w-[110px]">
@@ -376,22 +437,26 @@ const ParticipantDashboard = () => {
                             </span>
                           </div>
 
-                          <div className="p-2 rounded-xl bg-blue-500/10 dark:bg-black/40 border border-blue-500/20 flex items-center justify-center">
-                            <QrCode size={28} className="text-primary-blue" />
+                          <div className={`p-2 rounded-xl border flex items-center justify-center ${
+                            isDark
+                              ? 'bg-black/40 border-blue-500/20 text-primary-blue'
+                              : 'bg-white border-blue-200 text-primary-blue shadow-sm'
+                          }`}>
+                            <QrCode size={28} />
                           </div>
 
                           <div className="text-center space-y-1">
                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border block ${
                               reg.status === 'confirmed'
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                ? isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-800 border-amber-300'
                             }`}>
                               {reg.status}
                             </span>
                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border block ${
                               isMainAttended
-                                ? 'bg-teal-500/15 text-teal-400 border-teal-500/30'
-                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                ? isDark ? 'bg-teal-500/15 text-teal-400 border-teal-500/30' : 'bg-teal-100 text-teal-800 border-teal-300'
+                                : isDark ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' : 'bg-slate-200 text-slate-700 border-slate-300'
                             }`}>
                               {isMainAttended ? '✓ Present' : 'Absent'}
                             </span>
@@ -430,10 +495,12 @@ const ParticipantDashboard = () => {
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono-tag text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-primary-blue border border-blue-500/20">
+                          <span className={`font-mono-tag text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            isDark ? 'bg-blue-500/10 text-primary-blue border-blue-500/20' : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}>
                             {reg.mode || 'OFFLINE'} FORMAT
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {new Date(reg.registered_at).toLocaleDateString()}
                           </span>
                         </div>
@@ -447,29 +514,41 @@ const ParticipantDashboard = () => {
                           </p>
                         </div>
 
-                        {/* Registered Sub-events Chips */}
+                        {/* Registered Sub-events (All Tracks) */}
                         {subList.length > 0 && (
-                          <div className="space-y-1 pt-1">
-                            <span className="font-mono-tag text-[8px] font-bold text-slate-400 uppercase tracking-wider block">
-                              Registered Tracks ({subList.length})
+                          <div className="space-y-1.5 pt-1">
+                            <span className={`font-mono-tag text-[9px] font-bold uppercase tracking-wider block ${
+                              isDark ? 'text-slate-400' : 'text-slate-600'
+                            }`}>
+                              Registered Tracks &amp; Sub-Events ({subList.length})
                             </span>
-                            <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+                            <div className="flex flex-wrap gap-1.5">
                               {subList.map((sub, sIdx) => {
-                                const subAttended = sub.attended === 1 || sub.attended === true || sub.attended === '1';
+                                const subAttended = sub.attended === 1 || sub.attended === true || sub.attended === '1' ||
+                                                    sub.attendance === 1 || sub.attendance === '1' ||
+                                                    reg.attendance === 1 || reg.attended === true;
                                 return (
                                   <span
                                     key={sIdx}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold border ${
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition ${
                                       subAttended
-                                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                                        : 'bg-slate-800/40 border-slate-700 text-slate-300'
+                                        ? isDark
+                                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                          : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                                        : isDark
+                                          ? 'bg-slate-800/50 border-slate-700/60 text-slate-300'
+                                          : 'bg-slate-100 border-slate-300 text-slate-700'
                                     }`}
                                   >
                                     <span>{sub.sub_event_name || `Track ${sIdx + 1}`}</span>
+                                    {sub.team_name && <span className="opacity-70 text-[9px]">({sub.team_name})</span>}
                                     {subAttended ? (
-                                      <Check size={10} className="text-emerald-400" />
+                                      <span className={`inline-flex items-center gap-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                                        <Check size={11} />
+                                        <span className="text-[9px]">Present</span>
+                                      </span>
                                     ) : (
-                                      <span className="text-[8px] opacity-60">(Absent)</span>
+                                      <span className={`text-[9px] font-semibold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>(Absent)</span>
                                     )}
                                   </span>
                                 );
@@ -478,55 +557,88 @@ const ParticipantDashboard = () => {
                           </div>
                         )}
 
-                        {/* Mind Saga Direct Launchers & Candidate Access Key if registered for Mind Saga */}
-                        {subList.some(s => s.mind_saga_key || s.sub_event_name?.toLowerCase().includes('mind') || s.sub_event_slug?.toLowerCase().includes('mind')) && (
+                        {/* Mind Saga Candidate Access Card & Arena Launcher (Gated on Attendance & Key Prompt) */}
+                        {subList.some(s => s.is_mind_saga || s.mind_saga_key || s.sub_event_name?.toLowerCase().includes('mind') || s.sub_event_slug?.toLowerCase().includes('mind')) && (
                           <div className="pt-2.5 space-y-2">
                             {subList
-                              .filter(s => s.mind_saga_key || s.sub_event_name?.toLowerCase().includes('mind') || s.sub_event_slug?.toLowerCase().includes('mind'))
+                              .filter(s => s.is_mind_saga || s.mind_saga_key || s.sub_event_name?.toLowerCase().includes('mind') || s.sub_event_slug?.toLowerCase().includes('mind'))
                               .map((msSub, msIdx) => {
                                 const isLive = msSub.mind_saga_platform_status === 'live';
                                 const accessKey = msSub.mind_saga_key || 'MS-PENDING';
                                 const publicLink = `${window.location.origin}/mindsaga`;
 
+                                // Attendance Check: True if sub-event attendance OR main event attendance is marked
+                                const isAttended = (msSub.attendance === 1 || msSub.attendance === true || msSub.attendance === '1') ||
+                                                   (msSub.attended === 1 || msSub.attended === true || msSub.attended === '1') ||
+                                                   (reg.attendance === 1 || reg.attendance === true || reg.attendance === '1') ||
+                                                   (reg.attended === 1 || reg.attended === true || reg.attended === '1');
+
                                 return (
                                   <div
                                     key={msIdx}
-                                    className={`p-3 rounded-2xl border transition-all ${
+                                    className={`p-3.5 rounded-2xl border transition-all ${
                                       isDark
                                         ? 'bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-zinc-900 border-indigo-500/30'
-                                        : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-white border-indigo-200 shadow-sm'
+                                        : 'bg-gradient-to-br from-indigo-50/90 via-purple-50/50 to-white border-indigo-200 shadow-sm'
                                     }`}
                                   >
-                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                    <div className="flex items-center justify-between gap-2 mb-2.5">
                                       <div className="flex items-center gap-1.5">
-                                        <div className="p-1 rounded-lg bg-indigo-500/20 text-indigo-400">
-                                          <BrainCircuit size={13} />
+                                        <div className={`p-1.5 rounded-lg ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-700'}`}>
+                                          <BrainCircuit size={14} />
                                         </div>
-                                        <span className="font-display-heavy text-xs uppercase tracking-tight text-indigo-400 font-bold">
-                                          {msSub.sub_event_name || 'Mind Saga'}
-                                        </span>
+                                        <div>
+                                          <span className={`font-display-heavy text-xs uppercase tracking-tight font-bold block leading-none ${
+                                            isDark ? 'text-indigo-400' : 'text-indigo-800'
+                                          }`}>
+                                            {msSub.sub_event_name || 'Mind Saga'}
+                                          </span>
+                                          <span className={`text-[9px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>3 Championship Rounds</span>
+                                        </div>
                                       </div>
 
-                                      {/* Platform Status Pill */}
-                                      <span
-                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border ${
-                                          isLive
-                                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 animate-pulse'
-                                            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                                        }`}
-                                      >
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                                        <span>{isLive ? 'LIVE' : 'LOCKED'}</span>
-                                      </span>
+                                      {/* Status Badges */}
+                                      <div className="flex items-center gap-1.5">
+                                        {/* Attendance Status Badge */}
+                                        <span
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider border ${
+                                            isAttended
+                                              ? isDark ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                                              : isDark ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-rose-100 border-rose-300 text-rose-800'
+                                          }`}
+                                        >
+                                          <span className={`w-1.5 h-1.5 rounded-full ${isAttended ? (isDark ? 'bg-emerald-400' : 'bg-emerald-600') : (isDark ? 'bg-rose-400' : 'bg-rose-600')}`} />
+                                          <span>{isAttended ? 'Attended ✓' : 'Absent'}</span>
+                                        </span>
+
+                                        {/* Platform Status Pill */}
+                                        <span
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border ${
+                                            isLive
+                                              ? isDark ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 animate-pulse' : 'bg-emerald-100 border-emerald-300 text-emerald-800 animate-pulse'
+                                              : isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-100 border-amber-300 text-amber-800'
+                                          }`}
+                                        >
+                                          <span>{isLive ? 'LIVE' : 'STANDBY'}</span>
+                                        </span>
+                                      </div>
                                     </div>
 
                                     {/* Access Key Display Box */}
-                                    <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-black/30 border border-indigo-500/20 mb-2.5">
-                                      <div className="flex items-center gap-1.5 truncate">
-                                        <Key size={12} className="text-indigo-400 shrink-0" />
+                                    <div className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border mb-3 ${
+                                      isDark
+                                        ? 'bg-black/40 border-indigo-500/20'
+                                        : 'bg-white/95 border-indigo-200 shadow-sm'
+                                    }`}>
+                                      <div className="flex items-center gap-2 truncate">
+                                        <Key size={13} className={isDark ? 'text-indigo-400 shrink-0' : 'text-indigo-600 shrink-0'} />
                                         <div className="truncate">
-                                          <span className="text-[8px] font-mono uppercase text-slate-400 block leading-none">Access Key</span>
-                                          <span className="font-mono text-[11px] font-black text-indigo-300 tracking-wider select-all">
+                                          <span className={`text-[8px] font-mono uppercase block leading-none ${isDark ? 'text-slate-400' : 'text-slate-500 font-semibold'}`}>
+                                            Unique Candidate Key
+                                          </span>
+                                          <span className={`font-mono text-[11px] font-black tracking-wider select-all ${
+                                            isDark ? 'text-indigo-300' : 'text-indigo-700'
+                                          }`}>
                                             {accessKey}
                                           </span>
                                         </div>
@@ -536,7 +648,11 @@ const ParticipantDashboard = () => {
                                         <button
                                           type="button"
                                           onClick={() => handleCopy(accessKey, 'Mind Saga Access Key')}
-                                          className="p-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                          className={`p-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                                            isDark
+                                              ? 'bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30'
+                                              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-2xs'
+                                          }`}
                                           title="Copy Access Key"
                                         >
                                           <Copy size={11} />
@@ -545,7 +661,11 @@ const ParticipantDashboard = () => {
                                         <button
                                           type="button"
                                           onClick={() => handleCopy(publicLink, 'Mind Saga Platform Link')}
-                                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                          className={`p-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                                            isDark
+                                              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                                          }`}
                                           title="Copy Public Platform Link"
                                         >
                                           <Globe size={11} />
@@ -554,21 +674,38 @@ const ParticipantDashboard = () => {
                                       </div>
                                     </div>
 
-                                    {/* Arena Entry Action */}
-                                    {isLive ? (
-                                      <Link
-                                        to={`/events/${reg.event_id}/sub-events/${msSub.sub_event_id}/mind-saga`}
-                                        className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-[11px] font-black uppercase tracking-wider transition shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 text-center cursor-pointer"
-                                      >
-                                        <Play size={12} />
-                                        <span>Enter Mind Saga Arena (3 Rounds)</span>
-                                        <ArrowUpRight size={12} />
-                                      </Link>
-                                    ) : (
-                                      <div className="w-full py-2 px-3 rounded-xl bg-zinc-800/80 border border-zinc-700/60 text-zinc-400 text-[10px] font-bold flex items-center justify-center gap-1.5 text-center">
-                                        <Lock size={12} className="text-amber-400" />
-                                        <span>Locked by Admin · Opens when Admin goes LIVE</span>
+                                    {/* Arena Entry Action - Strictly Gated by Attendance & Requires Key Prompt */}
+                                    {!isAttended ? (
+                                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                                        isDark
+                                          ? 'bg-amber-500/10 border-amber-500/25'
+                                          : 'bg-amber-50 border-amber-200 text-amber-900'
+                                      }`}>
+                                        <div className="flex items-center gap-2">
+                                          <Lock size={13} className={isDark ? 'text-amber-400 shrink-0' : 'text-amber-600 shrink-0'} />
+                                          <span className={`text-[10px] font-semibold leading-tight ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                                            Attendance required to unlock test link. Scan venue QR code.
+                                          </span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setScannerOpen(true)}
+                                          className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-lg text-[10px] font-bold shrink-0 flex items-center gap-1 cursor-pointer transition shadow-sm"
+                                        >
+                                          <ScanLine size={12} />
+                                          <span>Scan QR</span>
+                                        </button>
                                       </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => openMindSagaKeyPrompt(reg.event_id, msSub.sub_event_id, msSub.sub_event_name, accessKey)}
+                                        className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-[11px] font-black uppercase tracking-wider transition shadow-md shadow-indigo-600/25 flex items-center justify-center gap-2 text-center cursor-pointer"
+                                      >
+                                        <Play size={13} />
+                                        <span>Enter Mind Saga Arena (Enter Key)</span>
+                                        <ArrowUpRight size={13} />
+                                      </button>
                                     )}
                                   </div>
                                 );
@@ -787,54 +924,123 @@ const ParticipantDashboard = () => {
                 {selectedPass.sub_events?.length > 0 && (
                   <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
                     <span className="font-mono-tag text-[9px] font-black uppercase tracking-wider text-slate-400 block">
-                      SUB-EVENTS &amp; COMPETITION TRACKS
+                      REGISTERED SUB-EVENTS &amp; TRACKS ({selectedPass.sub_events.length})
                     </span>
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       {selectedPass.sub_events.map((sub, sIdx) => {
-                        const subAtt = sub.attended === 1 || sub.attended === true || sub.attended === '1';
-                        const isMindSaga = sub.mind_saga_key || sub.sub_event_name?.toLowerCase().includes('mind') || sub.sub_event_slug?.toLowerCase().includes('mind');
+                        const isSubAtt = sub.attendance === 1 || sub.attendance === true || sub.attendance === '1' ||
+                                         sub.attended === 1 || sub.attended === true || sub.attended === '1' ||
+                                         selectedPass.attendance === 1 || selectedPass.attendance === true || selectedPass.attendance === '1' ||
+                                         selectedPass.attended === 1 || selectedPass.attended === true || selectedPass.attended === '1';
+
+                        const isMindSaga = sub.is_mind_saga || sub.mind_saga_key || sub.sub_event_name?.toLowerCase().includes('mind') || sub.sub_event_slug?.toLowerCase().includes('mind');
+                        const accessKey = sub.mind_saga_key || 'MS-PENDING';
+                        const publicLink = `${window.location.origin}/mindsaga`;
 
                         return (
                           <div
                             key={sIdx}
-                            className={`p-3 rounded-xl border flex flex-col gap-2 text-xs ${
+                            className={`p-3.5 rounded-xl border flex flex-col gap-2.5 text-xs ${
                               isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div className="space-y-0.5">
-                                <p className="font-bold text-zinc-900 dark:text-zinc-100">
-                                  {sub.sub_event_name} {sub.team_name && `(${sub.team_name})`}
+                                <p className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
+                                  {sub.sub_event_name}
                                 </p>
-                                <span className="text-[10px] text-slate-400 capitalize">{sub.sub_event_type || 'Track'}</span>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                  <span className="capitalize">{sub.sub_event_type || 'Track'}</span>
+                                  {sub.team_name && (
+                                    <span>• Team: <strong className="text-primary-blue">{sub.team_name}</strong></span>
+                                  )}
+                                </div>
                               </div>
 
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider border ${
-                                  subAtt
+                                className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                                  isSubAtt
                                     ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                                     : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
                                 }`}
                               >
-                                {subAtt ? 'Present' : 'Absent'}
+                                {isSubAtt ? '✓ Attended' : 'Absent'}
                               </span>
                             </div>
 
-                            {/* Mind Saga Key Callout in Modal */}
+                            {/* Mind Saga Key & Arena Launcher inside Modal */}
                             {isMindSaga && (
-                              <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1.5">
-                                  <Key size={12} className="text-indigo-400" />
-                                  <span className="text-[10px] text-slate-400">Mind Saga Key:</span>
-                                  <span className="font-mono font-bold text-indigo-400 select-all">{sub.mind_saga_key || 'MS-PENDING'}</span>
+                              <div className="space-y-2 pt-2 border-t border-indigo-500/20">
+                                <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                                  isDark ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-indigo-50/80 border-indigo-200'
+                                }`}>
+                                  <div className="flex items-center gap-2 truncate">
+                                    <Key size={13} className={isDark ? 'text-indigo-400 shrink-0' : 'text-indigo-600 shrink-0'} />
+                                    <div>
+                                      <span className={`text-[8px] font-mono uppercase block leading-none ${isDark ? 'text-slate-400' : 'text-slate-500 font-semibold'}`}>
+                                        Unique Candidate Key
+                                      </span>
+                                      <span className={`font-mono font-bold text-xs select-all ${isDark ? 'text-indigo-300' : 'text-indigo-700'}`}>
+                                        {accessKey}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopy(accessKey, 'Mind Saga Access Key')}
+                                      className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer ${
+                                        isDark ? 'bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+                                      }`}
+                                    >
+                                      Copy Key
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopy(publicLink, 'Mind Saga Platform Link')}
+                                      className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer ${
+                                        isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                                      }`}
+                                    >
+                                      Copy Link
+                                    </button>
+                                  </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopy(sub.mind_saga_key, 'Mind Saga Access Key')}
-                                  className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
-                                >
-                                  Copy
-                                </button>
+
+                                {/* Mind Saga Link Action */}
+                                {isSubAtt ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openMindSagaKeyPrompt(selectedPass.event_id, sub.sub_event_id, sub.sub_event_name, accessKey)}
+                                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md shadow-indigo-600/25 cursor-pointer"
+                                  >
+                                    <Play size={13} />
+                                    <span>Launch Mind Saga Arena (Enter Key)</span>
+                                    <ArrowUpRight size={13} />
+                                  </button>
+                                ) : (
+                                  <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                                    isDark ? 'bg-amber-500/10 border-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-900'
+                                  }`}>
+                                    <div className="flex items-center gap-1.5 text-xs">
+                                      <Lock size={13} className={isDark ? 'shrink-0 text-amber-400' : 'shrink-0 text-amber-600'} />
+                                      <span className={`text-[10px] font-semibold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                                        Attendance required to unlock test link
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedPass(null);
+                                        setScannerOpen(true);
+                                      }}
+                                      className="px-2.5 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 text-white rounded-lg text-[10px] font-bold shrink-0 flex items-center gap-1 cursor-pointer transition shadow-sm"
+                                    >
+                                      <ScanLine size={12} />
+                                      <span>Scan QR</span>
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -861,6 +1067,92 @@ const ParticipantDashboard = () => {
                   Close
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MIND SAGA KEY CHALLENGE MODAL --- */}
+      <AnimatePresence>
+        {mindSagaModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`max-w-md w-full rounded-3xl border p-6 sm:p-8 shadow-2xl relative overflow-hidden ${
+                isDark ? 'bg-[#0E172A] border-[#1E293B] text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-2xl bg-indigo-500/15 text-indigo-500 border border-indigo-500/30">
+                    <BrainCircuit size={22} />
+                  </div>
+                  <div>
+                    <h3 className="font-display-heavy text-lg uppercase tracking-tight">
+                      {mindSagaModal.subEventName || 'Mind Saga'}
+                    </h3>
+                    <span className="text-[10px] font-mono text-indigo-500 uppercase tracking-wider block font-bold">
+                      Candidate Key Required
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMindSagaModal({ isOpen: false, eventId: null, subEventId: null, subEventName: '', defaultKey: '' })}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className={`text-xs mb-5 leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                Please enter your unique <strong>Mind Saga Access Key</strong> to unlock the 3-round tournament arena.
+              </p>
+
+              <form onSubmit={handleVerifyMindSagaKey} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider mb-2 text-slate-400">
+                    Candidate Access Key
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-400">
+                      <Key size={16} />
+                    </div>
+                    <input
+                      type="text"
+                      value={keyInput}
+                      onChange={(e) => setKeyInput(e.target.value.toUpperCase())}
+                      placeholder="e.g. MS-XXXX-YYYY"
+                      autoFocus
+                      className={`w-full pl-10 pr-4 py-3 rounded-2xl border font-mono text-sm font-black tracking-wider transition focus:outline-none focus:ring-2 focus:ring-indigo-500/40 uppercase ${
+                        isDark ? 'bg-[#070C18] border-slate-700 text-white placeholder-slate-600' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setMindSagaModal({ isOpen: false, eventId: null, subEventId: null, subEventName: '', defaultKey: '' })}
+                    className={`flex-1 py-3 rounded-2xl border text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
+                      isDark ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300' : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={verifyingKey}
+                    className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-black uppercase tracking-wider transition shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Unlock size={14} />
+                    <span>{verifyingKey ? 'Verifying...' : 'Verify & Enter'}</span>
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

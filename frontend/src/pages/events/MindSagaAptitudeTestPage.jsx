@@ -21,7 +21,8 @@ import {
   Sparkles,
   Maximize2,
   X,
-  Volume2
+  Volume2,
+  ArrowRight
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
@@ -51,14 +52,43 @@ const MindSagaAptitudeTestPage = () => {
   const [cameraStatus, setCameraStatus] = useState('connecting'); // 'connected' | 'denied' | 'disconnected'
   const [micStatus, setMicStatus] = useState('connecting');
   const [violationCount, setViolationCount] = useState(0);
-  const [warningModal, setWarningModal] = useState({ isOpen: false, title: '', message: '' });
+  const [fullscreenExits, setFullscreenExits] = useState(0);
+  const [fullscreenCountdown, setFullscreenCountdown] = useState(10);
+  const [warningModal, setWarningModal] = useState({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [exitConfirmModal, setExitConfirmModal] = useState(false);
 
   // Drawing modal state
   const [drawingModalOpen, setDrawingModalOpen] = useState(false);
 
   const videoRef = useRef(null);
   const autosaveTimerRef = useRef(null);
+  const fullscreenExitsRef = useRef(0);
+  const isFullscreenWarningRef = useRef(false);
+
+  // Keep refs synced
+  useEffect(() => {
+    fullscreenExitsRef.current = fullscreenExits;
+  }, [fullscreenExits]);
+
+  // Fullscreen countdown timer
+  useEffect(() => {
+    if (!warningModal.isOpen || !warningModal.isFullscreenWarning || testResult) return;
+
+    const timer = setInterval(() => {
+      setFullscreenCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          toast.error('Auto-submitted due to failure to return to full-screen in 10s.');
+          handleSubmitTest(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [warningModal.isOpen, warningModal.isFullscreenWarning, testResult]);
 
   // 1. Initialize Test Session
   const initSession = useCallback(async () => {
@@ -95,34 +125,73 @@ const MindSagaAptitudeTestPage = () => {
   }, [initSession]);
 
   // 2. Camera & Microphone Setup
-  useEffect(() => {
-    let activeStream = null;
-
-    const startMedia = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        activeStream = stream;
-        setCameraStream(stream);
-        setCameraStatus('connected');
-        setMicStatus('connected');
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        console.warn('Camera/mic access denied:', err);
-        setCameraStatus('denied');
-        setMicStatus('denied');
+  const startMedia = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setCameraStream(stream);
+      setCameraStatus('connected');
+      setMicStatus('connected');
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
       }
-    };
+    } catch (err) {
+      console.warn('Camera/mic access denied:', err);
+      setCameraStatus('denied');
+      setMicStatus('denied');
+    }
+  }, []);
 
+  useEffect(() => {
     startMedia();
-
     return () => {
-      if (activeStream) {
-        activeStream.getTracks().forEach((t) => t.stop());
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((t) => t.stop());
       }
     };
   }, []);
+
+  // Periodic CCTV Live Frame Streaming & Admin Heartbeat Listener
+  useEffect(() => {
+    if (!sessionData?.session_token || testResult || cameraStatus !== 'connected') return;
+
+    const captureCanvas = document.createElement('canvas');
+    captureCanvas.width = 320;
+    captureCanvas.height = 240;
+    const ctx = captureCanvas.getContext('2d');
+
+    const streamInterval = setInterval(async () => {
+      try {
+        let snapshotData = null;
+        if (videoRef.current && videoRef.current.videoWidth > 0) {
+          ctx.drawImage(videoRef.current, 0, 0, 320, 240);
+          snapshotData = captureCanvas.toDataURL('image/jpeg', 0.6);
+        }
+
+        const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/snapshot`, {
+          session_token: sessionData.session_token,
+          image_data: snapshotData,
+          camera_status: cameraStatus,
+          round: 1
+        });
+
+        if (res.data?.terminated) {
+          clearInterval(streamInterval);
+          const blockReason = res.data?.termination_reason || 'Terminated by Proctor Administrator.';
+          setWarningModal({
+            isOpen: true,
+            title: 'Test Terminated by Administrator',
+            message: `Your test session has been immediately blocked and terminated: ${blockReason}`,
+            isFullscreenWarning: false
+          });
+          handleSubmitTest(true);
+        }
+      } catch (err) {
+        // Silent fail on minor network hiccups
+      }
+    }, 2500);
+
+    return () => clearInterval(streamInterval);
+  }, [sessionData, testResult, cameraStatus, eventId, subEventId]);
 
   // 3. Server-side countdown timer
   useEffect(() => {
@@ -195,7 +264,31 @@ const MindSagaAptitudeTestPage = () => {
       const isFull = Boolean(document.fullscreenElement);
       setIsFullscreen(isFull);
       if (!isFull) {
-        logProctorViolation('fullscreen_exit', 'Participant exited fullscreen test mode.');
+        const nextExits = fullscreenExitsRef.current + 1;
+        fullscreenExitsRef.current = nextExits;
+        setFullscreenExits(nextExits);
+
+        logProctorViolation('fullscreen_exit', `Participant exited fullscreen mode (Exit #${nextExits} of 3).`);
+
+        if (nextExits >= 3) {
+          setWarningModal({
+            isOpen: true,
+            title: 'Test Auto-Submitted',
+            message: 'You have exited full-screen 3 times (Maximum 3 strikes reached). Your test has been submitted.',
+            isFullscreenWarning: false
+          });
+          handleSubmitTest(true);
+        } else {
+          setFullscreenCountdown(10);
+          setWarningModal({
+            isOpen: true,
+            title: `Full-Screen Exit Warning (${nextExits}/3 Strikes)`,
+            message: `You exited full-screen mode (Strike ${nextExits} of 3). You have 10 seconds to return to full-screen or your test will be auto-submitted.`,
+            isFullscreenWarning: true
+          });
+        }
+      } else {
+        setWarningModal((prev) => (prev.isFullscreenWarning ? { isOpen: false, title: '', message: '', isFullscreenWarning: false } : prev));
       }
     };
 
@@ -328,12 +421,17 @@ const MindSagaAptitudeTestPage = () => {
     try {
       setSubmitting(true);
       const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/aptitude/submit`, {
-        session_token: sessionData.session_token,
+        session_token: sessionData?.session_token,
         answers: answers
       });
 
-      setTestResult(res.data);
-      toast.success('Test submitted successfully!');
+      setTestResult({
+        ...res.data,
+        is_auto_submitted: isAuto || res.data?.status === 'auto_submitted'
+      });
+      toast.success(isAuto ? 'Test automatically submitted!' : 'Test submitted successfully!', {
+        icon: isAuto ? '⏱️' : '✅'
+      });
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to submit test');
     } finally {
@@ -351,44 +449,80 @@ const MindSagaAptitudeTestPage = () => {
     );
   }
 
-  // SUBMITTED RESULT VIEW
+  // SUBMITTED / AUTO-SUBMITTED RESULT VIEW
   if (testResult) {
+    const isAuto = testResult.is_auto_submitted || testResult.status === 'auto_submitted';
+
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
-            <CheckCircle2 className="w-8 h-8" />
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${
+        isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'
+      }`}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={`max-w-md w-full rounded-3xl border p-6 sm:p-8 text-center space-y-5 shadow-2xl ${
+            isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
+          }`}
+        >
+          <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto shadow-inner ${
+            isAuto
+              ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+              : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+          }`}>
+            {isAuto ? <Clock className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
           </div>
 
           <div>
-            <h2 className="text-xl font-bold text-white">Aptitude Test Completed!</h2>
-            <p className="text-xs text-zinc-400 mt-1">
-              Your answers have been securely recorded and evaluated by the server marking engine.
+            <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {isAuto ? 'Aptitude Test Auto-Submitted!' : 'Aptitude Test Completed!'}
+            </h2>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              {isAuto
+                ? 'Your test was automatically submitted because time expired or proctoring threshold was reached. All your saved answers have been evaluated.'
+                : 'Your answers have been securely recorded and evaluated by the server marking engine.'}
             </p>
           </div>
 
-          <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span className="text-zinc-400">Score Earned:</span>
-              <span className="font-bold text-indigo-400 text-sm font-mono">{testResult.score || testResult.total_score || 0} pts</span>
+          <div className={`p-4 rounded-2xl border space-y-2 text-xs ${
+            isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-slate-50 border-slate-200'
+          }`}>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-medium">Score Earned:</span>
+              <span className="font-bold text-indigo-400 text-sm font-mono">{testResult.score ?? testResult.total_score ?? 0} pts</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-400">Percentage:</span>
-              <span className="font-bold text-white font-mono">{testResult.percentage || 0}%</span>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-medium">Percentage:</span>
+              <span className={`font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{testResult.percentage ?? 0}%</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-400">Submission Mode:</span>
-              <span className="font-semibold text-emerald-400 uppercase">{testResult.status}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-medium">Submission Mode:</span>
+              <span className={`font-semibold uppercase text-[11px] ${
+                isAuto ? 'text-amber-400' : 'text-emerald-400'
+              }`}>
+                {testResult.status || (isAuto ? 'AUTO_SUBMITTED' : 'SUBMITTED')}
+              </span>
             </div>
           </div>
 
-          <button
-            onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga`)}
-            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold text-xs transition shadow-lg shadow-indigo-600/20"
-          >
-            Back to Mind Saga Hub
-          </button>
-        </div>
+          <div className="space-y-2.5 pt-2">
+            <button
+              onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga`)}
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs transition shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Okay · Proceed to Next Round (Gaming)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga/game`)}
+              className={`w-full py-2.5 border rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                isDark ? 'border-zinc-800 hover:bg-zinc-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Launch Round 2 Gaming Directly</span>
+            </button>
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -445,10 +579,19 @@ const MindSagaAptitudeTestPage = () => {
           <button
             onClick={() => handleSubmitTest(false)}
             disabled={submitting}
-            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition"
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
             <span>Finish Test</span>
+          </button>
+
+          <button
+            onClick={() => setExitConfirmModal(true)}
+            className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+            title="Exit Test and Submit"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Exit</span>
           </button>
         </div>
       </header>
@@ -722,14 +865,98 @@ const MindSagaAptitudeTestPage = () => {
               <h3 className="font-bold text-white text-base">{warningModal.title}</h3>
               <p className="text-xs text-zinc-300 mt-1 leading-relaxed">{warningModal.message}</p>
             </div>
+
+            {warningModal.isFullscreenWarning && (
+              <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl space-y-2 text-left">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-red-300 font-medium">Auto-Submit Countdown</span>
+                  <span className="font-mono font-bold text-red-400 text-sm">{fullscreenCountdown}s</span>
+                </div>
+                <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-red-500 h-full transition-all duration-1000 ease-linear"
+                    style={{ width: `${(fullscreenCountdown / 10) * 100}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Strike {fullscreenExits} of 3. On the 3rd exit, the test is submitted immediately.
+                </p>
+              </div>
+            )}
+
             <button
               onClick={() => {
-                setWarningModal({ isOpen: false, title: '', message: '' });
+                setWarningModal({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
                 requestFullscreen();
               }}
-              className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-600/20"
+              className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
             >
-              I Understand & Resume Test
+              <Maximize2 className="w-4 h-4" />
+              Return to Full-Screen Now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* EXIT TEST CONFIRMATION WARNING MODAL */}
+      {exitConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-red-500/40 rounded-3xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Exit Aptitude Test?</h3>
+              <p className="text-xs text-zinc-300 mt-2 leading-relaxed">
+                Exiting will submit your current test progress and <strong>consume 1 attempt</strong>. If all your allowed attempts are exhausted, you will <strong>NOT</strong> be permitted to re-attempt this round.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setExitConfirmModal(false)}
+                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Stay in Test
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExitConfirmModal(false);
+                  handleSubmitTest(true);
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-red-600/20 cursor-pointer"
+              >
+                Exit & Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANDATORY WEBCAM SURVEILLANCE MODAL */}
+      {cameraStatus !== 'connected' && !loading && !testResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in">
+          <div className="bg-zinc-900 border-2 border-rose-500/80 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center space-y-5 shadow-2xl shadow-rose-600/30">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
+              <Video className="w-8 h-8" />
+            </div>
+            <div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                Surveillance Enforced
+              </span>
+              <h3 className="text-xl font-black text-white mt-3">Live Camera Required</h3>
+              <p className="text-xs text-zinc-300 mt-2 leading-relaxed">
+                Mind Saga enforces continuous live camera proctoring. You must allow webcam access to continue the aptitude assessment.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={startMedia}
+              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
+            >
+              <Video className="w-4 h-4" />
+              <span>Enable Webcam Now</span>
             </button>
           </div>
         </div>

@@ -232,11 +232,16 @@ $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/
 
 // Mind Saga Round 2: Gaming Engine
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/games',                      [MindSagaController::class, 'listGames']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games',                      [MindSagaController::class, 'createGameConfig']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/games/{gameId}',             [MindSagaController::class, 'updateGameConfig']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/games/{gameId}',             [MindSagaController::class, 'deleteGameConfig']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/start',                [MindSagaController::class, 'startGameSession']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/submit',               [MindSagaController::class, 'submitGameScore']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/proctor-event',        [MindSagaController::class, 'logGameProctorEvent']);
 
 // Mind Saga Proctoring CCTV & Live Monitoring
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/proctoring/live',           [MindSagaController::class, 'getLiveProctoring']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/snapshot',       [MindSagaController::class, 'saveProctorSnapshot']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/terminate-session', [MindSagaController::class, 'terminateSession']);
 
 // Mind Saga Master Leaderboard, Participant Status & Qualification
@@ -244,6 +249,7 @@ $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/leaderboa
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/promote',                   [MindSagaController::class, 'promoteParticipants']);
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/participant-status',        [MindSagaController::class, 'getParticipantStatus']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/platform-status',           [MindSagaController::class, 'togglePlatformStatus']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/active-round',              [MindSagaController::class, 'setActiveRound']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/send-keys-email',           [MindSagaController::class, 'sendKeysEmail']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/regenerate-keys',           [MindSagaController::class, 'regenerateAccessKeys']);
 

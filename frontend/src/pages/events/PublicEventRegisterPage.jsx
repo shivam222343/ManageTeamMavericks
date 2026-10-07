@@ -417,13 +417,14 @@ const PublicEventRegisterPage = () => {
       : parseFloat(event?.registration_fee || 0);
 
   const isPaid = Boolean(event?.payment_required && effectiveFee > 0);
-  const totalSteps = sections.length + (isPaid ? 1 : 0);
+  const hasSubEventsStep = subEvents.length > 0;
+  const totalSteps = (hasSubEventsStep ? 1 : 0) + sections.length + (isPaid ? 1 : 0);
 
   const validateCurrentStep = async () => {
-    if (sections.length === 0 && !isPaid) return true;
+    if (sections.length === 0 && !isPaid && !hasSubEventsStep) return true;
 
-    // Validate sub-events on step 0 if sub-events exist
-    if (activeStep === 0 && subEvents.length > 0) {
+    // 1. Validate dedicated Sub-Events step (Step 0 when sub-events exist)
+    if (hasSubEventsStep && activeStep === 0) {
       if (selectedSubList.length === 0) {
         toast.error('Please select at least one sub-event / competition track to participate in.');
         return false;
@@ -449,10 +450,15 @@ const PublicEventRegisterPage = () => {
           }
         }
       }
+      return true;
     }
 
-    if (activeStep < sections.length) {
-      const currentSection = sections[activeStep];
+    // 2. Validate Dynamic Form Sections
+    const sectionOffset = hasSubEventsStep ? 1 : 0;
+    const currentSectionIndex = activeStep - sectionOffset;
+
+    if (currentSectionIndex >= 0 && currentSectionIndex < sections.length) {
+      const currentSection = sections[currentSectionIndex];
       if (!currentSection) return true;
 
       const currentFieldNames = (currentSection.fields || [])
@@ -518,7 +524,8 @@ const PublicEventRegisterPage = () => {
       return true;
     }
 
-    if (isPaid && activeStep === sections.length) {
+    // 3. Validate Payment Step
+    if (isPaid && activeStep === totalSteps - 1) {
       if (event?.payment_method === 'razorpay') {
         return true;
       }
@@ -1276,29 +1283,50 @@ const PublicEventRegisterPage = () => {
               {/* Stepper Header (if multi-step) */}
               {totalSteps > 1 ? (
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                  {sections.map((sec, idx) => (
+                  {/* Step 1: Sub-Events (if present) */}
+                  {hasSubEventsStep && (
                     <div
-                      key={sec.id || idx}
-                      className={`flex-1 min-w-[140px] p-3.5 rounded-2xl border transition ${activeStep === idx
+                      className={`flex-1 min-w-[140px] p-3.5 rounded-2xl border transition ${activeStep === 0
                         ? 'bg-blue-500/10 border-blue-500/40 text-primary-blue'
-                        : activeStep > idx
+                        : activeStep > 0
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                           : 'bg-slate-100 dark:bg-slate-900/40 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-400'
                         }`}
                     >
-                      <span className="font-mono-tag text-[9px] font-black uppercase tracking-wider block text-slate-500 dark:text-slate-400">STEP {idx + 1}</span>
-                      <span className="text-xs font-bold truncate block">{sec.name || `Section ${idx + 1}`}</span>
+                      <span className="font-mono-tag text-[9px] font-black uppercase tracking-wider block text-slate-500 dark:text-slate-400">STEP 1</span>
+                      <span className="text-xs font-bold truncate block">Tracks &amp; Events</span>
                     </div>
-                  ))}
+                  )}
 
+                  {/* Form Dynamic Sections */}
+                  {sections.map((sec, idx) => {
+                    const stepIdx = (hasSubEventsStep ? 1 : 0) + idx;
+                    const stepNum = stepIdx + 1;
+                    return (
+                      <div
+                        key={sec.id || idx}
+                        className={`flex-1 min-w-[140px] p-3.5 rounded-2xl border transition ${activeStep === stepIdx
+                          ? 'bg-blue-500/10 border-blue-500/40 text-primary-blue'
+                          : activeStep > stepIdx
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-slate-100 dark:bg-slate-900/40 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-400'
+                          }`}
+                      >
+                        <span className="font-mono-tag text-[9px] font-black uppercase tracking-wider block text-slate-500 dark:text-slate-400">STEP {stepNum}</span>
+                        <span className="text-xs font-bold truncate block">{sec.name || `Section ${idx + 1}`}</span>
+                      </div>
+                    );
+                  })}
+
+                  {/* Payment Verification Step */}
                   {Boolean(isPaid) ? (
                     <div
-                      className={`flex-1 min-w-[140px] p-3.5 rounded-2xl border transition ${activeStep === sections.length
+                      className={`flex-1 min-w-[140px] p-3.5 rounded-2xl border transition ${activeStep === totalSteps - 1
                         ? 'bg-blue-500/10 border-blue-500/40 text-primary-blue'
                         : 'bg-slate-100 dark:bg-slate-900/40 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-400'
                         }`}
                     >
-                      <span className="font-mono-tag text-[9px] font-black uppercase tracking-wider block text-slate-500 dark:text-slate-400">STEP {sections.length + 1}</span>
+                      <span className="font-mono-tag text-[9px] font-black uppercase tracking-wider block text-slate-500 dark:text-slate-400">STEP {totalSteps}</span>
                       <span className="text-xs font-bold truncate block">Payment Verification</span>
                     </div>
                   ) : null}
@@ -1308,9 +1336,9 @@ const PublicEventRegisterPage = () => {
               {/* Form Container */}
               <div className={`p-3.5 sm:p-10 rounded-3xl border shadow-xl space-y-8 ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-white border-slate-200'
                 }`}>
-                {/* Sub-Events / Tracks Selection (Shown on Step 0 if sub-events exist) */}
-                {activeStep === 0 && subEvents.length > 0 && (
-                  <div className="space-y-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+                {/* Sub-Events / Tracks Selection (Shown ONLY on Step 0 when sub-events exist) */}
+                {hasSubEventsStep && activeStep === 0 && (
+                  <div className="space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
@@ -1561,22 +1589,27 @@ const PublicEventRegisterPage = () => {
                 )}
 
                 {/* Active Dynamic Form Section */}
-                {activeStep < sections.length && sections[activeStep] ? (
-                  <div className="space-y-6">
-                    <div>
-                      <p className="font-mono-tag text-[10px] font-black uppercase tracking-widest text-primary-blue">
-                        SECTION {activeStep + 1} OF {sections.length}
-                      </p>
-                      <h3 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mt-1">
-                        {sections[activeStep].name || 'Event Registration'}
-                      </h3>
-                      {sections[activeStep].description ? (
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">{sections[activeStep].description}</p>
-                      ) : null}
-                    </div>
+                {(() => {
+                  const currentSecIdx = activeStep - (hasSubEventsStep ? 1 : 0);
+                  if (currentSecIdx < 0 || currentSecIdx >= sections.length || !sections[currentSecIdx]) return null;
+                  const currentSection = sections[currentSecIdx];
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      {(sections[activeStep].fields || []).map((field) => {
+                  return (
+                    <div className="space-y-6">
+                      <div>
+                        <p className="font-mono-tag text-[10px] font-black uppercase tracking-widest text-primary-blue">
+                          SECTION {currentSecIdx + 1} OF {sections.length}
+                        </p>
+                        <h3 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mt-1">
+                          {currentSection.name || 'Event Registration'}
+                        </h3>
+                        {currentSection.description ? (
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">{currentSection.description}</p>
+                        ) : null}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        {(currentSection.fields || []).map((field) => {
                         const fieldName = `field_${field.id}`;
                         const isFull = ['textarea', 'file', 'image', 'resume', 'pdf'].includes(field.field_type);
 
@@ -1680,10 +1713,11 @@ const PublicEventRegisterPage = () => {
                       })}
                     </div>
                   </div>
-                ) : null}
+                );
+              })()}
 
                 {/* Final Step Payment UI (if paid) */}
-                {Boolean(isPaid) && activeStep === sections.length ? (
+                {Boolean(isPaid) && activeStep === totalSteps - 1 ? (
                   <div className="pt-2 space-y-6">
                     {/* Payment Header */}
                     <div className="flex items-center justify-between">

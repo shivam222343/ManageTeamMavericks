@@ -282,13 +282,12 @@ const EventSubEventsManager = ({ eventId, event, onUpdate }) => {
                           Sub-Event
                         </span>
                         <span
-                          className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${
-                            isClosed
-                              ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                              : isFull
+                          className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${isClosed
+                            ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                            : isFull
                               ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                               : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                          }`}
+                            }`}
                         >
                           {isClosed ? 'Closed' : isFull ? 'Housefull' : 'Open'}
                         </span>
@@ -300,11 +299,10 @@ const EventSubEventsManager = ({ eventId, event, onUpdate }) => {
                     </div>
 
                     <span
-                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider shrink-0 ${
-                        sub.type === 'group'
-                          ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
-                          : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
-                      }`}
+                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider shrink-0 ${sub.type === 'group'
+                        ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                        }`}
                     >
                       {sub.type}
                     </span>
@@ -341,9 +339,8 @@ const EventSubEventsManager = ({ eventId, event, onUpdate }) => {
                     {maxPart && maxPart > 0 && (
                       <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${
-                            isFull ? 'bg-rose-500' : totalRegs / maxPart > 0.8 ? 'bg-amber-500' : 'bg-primary-blue'
-                          }`}
+                          className={`h-full rounded-full ${isFull ? 'bg-rose-500' : totalRegs / maxPart > 0.8 ? 'bg-amber-500' : 'bg-primary-blue'
+                            }`}
                           style={{ width: `${Math.min(100, (totalRegs / maxPart) * 100)}%` }}
                         />
                       </div>
@@ -359,15 +356,15 @@ const EventSubEventsManager = ({ eventId, event, onUpdate }) => {
                         to={`/dashboard/events/${eventId}/sub-events/${sub.id}/mind-saga`}
                         className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-[11px] font-black uppercase tracking-wider transition shadow-md shadow-indigo-600/20 text-center"
                       >
-                        <BrainCircuit size={13} />
-                        <span>Mind Saga 3-Rounds</span>
+                        <Sliders size={13} />
+                        <span>Ctrl Room</span>
                       </Link>
                       <Link
                         to={`/dashboard/events/${eventId}/sub-events/${sub.id}`}
                         className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-[11px] font-black uppercase tracking-wider transition text-center"
                       >
-                        <Sliders size={13} />
-                        <span>Control Room</span>
+                        <BrainCircuit size={13} />
+                        <span>Rounds</span>
                       </Link>
                     </div>
                   ) : (
@@ -385,11 +382,10 @@ const EventSubEventsManager = ({ eventId, event, onUpdate }) => {
                     <button
                       onClick={() => handleToggleRegistrationStatus(sub)}
                       disabled={togglingStatusId === sub.id}
-                      className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-[11px] font-black uppercase tracking-wider border transition cursor-pointer disabled:opacity-50 ${
-                        isClosed
-                          ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                          : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                      }`}
+                      className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-[11px] font-black uppercase tracking-wider border transition cursor-pointer disabled:opacity-50 ${isClosed
+                        ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                        : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                        }`}
                       title={isClosed ? 'Reopen Registrations for this track' : 'Close Registrations for this track'}
                     >
                       {isClosed ? <Unlock size={12} /> : <Lock size={12} />}

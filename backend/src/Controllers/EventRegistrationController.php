@@ -770,7 +770,7 @@ class EventRegistrationController {
 
             // Fetch sub-events registered
             $subStmt = $db->prepare("
-                SELECT ers.*, es.name as sub_event_name, es.type as sub_event_type, es.fee as sub_event_fee
+                SELECT ers.*, es.name as sub_event_name, es.slug as sub_event_slug, es.type as sub_event_type, es.fee as sub_event_fee
                 FROM event_registration_sub_events ers
                 JOIN event_sub_events es ON ers.sub_event_id = es.id
                 WHERE ers.registration_id = ?
@@ -780,6 +780,7 @@ class EventRegistrationController {
             $subList = $subStmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($subList as &$s) {
                 $s['attendance'] = (int)($s['attendance'] ?? 0);
+                $s['attended'] = ($s['attendance'] === 1);
                 if (is_string($s['team_members'])) {
                     $s['team_members'] = json_decode($s['team_members'], true);
                 }
@@ -795,6 +796,7 @@ class EventRegistrationController {
                     $msCfg = $msCfgStmt->fetch(PDO::FETCH_ASSOC);
 
                     $isMindSaga = ($msScore !== false) || ($msCfg !== false) || (stripos($s['sub_event_name'] ?? '', 'mind') !== false);
+                    $s['is_mind_saga'] = $isMindSaga;
 
                     if ($isMindSaga) {
                         if (empty($msScore['access_key'])) {
@@ -821,6 +823,7 @@ class EventRegistrationController {
                 }
             }
             $reg['sub_events'] = $subList;
+            $reg['attended'] = ($reg['attendance'] === 1);
         }
 
         Router::sendJson([

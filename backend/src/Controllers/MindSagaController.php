@@ -39,6 +39,15 @@ class MindSagaController {
         try {
             $db->exec("ALTER TABLE mind_saga_configs ADD COLUMN platform_status ENUM('locked', 'live', 'paused', 'completed') NOT NULL DEFAULT 'locked'");
         } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_configs ADD COLUMN active_round INT NOT NULL DEFAULT 1");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_configs ADD COLUMN max_attempts_r1 INT NOT NULL DEFAULT 1");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_configs ADD COLUMN max_attempts_r2 INT NOT NULL DEFAULT 1");
+        } catch (\Exception $e) {}
 
         // 2. Aptitude Tests
         $db->exec("CREATE TABLE IF NOT EXISTS mind_saga_aptitude_tests (
@@ -178,6 +187,18 @@ class MindSagaController {
 
         try {
             $db->exec("ALTER TABLE mind_saga_scores ADD COLUMN access_key VARCHAR(32) DEFAULT NULL");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_test_sessions ADD COLUMN latest_snapshot MEDIUMTEXT DEFAULT NULL");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_test_sessions ADD COLUMN last_snapshot_at DATETIME DEFAULT NULL");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_game_sessions ADD COLUMN latest_snapshot MEDIUMTEXT DEFAULT NULL");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_game_sessions ADD COLUMN last_snapshot_at DATETIME DEFAULT NULL");
         } catch (\Exception $e) {}
     }
 
@@ -462,15 +483,19 @@ class MindSagaController {
         $reqCamR1 = isset($body['require_camera_r1']) ? (int)(bool)$body['require_camera_r1'] : 1;
         $reqCamR2 = isset($body['require_camera_r2']) ? (int)(bool)$body['require_camera_r2'] : 1;
         $maxViolations = (int)($body['max_violations_allowed'] ?? 3);
+        $activeRound = isset($body['active_round']) ? max(1, min(3, (int)$body['active_round'])) : 1;
+        $maxAttemptsR1 = isset($body['max_attempts_r1']) ? max(1, (int)$body['max_attempts_r1']) : 1;
+        $maxAttemptsR2 = isset($body['max_attempts_r2']) ? max(1, (int)$body['max_attempts_r2']) : 1;
 
         $stmt = $db->prepare("UPDATE mind_saga_configs SET 
             round1_weight = ?, round2_weight = ?, round3_weight = ?,
             auto_qualify_round1_top = ?, auto_qualify_round2_top = ?,
             sfu_server_url = ?, require_camera_r1 = ?, require_camera_r2 = ?,
-            max_violations_allowed = ?, updated_at = NOW()
+            max_violations_allowed = ?, active_round = ?,
+            max_attempts_r1 = ?, max_attempts_r2 = ?, updated_at = NOW()
             WHERE sub_event_id = ?
         ");
-        $stmt->execute([$r1, $r2, $r3, $autoQ1, $autoQ2, $sfuUrl, $reqCamR1, $reqCamR2, $maxViolations, $subId]);
+        $stmt->execute([$r1, $r2, $r3, $autoQ1, $autoQ2, $sfuUrl, $reqCamR1, $reqCamR2, $maxViolations, $activeRound, $maxAttemptsR1, $maxAttemptsR2, $subId]);
 
         // Recalculate final weighted scores for existing completed participant records
         $db->prepare("UPDATE mind_saga_scores SET 
@@ -484,6 +509,31 @@ class MindSagaController {
 
         Cache::clear("ms_config_{$subId}");
         Router::sendJson(['success' => true, 'message' => 'Mind Saga configuration updated successfully.']);
+    }
+
+    /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/active-round
+     * Admin activates/unlocks specific round level (1 = Round 1, 2 = Round 2, 3 = Round 3).
+     */
+    public static function setActiveRound(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $round = max(1, min(3, (int)($body['active_round'] ?? 1)));
+
+        $stmt = $db->prepare("UPDATE mind_saga_configs SET active_round = ?, updated_at = NOW() WHERE sub_event_id = ?");
+        $stmt->execute([$round, $subId]);
+
+        Cache::clear("ms_config_{$subId}");
+        $roundNames = [1 => 'Round 1: Aptitude', 2 => 'Round 2: Gaming', 3 => 'Round 3: Personal Interview'];
+
+        Router::sendJson([
+            'success' => true,
+            'active_round' => $round,
+            'message' => "Activated up to {$roundNames[$round]}."
+        ]);
     }
 
     // ==========================================
@@ -954,9 +1004,9 @@ class MindSagaController {
         // Get participant registration
         $regStmt = $db->prepare("SELECT er.id as registration_id, er.full_name, er.email FROM event_registrations er
             JOIN event_registration_sub_events ers ON ers.registration_id = er.id
-            WHERE ers.sub_event_id = ? AND er.email = ?
+            WHERE ers.sub_event_id = ? AND (er.email = ? OR er.id = ?)
         ");
-        $regStmt->execute([$subId, $user['email']]);
+        $regStmt->execute([$subId, $user['email'] ?? '', (int)($user['id'] ?? 0)]);
         $reg = $regStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$reg) {
@@ -976,6 +1026,21 @@ class MindSagaController {
         }
 
         $regId = (int)$reg['registration_id'];
+
+        // Get Mind Saga master config for attempts and active round
+        $cfgStmt = $db->prepare("SELECT * FROM mind_saga_configs WHERE sub_event_id = ?");
+        $cfgStmt->execute([$subId]);
+        $config = $cfgStmt->fetch(PDO::FETCH_ASSOC) ?: ['active_round' => 1, 'max_attempts_r1' => 1, 'max_attempts_r2' => 1, 'platform_status' => 'live'];
+
+        $activeRound = (int)($config['active_round'] ?? 1);
+        $maxAttemptsR1 = (int)($config['max_attempts_r1'] ?? 1);
+
+        if (!in_array($user['role'], ['coordinator', 'core_member', 'member'])) {
+            if ($activeRound < 1) {
+                Router::sendJson(['error' => 'Round 1: Aptitude Assessment has not been unlocked by the administrator yet.'], 403);
+                return;
+            }
+        }
 
         // Get test configuration
         $tStmt = $db->prepare("SELECT * FROM mind_saga_aptitude_tests WHERE id = ?");
@@ -1003,26 +1068,26 @@ class MindSagaController {
             return;
         }
 
-        // Check existing session
-        $sessStmt = $db->prepare("SELECT * FROM mind_saga_test_sessions WHERE test_id = ? AND registration_id = ?");
+        $nowTs = time();
+
+        // Check completed attempts
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_test_sessions WHERE test_id = ? AND registration_id = ? AND status IN ('submitted', 'auto_submitted', 'terminated')");
+        $countStmt->execute([$testId, $regId]);
+        $completedAttempts = (int)$countStmt->fetchColumn();
+
+        // Check active in-progress session
+        $sessStmt = $db->prepare("SELECT * FROM mind_saga_test_sessions WHERE test_id = ? AND registration_id = ? AND status = 'in_progress'");
         $sessStmt->execute([$testId, $regId]);
         $session = $sessStmt->fetch(PDO::FETCH_ASSOC);
 
-        $nowTs = time();
+        if (!$session && $completedAttempts >= $maxAttemptsR1 && !in_array($user['role'], ['coordinator', 'core_member'])) {
+            Router::sendJson([
+                'error' => "You have exhausted the maximum allowed attempts ({$maxAttemptsR1}) for Round 1: Aptitude Test."
+            ], 403);
+            return;
+        }
 
         if ($session) {
-            // If already submitted or terminated
-            if (in_array($session['status'], ['submitted', 'auto_submitted', 'terminated'])) {
-                Router::sendJson([
-                    'status' => $session['status'],
-                    'message' => 'Your test attempt has already been submitted.',
-                    'total_score' => $session['total_score'],
-                    'percentage' => $session['percentage'],
-                    'submitted_at' => $session['submitted_at']
-                ]);
-                return;
-            }
-
             // Check if expired
             $expTs = strtotime($session['expires_at']);
             if ($nowTs >= $expTs) {
@@ -1529,6 +1594,93 @@ class MindSagaController {
     }
 
     /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/games
+     * Admin adds a game challenge to the Round 2 pipeline.
+     */
+    public static function createGameConfig(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $gameKey = in_array($body['game_key'] ?? '', ['deductive_logic', 'motion_challenge']) ? $body['game_key'] : 'deductive_logic';
+        $title = trim($body['title'] ?? ($gameKey === 'deductive_logic' ? 'Deductive Symbol Matrix Deduction' : 'Motion Matrix Reflex Challenge'));
+        $difficulty = in_array($body['difficulty'] ?? '', ['easy', 'medium', 'hard']) ? $body['difficulty'] : 'medium';
+        $durationSeconds = max(30, (int)($body['duration_seconds'] ?? 180));
+        $maxScore = max(10, (int)($body['max_score'] ?? 100));
+        $rulesJson = $body['rules_json'] ?? [
+            'objective' => $gameKey === 'deductive_logic' ? 'Complete the 4x4 Latin Square logic puzzle.' : 'Track matrix targets and achieve high combo locks.'
+        ];
+
+        $stmt = $db->prepare("INSERT INTO mind_saga_game_configs (sub_event_id, game_key, title, difficulty, duration_seconds, max_score, rules_json, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        ");
+        $stmt->execute([$subId, $gameKey, $title, $difficulty, $durationSeconds, $maxScore, json_encode($rulesJson)]);
+        $gameId = (int)$db->lastInsertId();
+
+        Router::sendJson([
+            'success' => true,
+            'game_id' => $gameId,
+            'message' => 'New Game Challenge added to Round 2 pipeline.'
+        ], 201);
+    }
+
+    /**
+     * PUT /events/{id}/sub-events/{subId}/mind-saga/games/{gameId}
+     * Admin updates a game configuration in the pipeline.
+     */
+    public static function updateGameConfig(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $gameId = (int)$params['gameId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $stmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE id = ? AND sub_event_id = ?");
+        $stmt->execute([$gameId, $subId]);
+        $game = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$game) {
+            Router::sendJson(['error' => 'Game configuration not found'], 404);
+            return;
+        }
+
+        $title = isset($body['title']) ? trim($body['title']) : $game['title'];
+        $gameKey = isset($body['game_key']) && in_array($body['game_key'], ['deductive_logic', 'motion_challenge']) ? $body['game_key'] : $game['game_key'];
+        $difficulty = isset($body['difficulty']) && in_array($body['difficulty'], ['easy', 'medium', 'hard']) ? $body['difficulty'] : $game['difficulty'];
+        $durationSeconds = isset($body['duration_seconds']) ? max(30, (int)$body['duration_seconds']) : (int)$game['duration_seconds'];
+        $maxScore = isset($body['max_score']) ? max(10, (int)$body['max_score']) : (int)$game['max_score'];
+        $isActive = isset($body['is_active']) ? (int)(bool)$body['is_active'] : (int)$game['is_active'];
+
+        $up = $db->prepare("UPDATE mind_saga_game_configs SET title = ?, game_key = ?, difficulty = ?, duration_seconds = ?, max_score = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
+        $up->execute([$title, $gameKey, $difficulty, $durationSeconds, $maxScore, $isActive, $gameId]);
+
+        Router::sendJson([
+            'success' => true,
+            'message' => 'Game configuration updated successfully.'
+        ]);
+    }
+
+    /**
+     * DELETE /events/{id}/sub-events/{subId}/mind-saga/games/{gameId}
+     * Admin removes a game challenge from the pipeline.
+     */
+    public static function deleteGameConfig(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $gameId = (int)$params['gameId'];
+
+        $stmt = $db->prepare("DELETE FROM mind_saga_game_configs WHERE id = ? AND sub_event_id = ?");
+        $stmt->execute([$gameId, $subId]);
+
+        Router::sendJson([
+            'success' => true,
+            'message' => 'Game challenge removed from pipeline.'
+        ]);
+    }
+
+    /**
      * POST /events/{id}/sub-events/{subId}/mind-saga/games/start
      * Start game session with puzzle seed generation and server timer.
      */
@@ -1538,33 +1690,82 @@ class MindSagaController {
         $subId = (int)$params['subId'];
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
-        $gameKey = trim($body['game_key'] ?? 'deductive_logic');
-        $difficulty = in_array($body['difficulty'] ?? '', ['easy', 'medium', 'hard']) ? $body['difficulty'] : 'medium';
+        $gameConfigId = isset($body['game_config_id']) ? (int)$body['game_config_id'] : 0;
+        $gameKey = trim($body['game_key'] ?? '');
 
-        // Find game config
-        $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? AND game_key = ?");
-        $gStmt->execute([$subId, $gameKey]);
-        $game = $gStmt->fetch(PDO::FETCH_ASSOC);
+        if ($gameConfigId > 0) {
+            $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE id = ? AND sub_event_id = ?");
+            $gStmt->execute([$gameConfigId, $subId]);
+            $game = $gStmt->fetch(PDO::FETCH_ASSOC);
+        } else if (!empty($gameKey)) {
+            $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? AND game_key = ? AND is_active = 1 ORDER BY id ASC LIMIT 1");
+            $gStmt->execute([$subId, $gameKey]);
+            $game = $gStmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? AND is_active = 1 ORDER BY id ASC LIMIT 1");
+            $gStmt->execute([$subId]);
+            $game = $gStmt->fetch(PDO::FETCH_ASSOC);
+        }
+
         if (!$game) {
             Router::sendJson(['error' => 'Game configuration not found.'], 404);
             return;
         }
 
+        $difficulty = $game['difficulty'] ?? 'medium';
+        $gameKey = $game['game_key'];
+
+        // Get Mind Saga master config for attempts and active round
+        $cfgStmt = $db->prepare("SELECT * FROM mind_saga_configs WHERE sub_event_id = ?");
+        $cfgStmt->execute([$subId]);
+        $config = $cfgStmt->fetch(PDO::FETCH_ASSOC) ?: ['active_round' => 1, 'max_attempts_r1' => 1, 'max_attempts_r2' => 1, 'platform_status' => 'live'];
+
+        $activeRound = (int)($config['active_round'] ?? 1);
+        $maxAttemptsR2 = (int)($config['max_attempts_r2'] ?? 1);
+
+        if (!in_array($user['role'], ['coordinator', 'core_member', 'member'])) {
+            if ($activeRound < 2) {
+                Router::sendJson(['error' => 'Round 2: Gaming Arena has not been unlocked by the administrator yet.'], 403);
+                return;
+            }
+        }
+
         // Find registration
         $regStmt = $db->prepare("SELECT er.id as registration_id FROM event_registrations er
             JOIN event_registration_sub_events ers ON ers.registration_id = er.id
-            WHERE ers.sub_event_id = ? AND er.email = ?
+            WHERE ers.sub_event_id = ? AND (er.email = ? OR er.id = ?)
         ");
-        $regStmt->execute([$subId, $user['email']]);
+        $regStmt->execute([$subId, $user['email'] ?? '', (int)($user['id'] ?? 0)]);
         $regId = (int)($regStmt->fetchColumn() ?? 999999);
+
+        // Check completed gaming sessions / tournament attempts
+        $gCountStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated')");
+        $gCountStmt->execute([$subId, $regId]);
+        $completedGameCount = (int)$gCountStmt->fetchColumn();
+
+        // Check active in-progress game session
+        $inProgGStmt = $db->prepare("SELECT * FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status = 'in_progress'");
+        $inProgGStmt->execute([$subId, $regId]);
+        $activeGSession = $inProgGStmt->fetch(PDO::FETCH_ASSOC);
+
+        // If no active in-progress session and user reached max attempts
+        // Each tournament run contains N games. We track total completed runs or sessions.
+        $distinctRunsStmt = $db->prepare("SELECT COUNT(DISTINCT DATE(completed_at)) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated')");
+        $distinctRunsStmt->execute([$subId, $regId]);
+        $completedTournamentRuns = (int)$distinctRunsStmt->fetchColumn();
+
+        if (!$activeGSession && $completedTournamentRuns >= $maxAttemptsR2 && !in_array($user['role'], ['coordinator', 'core_member'])) {
+            Router::sendJson([
+                'error' => "You have exhausted the maximum allowed attempts ({$maxAttemptsR2}) for Round 2: Gaming Arena."
+            ], 403);
+            return;
+        }
 
         // Generate verified game puzzles based on game_key
         $puzzleData = [];
         if ($gameKey === 'deductive_logic') {
-            // Generate 4x4 Latin Square logic puzzles with symbols: square, plus, triangle, circle
             $puzzleData = self::generateLatinSquarePuzzles($difficulty);
         } else if ($gameKey === 'motion_challenge') {
-            // Generate deterministic velocity target sequence
             $puzzleData = self::generateMotionChallengeSequence($difficulty);
         }
 
@@ -1579,11 +1780,13 @@ class MindSagaController {
         $insStmt->execute([$game['id'], $regId, $subId, $token, $expiresAt, (int)$game['max_score'], json_encode($puzzleData)]);
         $sessId = (int)$db->lastInsertId();
 
+        // Note: Difficulty is purposefully NOT sent back to client to hide difficulty level from user.
         Router::sendJson([
             'session_token' => $token,
             'session_id' => $sessId,
+            'game_config_id' => (int)$game['id'],
             'game_key' => $gameKey,
-            'difficulty' => $difficulty,
+            'title' => $game['title'],
             'duration_seconds' => $duration,
             'expires_at' => $expiresAt,
             'max_score' => (int)$game['max_score'],
@@ -1592,93 +1795,69 @@ class MindSagaController {
     }
 
     /**
-     * Generate 4x4 Latin Square deduction puzzles where every row and column has all 4 symbols with no repetition.
+     * POST /events/{id}/sub-events/{subId}/mind-saga/games/proctor-event
+     * Logs proctoring violations during game session and terminates on 3 strikes.
      */
-    private static function generateLatinSquarePuzzles(string $difficulty): array {
-        $symbols = ['square', 'plus', 'triangle', 'circle'];
-        
-        // Base valid 4x4 Latin Square solutions
-        $baseSquares = [
-            [
-                ['square', 'plus', 'triangle', 'circle'],
-                ['triangle', 'circle', 'square', 'plus'],
-                ['plus', 'square', 'circle', 'triangle'],
-                ['circle', 'triangle', 'plus', 'square']
-            ],
-            [
-                ['circle', 'triangle', 'plus', 'square'],
-                ['square', 'plus', 'triangle', 'circle'],
-                ['triangle', 'circle', 'square', 'plus'],
-                ['plus', 'square', 'circle', 'triangle']
-            ],
-            [
-                ['plus', 'square', 'circle', 'triangle'],
-                ['circle', 'triangle', 'plus', 'square'],
-                ['square', 'plus', 'triangle', 'circle'],
-                ['triangle', 'circle', 'square', 'plus']
-            ]
-        ];
+    public static function logGameProctorEvent(array $params): void {
+        $user = AuthMiddleware::authenticate();
+        $db = Database::getConnection();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
-        $cluesMap = ['easy' => 10, 'medium' => 8, 'hard' => 6];
-        $cluesToKeep = $cluesMap[$difficulty] ?? 8;
+        $token = trim($body['session_token'] ?? '');
+        $eventType = trim($body['event_type'] ?? 'tab_switch'); // fullscreen_exit, tab_switch, camera_denied, camera_disconnected, window_blur
+        $description = trim($body['description'] ?? '');
 
-        $puzzles = [];
-        foreach ($baseSquares as $idx => $solution) {
-            $grid = $solution;
-            // Create puzzle with missing cells (null)
-            $totalCells = 16;
-            $cellsToRemove = $totalCells - $cluesToKeep;
-            $indices = range(0, 15);
-            shuffle($indices);
-            $removed = array_slice($indices, 0, $cellsToRemove);
-
-            $clueGrid = $grid;
-            foreach ($removed as $cellIdx) {
-                $r = (int)floor($cellIdx / 4);
-                $c = $cellIdx % 4;
-                $clueGrid[$r][$c] = null;
-            }
-
-            $puzzles[] = [
-                'puzzle_id' => $idx + 1,
-                'clues_grid' => $clueGrid,
-                'solution' => $solution, // Server validates
-                'symbols' => $symbols
-            ];
+        if (empty($token)) {
+            Router::sendJson(['error' => 'Session token required'], 400);
+            return;
         }
 
-        return $puzzles;
-    }
+        $sessStmt = $db->prepare("SELECT * FROM mind_saga_game_sessions WHERE session_token = ?");
+        $sessStmt->execute([$token]);
+        $session = $sessStmt->fetch(PDO::FETCH_ASSOC);
 
-    /**
-     * Generate Motion Challenge target trajectory sequence.
-     */
-    private static function generateMotionChallengeSequence(string $difficulty): array {
-        $speeds = ['easy' => 1200, 'medium' => 850, 'hard' => 600];
-        $targetLifetime = $speeds[$difficulty] ?? 850;
-        
-        $targets = [];
-        for ($i = 0; $i < 20; $i++) {
-            $targets[] = [
-                'target_id' => $i + 1,
-                'x' => rand(10, 90),
-                'y' => rand(10, 90),
-                'point_value' => ($i % 5 === 0) ? 10 : 5,
-                'lifetime_ms' => $targetLifetime,
-                'spawn_delay_ms' => $i * 800
-            ];
+        if (!$session) {
+            Router::sendJson(['error' => 'Session not found'], 404);
+            return;
         }
 
-        return [
-            'grid_size' => 5,
-            'targets' => $targets,
-            'total_targets' => count($targets)
+        $events = json_decode($session['proctoring_events'] ?? '[]', true) ?: [];
+        $events[] = [
+            'event_type' => $eventType,
+            'description' => $description,
+            'timestamp' => date('Y-m-d H:i:s')
         ];
+
+        $newViolations = (int)$session['violation_count'] + 1;
+        $cameraStatus = $session['camera_status'];
+        if (in_array($eventType, ['camera_denied', 'camera_disconnected'])) {
+            $cameraStatus = 'disconnected';
+        } else if ($eventType === 'camera_connected') {
+            $cameraStatus = 'connected';
+        }
+
+        $terminated = false;
+        if ($newViolations >= 3) {
+            $terminated = true;
+            $db->prepare("UPDATE mind_saga_game_sessions SET violation_count = ?, camera_status = ?, proctoring_events = ?, status = 'terminated', completed_at = NOW(), updated_at = NOW() WHERE id = ?")
+                ->execute([$newViolations, $cameraStatus, json_encode($events), $session['id']]);
+        } else {
+            $db->prepare("UPDATE mind_saga_game_sessions SET violation_count = ?, camera_status = ?, proctoring_events = ?, updated_at = NOW() WHERE id = ?")
+                ->execute([$newViolations, $cameraStatus, json_encode($events), $session['id']]);
+        }
+
+        Router::sendJson([
+            'success' => true,
+            'violation_count' => $newViolations,
+            'max_allowed' => 3,
+            'terminated' => $terminated,
+            'message' => $terminated ? 'Gaming round auto-submitted / terminated due to security violations.' : "Security Warning ({$newViolations}/3 strikes recorded)."
+        ]);
     }
 
     /**
      * POST /events/{id}/sub-events/{subId}/mind-saga/games/submit
-     * Submit game score with server verification.
+     * Submit game score with server verification and accumulate Round 2 score.
      */
     public static function submitGameScore(array $params): void {
         AuthMiddleware::authenticate();
@@ -1688,6 +1867,7 @@ class MindSagaController {
         $token = trim($body['session_token'] ?? '');
         $claimedScore = (int)($body['score'] ?? 0);
         $movesLog = $body['moves_log'] ?? [];
+        $statusOverride = isset($body['status']) && in_array($body['status'], ['completed', 'time_out', 'terminated', 'auto_submitted']) ? $body['status'] : 'completed';
 
         if (empty($token)) {
             Router::sendJson(['error' => 'Session token required'], 400);
@@ -1698,7 +1878,7 @@ class MindSagaController {
         $sessStmt->execute([$token]);
         $session = $sessStmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$session || in_array($session['status'], ['completed', 'terminated'])) {
+        if (!$session || in_array($session['status'], ['completed', 'terminated']) && $statusOverride !== 'auto_submitted') {
             Router::sendJson(['error' => 'Session is already finished or invalid.'], 400);
             return;
         }
@@ -1710,24 +1890,32 @@ class MindSagaController {
         $vHash = hash('sha256', "{$session['id']}:{$session['registration_id']}:{$verifiedScore}:teammavericks_verified");
 
         $db->prepare("UPDATE mind_saga_game_sessions SET 
-            status = 'completed',
+            status = ?,
             score = ?,
             moves_log = ?,
             verification_hash = ?,
             completed_at = NOW(),
             updated_at = NOW()
             WHERE id = ?
-        ")->execute([$verifiedScore, json_encode($movesLog), $vHash, $session['id']]);
+        ")->execute([$statusOverride, $verifiedScore, json_encode($movesLog), $vHash, $session['id']]);
 
-        // Sync to Mind Saga master scores table
-        self::syncMasterScore($db, (int)$session['sub_event_id'], (int)$session['registration_id'], 'round2', (float)$verifiedScore, (float)$maxScore);
+        // Accumulate all Round 2 game session scores for this participant
+        $sumStmt = $db->prepare("SELECT SUM(score) as total_earned, SUM(max_score) as total_max FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'time_out', 'auto_submitted')");
+        $sumStmt->execute([(int)$session['sub_event_id'], (int)$session['registration_id']]);
+        $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
+        $totalEarned = (float)($sumRow['total_earned'] ?? $verifiedScore);
+        $totalMax = (float)($sumRow['total_max'] ?? $maxScore);
+        if ($totalMax <= 0) $totalMax = 100.0;
+
+        // Sync cumulative Round 2 score to Mind Saga master scores table
+        self::syncMasterScore($db, (int)$session['sub_event_id'], (int)$session['registration_id'], 'round2', $totalEarned, $totalMax);
 
         Router::sendJson([
             'success' => true,
             'verified_score' => $verifiedScore,
             'max_score' => $maxScore,
             'verification_hash' => $vHash,
-            'message' => 'Gaming round score verified and submitted.'
+            'message' => 'Gaming challenge recorded and verified.'
         ]);
     }
 
@@ -1737,7 +1925,7 @@ class MindSagaController {
 
     /**
      * GET /events/{id}/sub-events/{subId}/mind-saga/proctoring/live
-     * Live CCTV Participant grid with WebRTC signaling and active telemetry.
+     * Live CCTV Participant grid with WebRTC/snapshot feeds and active telemetry across Round 1 & Round 2.
      */
     public static function getLiveProctoring(array $params): void {
         AuthMiddleware::authenticate(['coordinator', 'core_member', 'member']);
@@ -1757,47 +1945,187 @@ class MindSagaController {
             s.percentage,
             s.violation_count,
             s.camera_status,
+            s.latest_snapshot,
+            s.last_snapshot_at,
             s.proctoring_events,
             s.updated_at,
             er.id as registration_id,
             er.full_name,
             er.email,
             er.phone,
+            'Round 1: Aptitude' as round_name,
+            1 as round_number,
             TIMESTAMPDIFF(SECOND, NOW(), s.expires_at) as remaining_seconds
             FROM mind_saga_test_sessions s
             JOIN event_registrations er ON s.registration_id = er.id
             WHERE s.sub_event_id = ?
+
+            UNION ALL
+
+            SELECT 
+            gs.id as session_id,
+            gs.session_token,
+            gs.started_at,
+            gs.expires_at,
+            TIMESTAMPDIFF(SECOND, gs.started_at, gs.expires_at) as duration_seconds,
+            gs.status,
+            gs.score as total_score,
+            0 as percentage,
+            gs.violation_count,
+            gs.camera_status,
+            gs.latest_snapshot,
+            gs.last_snapshot_at,
+            gs.proctoring_events,
+            gs.updated_at,
+            er.id as registration_id,
+            er.full_name,
+            er.email,
+            er.phone,
+            'Round 2: Gaming' as round_name,
+            2 as round_number,
+            TIMESTAMPDIFF(SECOND, NOW(), gs.expires_at) as remaining_seconds
+            FROM mind_saga_game_sessions gs
+            JOIN event_registrations er ON gs.registration_id = er.id
+            WHERE gs.sub_event_id = ?
         ";
 
+        $outerSql = "SELECT * FROM ({$sql}) as cctv_all WHERE 1=1";
+
         if ($filter === 'online') {
-            $sql .= " AND s.status = 'in_progress' AND s.camera_status = 'connected'";
+            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected'";
         } else if ($filter === 'disconnected') {
-            $sql .= " AND s.status = 'in_progress' AND s.camera_status = 'disconnected'";
+            $outerSql .= " AND status = 'in_progress' AND camera_status = 'disconnected'";
         } else if ($filter === 'warnings') {
-            $sql .= " AND s.violation_count BETWEEN 1 AND 2";
+            $outerSql .= " AND violation_count BETWEEN 1 AND 2";
         } else if ($filter === 'flagged') {
-            $sql .= " AND s.violation_count >= 3";
+            $outerSql .= " AND (violation_count >= 3 OR status = 'terminated')";
         } else if ($filter === 'submitted') {
-            $sql .= " AND s.status IN ('submitted', 'auto_submitted')";
+            $outerSql .= " AND status IN ('submitted', 'auto_submitted')";
         }
 
-        $sql .= " ORDER BY s.violation_count DESC, s.started_at DESC";
+        $outerSql .= " ORDER BY (status = 'in_progress') DESC, violation_count DESC, last_snapshot_at DESC, started_at DESC";
 
-        $stmt = $db->prepare($sql);
-        $stmt->execute([$subId]);
-        $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $db->prepare($outerSql);
+        $stmt->execute([$subId, $subId]);
+        $rawSessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($sessions as &$sess) {
-            $sess['proctoring_events'] = !empty($sess['proctoring_events']) ? json_decode($sess['proctoring_events'], true) : [];
-            $sess['remaining_seconds'] = max(0, (int)$sess['remaining_seconds']);
+        // Single camera view per participant: deduplicate by registration_id
+        $userMap = [];
+        foreach ($rawSessions as $sess) {
+            $regId = (int)$sess['registration_id'];
+            if (!isset($userMap[$regId])) {
+                $sess['proctoring_events'] = !empty($sess['proctoring_events']) ? json_decode($sess['proctoring_events'], true) : [];
+                $sess['remaining_seconds'] = max(0, (int)$sess['remaining_seconds']);
+                $userMap[$regId] = $sess;
+            } else {
+                // Prioritize in_progress over finished sessions
+                if ($userMap[$regId]['status'] !== 'in_progress' && $sess['status'] === 'in_progress') {
+                    $sess['proctoring_events'] = !empty($sess['proctoring_events']) ? json_decode($sess['proctoring_events'], true) : [];
+                    $sess['remaining_seconds'] = max(0, (int)$sess['remaining_seconds']);
+                    $userMap[$regId] = $sess;
+                }
+            }
         }
 
+        $sessions = array_values($userMap);
         Router::sendJson($sessions);
     }
 
     /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/proctoring/snapshot
+     * Candidate test stream sends periodic webcam frame snapshots to admin CCTV wall.
+     */
+    public static function saveProctorSnapshot(array $params): void {
+        $db = Database::getConnection();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $token = trim($body['session_token'] ?? '');
+        $image = $body['image_data'] ?? null;
+        $cameraStatus = $body['camera_status'] ?? 'connected';
+        $round = (int)($body['round'] ?? 1);
+
+        if (empty($token)) {
+            Router::sendJson(['error' => 'Session token required'], 400);
+            return;
+        }
+
+        if ($round === 1) {
+            $stmt = $db->prepare("SELECT status, violation_count, proctoring_events FROM mind_saga_test_sessions WHERE session_token = ?");
+            $stmt->execute([$token]);
+            $sess = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($sess) {
+                if (!empty($image)) {
+                    $db->prepare("UPDATE mind_saga_test_sessions SET 
+                        latest_snapshot = ?, 
+                        last_snapshot_at = NOW(), 
+                        camera_status = ?,
+                        updated_at = NOW() 
+                        WHERE session_token = ?
+                    ")->execute([$image, $cameraStatus, $token]);
+                }
+
+                $isTerminated = ($sess['status'] === 'terminated');
+                $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
+                $adminTerminatedReason = '';
+                foreach (array_reverse($events) as $ev) {
+                    if (($ev['type'] ?? '') === 'admin_terminated') {
+                        $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
+                        break;
+                    }
+                }
+
+                Router::sendJson([
+                    'success' => true,
+                    'status' => $sess['status'],
+                    'violation_count' => (int)$sess['violation_count'],
+                    'terminated' => $isTerminated,
+                    'termination_reason' => $adminTerminatedReason
+                ]);
+                return;
+            }
+        } else {
+            $stmt = $db->prepare("SELECT status, violation_count, proctoring_events FROM mind_saga_game_sessions WHERE session_token = ?");
+            $stmt->execute([$token]);
+            $sess = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($sess) {
+                if (!empty($image)) {
+                    $db->prepare("UPDATE mind_saga_game_sessions SET 
+                        latest_snapshot = ?, 
+                        last_snapshot_at = NOW(), 
+                        camera_status = ?,
+                        updated_at = NOW() 
+                        WHERE session_token = ?
+                    ")->execute([$image, $cameraStatus, $token]);
+                }
+
+                $isTerminated = ($sess['status'] === 'terminated');
+                $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
+                $adminTerminatedReason = '';
+                foreach (array_reverse($events) as $ev) {
+                    if (($ev['type'] ?? '') === 'admin_terminated') {
+                        $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
+                        break;
+                    }
+                }
+
+                Router::sendJson([
+                    'success' => true,
+                    'status' => $sess['status'],
+                    'violation_count' => (int)$sess['violation_count'],
+                    'terminated' => $isTerminated,
+                    'termination_reason' => $adminTerminatedReason
+                ]);
+                return;
+            }
+        }
+
+        Router::sendJson(['error' => 'Session not found'], 404);
+    }
+
+    /**
      * POST /events/{id}/sub-events/{subId}/mind-saga/proctoring/terminate-session
-     * Admin forces termination of a participant test attempt.
+     * Admin forces realtime termination & block of a participant with warning.
      */
     public static function terminateSession(array $params): void {
         AuthMiddleware::authenticate(['coordinator', 'core_member']);
@@ -1805,31 +2133,62 @@ class MindSagaController {
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
         $sessionId = (int)($body['session_id'] ?? 0);
-        $reason = trim($body['reason'] ?? 'Terminated by proctor administrator.');
+        $sessionToken = trim($body['session_token'] ?? '');
+        $reason = trim($body['reason'] ?? 'Terminated by proctor administrator for anti-cheating breach.');
+        $round = (int)($body['round'] ?? 1);
 
-        if ($sessionId === 0) {
-            Router::sendJson(['error' => 'Session ID required'], 400);
+        if ($sessionId === 0 && empty($sessionToken)) {
+            Router::sendJson(['error' => 'Session ID or Token required'], 400);
             return;
         }
 
-        $sessStmt = $db->prepare("SELECT proctoring_events FROM mind_saga_test_sessions WHERE id = ?");
-        $sessStmt->execute([$sessionId]);
-        $events = json_decode($sessStmt->fetchColumn() ?? '[]', true) ?: [];
+        // Test sessions
+        if ($sessionId > 0) {
+            $sessStmt = $db->prepare("SELECT proctoring_events FROM mind_saga_test_sessions WHERE id = ?");
+            $sessStmt->execute([$sessionId]);
+            $evStr = $sessStmt->fetchColumn();
+            if ($evStr !== false) {
+                $events = json_decode($evStr ?? '[]', true) ?: [];
+                $events[] = [
+                    'timestamp' => date('Y-m-d H:i:s'),
+                    'type' => 'admin_terminated',
+                    'details' => $reason
+                ];
 
-        $events[] = [
-            'timestamp' => date('Y-m-d H:i:s'),
-            'type' => 'admin_terminated',
-            'details' => $reason
-        ];
+                $db->prepare("UPDATE mind_saga_test_sessions SET 
+                    status = 'terminated', 
+                    proctoring_events = ?, 
+                    updated_at = NOW() 
+                    WHERE id = ?
+                ")->execute([json_encode($events), $sessionId]);
+            }
 
-        $db->prepare("UPDATE mind_saga_test_sessions SET 
-            status = 'terminated', 
-            proctoring_events = ?, 
-            updated_at = NOW() 
-            WHERE id = ?
-        ")->execute([json_encode($events), $sessionId]);
+            // Also check gaming sessions
+            $gStmt = $db->prepare("SELECT proctoring_events FROM mind_saga_game_sessions WHERE id = ?");
+            $gStmt->execute([$sessionId]);
+            $gevStr = $gStmt->fetchColumn();
+            if ($gevStr !== false) {
+                $gevents = json_decode($gevStr ?? '[]', true) ?: [];
+                $gevents[] = [
+                    'timestamp' => date('Y-m-d H:i:s'),
+                    'type' => 'admin_terminated',
+                    'details' => $reason
+                ];
+                $db->prepare("UPDATE mind_saga_game_sessions SET 
+                    status = 'terminated', 
+                    proctoring_events = ?, 
+                    updated_at = NOW() 
+                    WHERE id = ?
+                ")->execute([json_encode($gevents), $sessionId]);
+            }
+        }
 
-        Router::sendJson(['success' => true, 'message' => 'Session terminated successfully.']);
+        if (!empty($sessionToken)) {
+            $db->prepare("UPDATE mind_saga_test_sessions SET status = 'terminated', updated_at = NOW() WHERE session_token = ?")->execute([$sessionToken]);
+            $db->prepare("UPDATE mind_saga_game_sessions SET status = 'terminated', updated_at = NOW() WHERE session_token = ?")->execute([$sessionToken]);
+        }
+
+        Router::sendJson(['success' => true, 'message' => "Candidate blocked and test attempt terminated: {$reason}"]);
     }
 
     // ==========================================
@@ -1846,6 +2205,7 @@ class MindSagaController {
         $subId = (int)$params['subId'];
 
         self::ensureDefaults($db, $subId);
+        self::ensureParticipantKeys($db, $subId);
 
         $stmt = $db->prepare("SELECT 
             ms.*,
@@ -1916,22 +2276,35 @@ class MindSagaController {
 
         self::ensureDefaults($db, $subId);
 
-        // Find participant registration
-        $regStmt = $db->prepare("SELECT er.id as registration_id, er.full_name, er.email FROM event_registrations er
-            JOIN event_registration_sub_events ers ON ers.registration_id = er.id
-            WHERE ers.sub_event_id = ? AND er.email = ?
-        ");
-        $regStmt->execute([$subId, $user['email']]);
+        // Find participant registration with attendance check
+        $accessKeyParam = strtoupper(trim($_GET['access_key'] ?? ''));
+        if (!empty($accessKeyParam)) {
+            $regStmt = $db->prepare("SELECT er.id as registration_id, er.full_name, er.email, er.attendance as main_attendance, ers.attendance as sub_attendance, ms.access_key FROM event_registrations er
+                JOIN event_registration_sub_events ers ON ers.registration_id = er.id
+                JOIN mind_saga_scores ms ON ms.registration_id = er.id AND ms.sub_event_id = ers.sub_event_id
+                WHERE ers.sub_event_id = ? AND UPPER(TRIM(ms.access_key)) = ?
+            ");
+            $regStmt->execute([$subId, $accessKeyParam]);
+        } else {
+            $regStmt = $db->prepare("SELECT er.id as registration_id, er.full_name, er.email, er.attendance as main_attendance, ers.attendance as sub_attendance FROM event_registrations er
+                JOIN event_registration_sub_events ers ON ers.registration_id = er.id
+                WHERE ers.sub_event_id = ? AND (er.email = ? OR er.id = ?)
+            ");
+            $regStmt->execute([$subId, $user['email'] ?? '', (int)($user['id'] ?? 0)]);
+        }
         $reg = $regStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$reg) {
             // Check if member preview
             if (in_array($user['role'], ['coordinator', 'core_member', 'member'])) {
-                $reg = ['registration_id' => 999999, 'full_name' => $user['name'] ?? 'Admin Member', 'email' => $user['email']];
+                $reg = ['registration_id' => 999999, 'full_name' => $user['name'] ?? 'Admin Member', 'email' => $user['email'], 'attended' => true];
             } else {
                 Router::sendJson(['error' => 'Participant registration not found.'], 404);
                 return;
             }
+        } else {
+            $isAttended = ((int)($reg['main_attendance'] ?? 0) === 1) || ((int)($reg['sub_attendance'] ?? 0) === 1);
+            $reg['attended'] = $isAttended;
         }
 
         $regId = (int)$reg['registration_id'];
@@ -1956,6 +2329,19 @@ class MindSagaController {
         $tStmt->execute([$subId]);
         $activeTest = $tStmt->fetch(PDO::FETCH_ASSOC);
 
+        $qCount = 0;
+        if ($activeTest) {
+            $qStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_questions WHERE test_id = ?");
+            $qStmt->execute([(int)$activeTest['id']]);
+            $qCount = (int)$qStmt->fetchColumn();
+            $activeTest['questions_count'] = $qCount;
+        }
+
+        // Active games count
+        $activeGamesCountStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_configs WHERE sub_event_id = ? AND is_active = 1");
+        $activeGamesCountStmt->execute([$subId]);
+        $activeGamesCount = (int)$activeGamesCountStmt->fetchColumn();
+
         // Round 2 Gaming sessions
         $gSessStmt = $db->prepare("SELECT gs.*, gc.game_key, gc.title as game_title FROM mind_saga_game_sessions gs JOIN mind_saga_game_configs gc ON gs.game_config_id = gc.id WHERE gs.sub_event_id = ? AND gs.registration_id = ? ORDER BY gs.id DESC");
         $gSessStmt->execute([$subId, $regId]);
@@ -1968,15 +2354,39 @@ class MindSagaController {
         $panelStmt->execute([$subId]);
         $panelInfo = $panelStmt->fetch(PDO::FETCH_ASSOC);
 
+        // Round 1 completed attempts count
+        $countR1Stmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_test_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('submitted', 'auto_submitted', 'terminated')");
+        $countR1Stmt->execute([$subId, $regId]);
+        $attemptsUsedR1 = (int)$countR1Stmt->fetchColumn();
+
+        // Round 2 completed tournament runs count
+        $countR2Stmt = $db->prepare("SELECT COUNT(DISTINCT DATE(completed_at)) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated')");
+        $countR2Stmt->execute([$subId, $regId]);
+        $attemptsUsedR2 = (int)$countR2Stmt->fetchColumn();
+
+        $activeRound = (int)($config['active_round'] ?? 1);
+        $maxAttemptsR1 = (int)($config['max_attempts_r1'] ?? 1);
+        $maxAttemptsR2 = (int)($config['max_attempts_r2'] ?? 1);
+
         Router::sendJson([
             'participant' => $reg,
             'config' => $config,
             'score_record' => $scoreRecord,
+            'active_round' => $activeRound,
+            'is_r1_unlocked' => ($activeRound >= 1),
+            'is_r2_unlocked' => ($activeRound >= 2),
+            'is_r3_unlocked' => ($activeRound >= 3),
+            'attempts_used_r1' => $attemptsUsedR1,
+            'max_attempts_r1' => $maxAttemptsR1,
+            'attempts_used_r2' => $attemptsUsedR2,
+            'max_attempts_r2' => $maxAttemptsR2,
             'round1_aptitude' => [
                 'test' => $activeTest,
+                'questions_count' => $qCount,
                 'session' => $aptitudeSession
             ],
             'round2_gaming' => [
+                'games_count' => $activeGamesCount,
                 'sessions' => $gameSessions
             ],
             'round3_interview' => [
@@ -1989,9 +2399,21 @@ class MindSagaController {
      * Ensure all registered participants for this sub-event have a mind_saga_scores entry with unique access_key
      */
     public static function ensureParticipantKeys(PDO $db, int $subEventId): void {
-        $regStmt = $db->prepare("SELECT registration_id FROM event_registration_sub_events WHERE sub_event_id = ?");
+        $regStmt = $db->prepare("SELECT DISTINCT registration_id FROM event_registration_sub_events WHERE sub_event_id = ?");
         $regStmt->execute([$subEventId]);
         $registeredIds = $regStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // Fallback: If no sub_events mapping rows exist, check registrations for the event
+        if (empty($registeredIds)) {
+            $evStmt = $db->prepare("SELECT event_id FROM event_sub_events WHERE id = ?");
+            $evStmt->execute([$subEventId]);
+            $eventId = (int)$evStmt->fetchColumn();
+            if ($eventId > 0) {
+                $evRegStmt = $db->prepare("SELECT id FROM event_registrations WHERE event_id = ?");
+                $evRegStmt->execute([$eventId]);
+                $registeredIds = $evRegStmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
 
         foreach ($registeredIds as $regId) {
             $check = $db->prepare("SELECT id, access_key FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ?");
@@ -2042,6 +2464,29 @@ class MindSagaController {
         AuthMiddleware::authenticate(['coordinator', 'core_member']);
         $db = Database::getConnection();
         $subId = (int)$params['subId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $targetRegId = isset($body['registration_id']) ? (int)$body['registration_id'] : null;
+
+        if ($targetRegId) {
+            $key = self::generateAccessKey($db);
+            $check = $db->prepare("SELECT id FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ?");
+            $check->execute([$subId, $targetRegId]);
+            $existingId = $check->fetchColumn();
+
+            if ($existingId) {
+                $db->prepare("UPDATE mind_saga_scores SET access_key = ?, updated_at = NOW() WHERE id = ?")->execute([$key, $existingId]);
+            } else {
+                $db->prepare("INSERT INTO mind_saga_scores (sub_event_id, registration_id, access_key) VALUES (?, ?, ?)")->execute([$subId, $targetRegId, $key]);
+            }
+
+            Router::sendJson([
+                'success' => true,
+                'registration_id' => $targetRegId,
+                'access_key' => $key,
+                'message' => "Generated new unique access key: {$key}"
+            ]);
+            return;
+        }
 
         $stmt = $db->prepare("SELECT id FROM mind_saga_scores WHERE sub_event_id = ?");
         $stmt->execute([$subId]);
@@ -2230,20 +2675,20 @@ class MindSagaController {
             return;
         }
 
-        $sql = "SELECT ms.access_key, ms.sub_event_id, ms.qualification_status, er.id as registration_id, er.full_name, er.email, er.phone, s.name as sub_name, s.event_id, c.platform_status
+        $sql = "SELECT ms.access_key, ms.sub_event_id, ms.qualification_status, er.id as registration_id, er.full_name, er.email, er.phone, s.name as sub_name, s.event_id, COALESCE(c.platform_status, 'live') as platform_status
             FROM mind_saga_scores ms
             JOIN event_registrations er ON ms.registration_id = er.id
             JOIN event_sub_events s ON ms.sub_event_id = s.id
-            JOIN mind_saga_configs c ON c.sub_event_id = s.id
+            LEFT JOIN mind_saga_configs c ON c.sub_event_id = s.id
             WHERE 1=1
         ";
 
         if (!empty($key)) {
-            $sql .= " AND ms.access_key = ?";
+            $sql .= " AND UPPER(TRIM(ms.access_key)) = ?";
             $stmt = $db->prepare($sql);
             $stmt->execute([$key]);
         } else {
-            $sql .= " AND er.email = ?";
+            $sql .= " AND LOWER(TRIM(er.email)) = ?";
             $stmt = $db->prepare($sql);
             $stmt->execute([$email]);
         }
