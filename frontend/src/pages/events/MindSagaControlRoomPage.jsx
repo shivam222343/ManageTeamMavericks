@@ -445,6 +445,33 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
+  // Handle Dismiss / Remove Stream from Admin Live Monitor
+  const handleDismissStream = async (session) => {
+    if (!session) return;
+    const sessionId = typeof session === 'object' ? session.session_id : session;
+    const sessionToken = typeof session === 'object' ? session.session_token : null;
+    const regId = typeof session === 'object' ? session.registration_id : null;
+    const name = typeof session === 'object' ? session.full_name : 'Candidate';
+
+    // Optimistically remove from grid
+    setProctoringList((prev) => prev.filter((s) => s.session_id !== sessionId && s.registration_id !== regId));
+    if (maximizedSession?.session_id === sessionId) {
+      setMaximizedSession(null);
+    }
+
+    try {
+      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/dismiss-stream`, {
+        session_id: sessionId,
+        session_token: sessionToken,
+        registration_id: regId
+      });
+      toast.success(`Removed ${name}'s camera feed from monitor.`);
+    } catch (err) {
+      console.error('Failed to dismiss stream:', err);
+      fetchProctoring();
+    }
+  };
+
   // Handle Promote Participants
   const handlePromoteSubmit = async () => {
     if (selectedRegIds.length === 0) {
@@ -878,6 +905,18 @@ const MindSagaControlRoomPage = () => {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                handleDismissStream(session);
+                              }}
+                              className="p-1 rounded-md bg-black/70 hover:bg-rose-600 text-zinc-300 hover:text-white transition backdrop-blur-md shadow"
+                              title="Remove Feed from Monitor"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setMaximizedSession(session);
                               }}
                               className="p-1 rounded-md bg-black/70 hover:bg-indigo-600 text-white transition backdrop-blur-md shadow"
@@ -928,6 +967,15 @@ const MindSagaControlRoomPage = () => {
                               className="flex-1 py-1.5 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1 transition"
                             >
                               <Eye className="w-3 h-3 text-indigo-400" /> Inspect Logs
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDismissStream(session)}
+                              className="p-1.5 bg-zinc-800/80 hover:bg-rose-600/30 text-zinc-400 hover:text-rose-300 rounded-xl transition border border-transparent hover:border-rose-500/30"
+                              title="Remove Stream Tile from Monitor"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
 
                             {session.status === 'in_progress' ? (
@@ -2657,12 +2705,23 @@ const MindSagaControlRoomPage = () => {
 
             {/* Modal Footer Controls */}
             <div className="p-4 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between gap-3">
-              <button
-                onClick={() => setMaximizedSession(null)}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-semibold"
-              >
-                Close Maximize
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMaximizedSession(null)}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-semibold"
+                >
+                  Close Maximize
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDismissStream(maximizedSession)}
+                  className="px-3 py-2 bg-zinc-800/80 hover:bg-rose-600/20 text-zinc-400 hover:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-transparent hover:border-rose-500/30"
+                  title="Remove Feed from Monitor"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove Feed</span>
+                </button>
+              </div>
 
               {maximizedSession.status === 'in_progress' && (
                 <button

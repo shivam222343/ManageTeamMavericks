@@ -243,6 +243,7 @@ $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/pro
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/proctoring/live',           [MindSagaController::class, 'getLiveProctoring']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/snapshot',       [MindSagaController::class, 'saveProctorSnapshot']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/terminate-session', [MindSagaController::class, 'terminateSession']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/dismiss-stream',    [MindSagaController::class, 'dismissStream']);
 
 // Mind Saga Master Leaderboard, Participant Status & Qualification
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/leaderboard',               [MindSagaController::class, 'getLeaderboard']);

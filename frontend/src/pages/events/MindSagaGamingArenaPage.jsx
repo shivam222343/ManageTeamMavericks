@@ -156,6 +156,22 @@ const MindSagaGamingArenaPage = () => {
       if (pipVideoRef.current) {
         pipVideoRef.current.srcObject = stream;
       }
+
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          setCameraActive(false);
+          setCameraError('Camera was disconnected.');
+          const currentToken = sessionTokenRef.current;
+          if (currentToken) {
+            axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/snapshot`, {
+              session_token: currentToken,
+              image_data: null,
+              camera_status: 'disconnected',
+              round: 2
+            }).catch(() => {});
+          }
+        };
+      });
     } catch (err) {
       console.error('Camera access error:', err);
       setCameraActive(false);
@@ -447,13 +463,15 @@ const MindSagaGamingArenaPage = () => {
       return;
     }
 
-    try {
-      if (!document.fullscreenElement) {
+    // Strictly require fullscreen — abort if not granted
+    if (!document.fullscreenElement) {
+      try {
         await document.documentElement.requestFullscreen();
         setIsFullscreen(true);
+      } catch (err) {
+        toast.error('⚠️ Fullscreen is mandatory to start the gaming round. Please allow fullscreen and try again.');
+        return; // Abort launch - do NOT start game without fullscreen
       }
-    } catch (err) {
-      console.warn('Fullscreen request failed:', err);
     }
 
     if (pipelineGames.length === 0) {

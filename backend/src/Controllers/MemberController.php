@@ -77,6 +77,7 @@ class MemberController {
                    mi.temp_password, mi.status as invitation_status
             FROM users u
             LEFT JOIN member_invitations mi ON u.email = mi.email
+            WHERE u.role != 'participant'
             ORDER BY u.id ASC
         ");
         $members = $stmt->fetchAll(PDO::FETCH_ASSOC);

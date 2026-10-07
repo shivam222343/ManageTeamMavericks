@@ -57,6 +57,7 @@ const MindSagaAptitudeTestPage = () => {
   const [warningModal, setWarningModal] = useState({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [exitConfirmModal, setExitConfirmModal] = useState(false);
+  const [fullscreenReady, setFullscreenReady] = useState(false); // Must enter fullscreen before test begins
 
   // Drawing modal state
   const [drawingModalOpen, setDrawingModalOpen] = useState(false);
@@ -138,12 +139,26 @@ const MindSagaAptitudeTestPage = () => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
+
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          setCameraStatus('disconnected');
+          if (sessionData?.session_token) {
+            axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/snapshot`, {
+              session_token: sessionData.session_token,
+              image_data: null,
+              camera_status: 'disconnected',
+              round: 1
+            }).catch(() => {});
+          }
+        };
+      });
     } catch (err) {
       console.warn('Camera/mic access denied:', err);
       setCameraStatus('denied');
       setMicStatus('denied');
     }
-  }, []);
+  }, [sessionData, eventId, subEventId]);
 
   useEffect(() => {
     startMedia();
@@ -416,6 +431,19 @@ const MindSagaAptitudeTestPage = () => {
     }
   };
 
+  // Enter fullscreen and mark ready to begin test
+  const handleEnterFullscreenAndStart = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      }
+      setIsFullscreen(true);
+      setFullscreenReady(true);
+    } catch (err) {
+      toast.error('Please allow fullscreen to begin the aptitude test. This is mandatory for proctoring.');
+    }
+  };
+
   const [redirectCountdown, setRedirectCountdown] = useState(4);
 
   // Auto-redirect effect when test is completed or auto-submitted
@@ -471,6 +499,76 @@ const MindSagaAptitudeTestPage = () => {
       setSubmitting(false);
     }
   };
+
+  // FULLSCREEN PRE-FLIGHT SCREEN — shown after session loads but before test UI
+  if (!loading && sessionData && !fullscreenReady && !testResult) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-zinc-900 border border-indigo-500/40 rounded-3xl p-6 sm:p-10 text-center space-y-6 shadow-2xl shadow-indigo-900/40"
+        >
+          {/* Icon */}
+          <div className="w-20 h-20 rounded-3xl bg-indigo-600/10 border border-indigo-500/30 flex items-center justify-center mx-auto shadow-inner">
+            <Maximize2 className="w-10 h-10 text-indigo-400" />
+          </div>
+
+          {/* Title */}
+          <div>
+            <span className="px-3 py-1 rounded-full text-[11px] font-bold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              Mandatory — Round 1 Aptitude Test
+            </span>
+            <h2 className="text-2xl font-black text-white mt-3 leading-tight">
+              Fullscreen Required to Begin
+            </h2>
+            <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+              Mind Saga enforces strict fullscreen proctoring. You must enter fullscreen mode before your test starts. Exiting fullscreen during the test will trigger a 10-second auto-submit countdown.
+            </p>
+          </div>
+
+          {/* Test info card */}
+          <div className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 text-xs text-left space-y-2">
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Test</span>
+              <span className="text-white font-semibold">{sessionData?.test?.title || 'Aptitude Test'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Questions</span>
+              <span className="text-indigo-400 font-bold">{questions.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Duration</span>
+              <span className="text-indigo-400 font-bold font-mono">{Math.round(remainingSeconds / 60)} min</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Anti-Cheat Strikes</span>
+              <span className="text-amber-400 font-bold">3 max before auto-submit</span>
+            </div>
+          </div>
+
+          {/* Rules */}
+          <div className="text-xs text-zinc-400 text-left space-y-1.5 bg-zinc-950/50 p-3 rounded-xl border border-zinc-800">
+            <p className="font-semibold text-zinc-300">Rules during the test:</p>
+            <p>• Do NOT exit fullscreen — 3 strikes = auto-submit</p>
+            <p>• Do NOT switch tabs or blur the window</p>
+            <p>• Keep your webcam enabled at all times</p>
+            <p>• No copy/paste, right-click, or DevTools</p>
+          </div>
+
+          {/* CTA */}
+          <button
+            type="button"
+            onClick={handleEnterFullscreenAndStart}
+            className="w-full py-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-2xl font-black text-sm transition shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2.5 uppercase tracking-wider cursor-pointer"
+          >
+            <Maximize2 className="w-5 h-5" />
+            <span>Enter Fullscreen &amp; Begin Test</span>
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

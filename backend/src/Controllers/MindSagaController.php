@@ -2008,15 +2008,18 @@ class MindSagaController {
         $outerSql = "SELECT * FROM ({$sql}) as cctv_all WHERE 1=1";
 
         if ($filter === 'online') {
-            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected'";
+            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected' AND latest_snapshot IS NOT NULL";
         } else if ($filter === 'disconnected') {
-            $outerSql .= " AND status = 'in_progress' AND camera_status = 'disconnected'";
+            $outerSql .= " AND (camera_status = 'disconnected' OR latest_snapshot IS NULL) AND status = 'in_progress'";
         } else if ($filter === 'warnings') {
             $outerSql .= " AND violation_count BETWEEN 1 AND 2";
         } else if ($filter === 'flagged') {
             $outerSql .= " AND (violation_count >= 3 OR status = 'terminated')";
         } else if ($filter === 'submitted') {
             $outerSql .= " AND status IN ('submitted', 'auto_submitted')";
+        } else {
+            // Default 'all' CCTV view: only display live active streams
+            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected' AND latest_snapshot IS NOT NULL";
         }
 
         $outerSql .= " ORDER BY (status = 'in_progress') DESC, violation_count DESC, last_snapshot_at DESC, started_at DESC";
@@ -2070,14 +2073,21 @@ class MindSagaController {
             $sess = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($sess) {
-                if (!empty($image)) {
+                if ($cameraStatus === 'disconnected' || empty($image)) {
+                    $db->prepare("UPDATE mind_saga_test_sessions SET 
+                        camera_status = 'disconnected',
+                        latest_snapshot = NULL,
+                        updated_at = NOW() 
+                        WHERE session_token = ?
+                    ")->execute([$token]);
+                } else {
                     $db->prepare("UPDATE mind_saga_test_sessions SET 
                         latest_snapshot = ?, 
                         last_snapshot_at = NOW(), 
-                        camera_status = ?,
+                        camera_status = 'connected',
                         updated_at = NOW() 
                         WHERE session_token = ?
-                    ")->execute([$image, $cameraStatus, $token]);
+                    ")->execute([$image, $token]);
                 }
 
                 $isTerminated = ($sess['status'] === 'terminated');
@@ -2105,14 +2115,21 @@ class MindSagaController {
             $sess = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($sess) {
-                if (!empty($image)) {
+                if ($cameraStatus === 'disconnected' || empty($image)) {
+                    $db->prepare("UPDATE mind_saga_game_sessions SET 
+                        camera_status = 'disconnected',
+                        latest_snapshot = NULL,
+                        updated_at = NOW() 
+                        WHERE session_token = ?
+                    ")->execute([$token]);
+                } else {
                     $db->prepare("UPDATE mind_saga_game_sessions SET 
                         latest_snapshot = ?, 
                         last_snapshot_at = NOW(), 
-                        camera_status = ?,
+                        camera_status = 'connected',
                         updated_at = NOW() 
                         WHERE session_token = ?
-                    ")->execute([$image, $cameraStatus, $token]);
+                    ")->execute([$image, $token]);
                 }
 
                 $isTerminated = ($sess['status'] === 'terminated');
@@ -2137,6 +2154,37 @@ class MindSagaController {
         }
 
         Router::sendJson(['error' => 'Session not found'], 404);
+    }
+
+    /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/proctoring/dismiss-stream
+     * Admin manually removes a user's camera stream tile from the live wall.
+     */
+    public static function dismissStream(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $sessionId = (int)($body['session_id'] ?? 0);
+        $sessionToken = trim($body['session_token'] ?? '');
+        $regId = (int)($body['registration_id'] ?? 0);
+
+        if ($sessionId > 0) {
+            $db->prepare("UPDATE mind_saga_test_sessions SET latest_snapshot = NULL, camera_status = 'disconnected' WHERE id = ?")->execute([$sessionId]);
+            $db->prepare("UPDATE mind_saga_game_sessions SET latest_snapshot = NULL, camera_status = 'disconnected' WHERE id = ?")->execute([$sessionId]);
+        }
+
+        if (!empty($sessionToken)) {
+            $db->prepare("UPDATE mind_saga_test_sessions SET latest_snapshot = NULL, camera_status = 'disconnected' WHERE session_token = ?")->execute([$sessionToken]);
+            $db->prepare("UPDATE mind_saga_game_sessions SET latest_snapshot = NULL, camera_status = 'disconnected' WHERE session_token = ?")->execute([$sessionToken]);
+        }
+
+        if ($regId > 0) {
+            $db->prepare("UPDATE mind_saga_test_sessions SET latest_snapshot = NULL, camera_status = 'disconnected' WHERE registration_id = ?")->execute([$regId]);
+            $db->prepare("UPDATE mind_saga_game_sessions SET latest_snapshot = NULL, camera_status = 'disconnected' WHERE registration_id = ?")->execute([$regId]);
+        }
+
+        Router::sendJson(['success' => true, 'message' => 'Stream removed from live monitor']);
     }
 
     /**
