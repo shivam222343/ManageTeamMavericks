@@ -89,10 +89,28 @@ class AuthController {
      */
     public function me(): void {
         $user = AuthMiddleware::authenticate();
-        
+        $userId = $user['userId'] ?? $user['id'] ?? ($user['user']['id'] ?? 0);
+        $role = $user['role'] ?? ($user['user']['role'] ?? 'participant');
+        $email = $user['email'] ?? ($user['user']['email'] ?? '');
+        $name = $user['name'] ?? ($user['user']['name'] ?? 'Participant');
+
+        if ($role === 'participant') {
+            Router::sendJson([
+                'user' => [
+                    'id' => $userId,
+                    'name' => $name,
+                    'email' => $email,
+                    'role' => 'participant',
+                    'mustChangePassword' => false,
+                    'permissions' => []
+                ]
+            ]);
+            return;
+        }
+
         $db = Database::getConnection();
         $stmt = $db->prepare("SELECT role, permissions, must_change_password FROM users WHERE id = ?");
-        $stmt->execute([$user['userId']]);
+        $stmt->execute([$userId]);
         $row = $stmt->fetch();
         
         $mustChange = (bool)($row['must_change_password'] ?? false);

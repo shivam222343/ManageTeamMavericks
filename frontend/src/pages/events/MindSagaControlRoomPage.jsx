@@ -74,14 +74,15 @@ const MindSagaControlRoomPage = () => {
   const [selectedSessionDetail, setSelectedSessionDetail] = useState(null);
 
   // Modals & Forms
+  const [editingTestId, setEditingTestId] = useState(null);
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [testForm, setTestForm] = useState({
     title: 'Mind Saga Phase 1: Cognitive Aptitude',
     description: '',
-    duration_minutes: 30,
-    total_marks: 50,
-    pass_marks: 20,
-    negative_marking_enabled: false,
+    duration_minutes: 25,
+    total_marks: 40,
+    pass_marks: 16,
+    negative_marking_enabled: true,
     default_negative_marks: 0.5,
     shuffle_questions: true,
     shuffle_options: true,
@@ -247,16 +248,65 @@ const MindSagaControlRoomPage = () => {
     }
   }, [tests, activeTest]);
 
+  // Open Test Settings Modal (for Edit or Create)
+  const handleOpenEditTest = (testObj) => {
+    const t = testObj || activeTest?.test;
+    if (t) {
+      setEditingTestId(t.id);
+      setTestForm({
+        title: t.title || 'Mind Saga Phase 1: Cognitive Aptitude',
+        description: t.description || '',
+        duration_minutes: t.duration_minutes || 25,
+        total_marks: parseFloat(t.total_marks) || 40,
+        pass_marks: parseFloat(t.pass_marks) || 16,
+        negative_marking_enabled: Boolean(t.negative_marking_enabled),
+        default_negative_marks: parseFloat(t.default_negative_marks) || 0.5,
+        shuffle_questions: t.shuffle_questions !== undefined ? Boolean(t.shuffle_questions) : true,
+        shuffle_options: t.shuffle_options !== undefined ? Boolean(t.shuffle_options) : true,
+        random_question_count: t.random_question_count || '',
+        is_published: Boolean(t.is_published),
+        schedule_start: t.schedule_start || '',
+        schedule_end: t.schedule_end || ''
+      });
+    } else {
+      setEditingTestId(null);
+      setTestForm({
+        title: 'Mind Saga Phase 1: Cognitive Aptitude',
+        description: '',
+        duration_minutes: 25,
+        total_marks: 40,
+        pass_marks: 16,
+        negative_marking_enabled: true,
+        default_negative_marks: 0.5,
+        shuffle_questions: true,
+        shuffle_options: true,
+        random_question_count: '',
+        is_published: true,
+        schedule_start: '',
+        schedule_end: ''
+      });
+    }
+    setTestModalOpen(true);
+  };
+
   // Handle Save Test
   const handleSaveTest = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/aptitude/tests`, testForm);
-      toast.success('Aptitude test created successfully!');
+      if (editingTestId) {
+        await axios.put(`/events/${eventId}/sub-events/${subEventId}/mind-saga/aptitude/tests/${editingTestId}`, testForm);
+        toast.success('Aptitude test settings updated successfully!');
+      } else {
+        await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/aptitude/tests`, testForm);
+        toast.success('Aptitude test created successfully!');
+      }
       setTestModalOpen(false);
       fetchOverview(true);
+      if (editingTestId || activeTest?.test?.id) {
+        loadTestDetail(editingTestId || activeTest?.test?.id);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to create test');
+      toast.error(err.response?.data?.error || 'Failed to save test settings');
     }
   };
 
@@ -504,9 +554,8 @@ const MindSagaControlRoomPage = () => {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        isDark ? 'bg-zinc-950 text-white' : 'bg-slate-50 text-slate-900'
-      }`}>
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${isDark ? 'bg-zinc-950 text-white' : 'bg-slate-50 text-slate-900'
+        }`}>
         <MajorLoader fullPage />
       </div>
     );
@@ -515,7 +564,7 @@ const MindSagaControlRoomPage = () => {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-20 selection:bg-indigo-500/30">
       {/* Header Banner */}
-      <div className="border-b border-zinc-800/80 bg-zinc-900/40 backdrop-blur-xl sticky top-0 z-30">
+      <div className="border-b border-zinc-800/80 bg-zinc-900/90 backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -530,14 +579,11 @@ const MindSagaControlRoomPage = () => {
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                     <BrainCircuit className="w-6 h-6 text-indigo-400" />
-                    {overviewData?.sub_event?.name || 'Mind Saga'} Control Room
+                    {overviewData?.sub_event?.name || 'Mind Saga'}
                   </h1>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                    3-Round Module
-                  </span>
                 </div>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Aptitude Test Engine • Pluggable Gaming Hub • Interview Panels • Live CCTV Proctoring
+                  Aptitude Test Engine • Live CCTV Proctoring
                 </p>
               </div>
             </div>
@@ -560,11 +606,10 @@ const MindSagaControlRoomPage = () => {
                       key={r.num}
                       type="button"
                       onClick={() => handleSetActiveRound(r.num)}
-                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30'
-                          : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
-                      }`}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 ${isSelected
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                        }`}
                       title={r.title}
                     >
                       <span>{r.label}</span>
@@ -641,11 +686,10 @@ const MindSagaControlRoomPage = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
-                  }`}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${isActive
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                    }`}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
@@ -737,9 +781,8 @@ const MindSagaControlRoomPage = () => {
                     <button
                       key={f.id}
                       onClick={() => setProctorFilter(f.id)}
-                      className={`px-3 py-1 rounded-lg font-medium transition ${
-                        proctorFilter === f.id ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
-                      }`}
+                      className={`px-3 py-1 rounded-lg font-medium transition ${proctorFilter === f.id ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+                        }`}
                     >
                       {f.label}
                     </button>
@@ -763,18 +806,17 @@ const MindSagaControlRoomPage = () => {
                     return (
                       <div
                         key={`${session.round_number || 1}-${session.session_id}`}
-                        className={`bg-zinc-950 border rounded-2xl overflow-hidden transition-all hover:border-indigo-500/50 flex flex-col group ${
-                          session.status === 'terminated'
-                            ? 'border-red-600 bg-red-950/10 ring-1 ring-red-600/40'
-                            : isHighRisk
+                        className={`bg-zinc-950 border rounded-2xl overflow-hidden transition-all hover:border-indigo-500/50 flex flex-col group ${session.status === 'terminated'
+                          ? 'border-red-600 bg-red-950/10 ring-1 ring-red-600/40'
+                          : isHighRisk
                             ? 'border-red-500/60 ring-1 ring-red-500/30'
                             : hasWarning
-                            ? 'border-amber-500/50'
-                            : 'border-zinc-800'
-                        }`}
+                              ? 'border-amber-500/50'
+                              : 'border-zinc-800'
+                          }`}
                       >
                         {/* Real-time Video Stream Tile */}
-                        <div 
+                        <div
                           onClick={() => setMaximizedSession(session)}
                           className="relative aspect-video bg-zinc-900 flex items-center justify-center overflow-hidden cursor-pointer group/cam"
                           title="Click to Maximize Live Feed"
@@ -1068,39 +1110,47 @@ const MindSagaControlRoomPage = () => {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setTestModalOpen(true)}
-                  className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                  onClick={() => handleOpenEditTest(null)}
+                  className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-zinc-700 hover:border-zinc-600"
                 >
                   <Plus className="w-4 h-4" /> Create Test
                 </button>
                 {activeTest?.test && (
-                  <button
-                    onClick={() => {
-                      setEditingQuestion(null);
-                      setQuestionForm({
-                        question_text: '',
-                        question_type: 'single_choice',
-                        marks: 2,
-                        negative_marks: 0,
-                        partial_marking_enabled: true,
-                        allow_voice_answer: false,
-                        image_url: '',
-                        expected_answer: '',
-                        keywords_text: '',
-                        evaluation_mode: 'ai_assisted',
-                        options: [
-                          { id: 'A', text: '', is_correct: true },
-                          { id: 'B', text: '', is_correct: false },
-                          { id: 'C', text: '', is_correct: false },
-                          { id: 'D', text: '', is_correct: false }
-                        ]
-                      });
-                      setQuestionModalOpen(true);
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition"
-                  >
-                    <Plus className="w-4 h-4" /> Add Question
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleOpenEditTest(activeTest.test)}
+                      className="px-3.5 py-2 bg-zinc-800/90 hover:bg-zinc-700 text-indigo-300 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-indigo-500/30 hover:border-indigo-500/60 shadow-sm transition"
+                    >
+                      <Settings className="w-4 h-4 text-indigo-400" /> Edit Test Settings
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingQuestion(null);
+                        setQuestionForm({
+                          question_text: '',
+                          question_type: 'single_choice',
+                          marks: 2,
+                          negative_marks: 0,
+                          partial_marking_enabled: true,
+                          allow_voice_answer: false,
+                          image_url: '',
+                          expected_answer: '',
+                          keywords_text: '',
+                          evaluation_mode: 'ai_assisted',
+                          options: [
+                            { id: 'A', text: '', is_correct: true },
+                            { id: 'B', text: '', is_correct: false },
+                            { id: 'C', text: '', is_correct: false },
+                            { id: 'D', text: '', is_correct: false }
+                          ]
+                        });
+                        setQuestionModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition"
+                    >
+                      <Plus className="w-4 h-4" /> Add Question
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -1112,47 +1162,83 @@ const MindSagaControlRoomPage = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-white text-lg">{activeTest.test.title}</h4>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        activeTest.test.is_published ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-400'
-                      }`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${activeTest.test.is_published ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-400'
+                        }`}>
                         {activeTest.test.is_published ? 'Published' : 'Draft'}
                       </span>
                     </div>
                     <p className="text-xs text-zinc-400 mt-1">{activeTest.test.description || 'No description provided.'}</p>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      onClick={() => handleOpenEditTest(activeTest.test)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 transition flex items-center gap-1.5"
+                      title="Edit Duration, Marks, Negative Marking & Shuffle settings"
+                    >
+                      <Edit2 className="w-3.5 h-3.5 text-indigo-400" /> Edit Settings
+                    </button>
                     <button
                       onClick={() => handleTogglePublish(activeTest.test.id)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
-                        activeTest.test.is_published
-                          ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20'
-                          : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      }`}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${activeTest.test.is_published
+                        ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
+                        }`}
                     >
                       {activeTest.test.is_published ? 'Unpublish Test' : 'Publish Test'}
                     </button>
                   </div>
                 </div>
 
-                {/* Test Metrics Grid */}
+                {/* Test Metrics Grid (Clickable to Edit) */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                    <span className="text-zinc-500 block">Duration</span>
+                  <div
+                    onClick={() => handleOpenEditTest(activeTest.test)}
+                    className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/90 hover:border-indigo-500/50 hover:bg-zinc-900/80 cursor-pointer transition group relative"
+                    title="Click to change Duration"
+                  >
+                    <div className="flex items-center justify-between text-zinc-500 mb-1">
+                      <span>Duration</span>
+                      <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 text-indigo-400 transition" />
+                    </div>
                     <span className="font-bold text-white text-sm">{activeTest.test.duration_minutes} Mins</span>
                   </div>
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                    <span className="text-zinc-500 block">Total Marks</span>
-                    <span className="font-bold text-indigo-400 text-sm">{activeTest.test.total_marks} Marks</span>
+
+                  <div
+                    onClick={() => handleOpenEditTest(activeTest.test)}
+                    className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/90 hover:border-indigo-500/50 hover:bg-zinc-900/80 cursor-pointer transition group relative"
+                    title="Click to change Total Marks"
+                  >
+                    <div className="flex items-center justify-between text-zinc-500 mb-1">
+                      <span>Total Marks</span>
+                      <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 text-indigo-400 transition" />
+                    </div>
+                    <span className="font-bold text-indigo-400 text-sm">{Number(activeTest.test.total_marks).toFixed(2)} Marks</span>
                   </div>
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                    <span className="text-zinc-500 block">Questions Count</span>
+
+                  <div
+                    onClick={() => handleOpenEditTest(activeTest.test)}
+                    className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/90 hover:border-indigo-500/50 hover:bg-zinc-900/80 cursor-pointer transition group relative"
+                    title="Questions in this test"
+                  >
+                    <div className="flex items-center justify-between text-zinc-500 mb-1">
+                      <span>Questions Count</span>
+                      <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 text-indigo-400 transition" />
+                    </div>
                     <span className="font-bold text-white text-sm">{activeTest.questions?.length || 0} Questions</span>
                   </div>
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                    <span className="text-zinc-500 block">Negative Marking</span>
+
+                  <div
+                    onClick={() => handleOpenEditTest(activeTest.test)}
+                    className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/90 hover:border-indigo-500/50 hover:bg-zinc-900/80 cursor-pointer transition group relative"
+                    title="Click to change Negative Marking"
+                  >
+                    <div className="flex items-center justify-between text-zinc-500 mb-1">
+                      <span>Negative Marking</span>
+                      <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 text-indigo-400 transition" />
+                    </div>
                     <span className="font-bold text-white text-sm">
-                      {activeTest.test.negative_marking_enabled ? `-${activeTest.test.default_negative_marks}` : 'Disabled'}
+                      {activeTest.test.negative_marking_enabled ? `-${Number(activeTest.test.default_negative_marks).toFixed(2)}` : 'Disabled'}
                     </span>
                   </div>
                 </div>
@@ -1160,7 +1246,7 @@ const MindSagaControlRoomPage = () => {
                 {/* Questions List */}
                 <div className="space-y-3 pt-2">
                   <h5 className="font-semibold text-zinc-200 text-sm">Questions in this Test ({activeTest.questions?.length || 0})</h5>
-                  
+
                   {activeTest.questions?.length === 0 ? (
                     <div className="text-center py-10 border border-dashed border-zinc-800 rounded-xl text-zinc-500 text-xs">
                       No questions in this test yet. Click "Add Question" above.
@@ -1178,15 +1264,14 @@ const MindSagaControlRoomPage = () => {
                             </span>
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                                  q.question_type === 'single_choice'
-                                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                    : q.question_type === 'multiple_choice'
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${q.question_type === 'single_choice'
+                                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                  : q.question_type === 'multiple_choice'
                                     ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                                     : q.question_type === 'written_response'
-                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                }`}>
+                                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  }`}>
                                   {q.question_type.replace('_', ' ')}
                                 </span>
                                 <span className="text-xs text-zinc-400 font-semibold">{q.marks} Marks</span>
@@ -1209,11 +1294,10 @@ const MindSagaControlRoomPage = () => {
                                     return (
                                       <div
                                         key={opt.id}
-                                        className={`p-2 rounded-lg border flex items-center gap-2 ${
-                                          isCorrect
-                                            ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300 font-medium'
-                                            : 'bg-zinc-900/60 border-zinc-800 text-zinc-400'
-                                        }`}
+                                        className={`p-2 rounded-lg border flex items-center gap-2 ${isCorrect
+                                          ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300 font-medium'
+                                          : 'bg-zinc-900/60 border-zinc-800 text-zinc-400'
+                                          }`}
                                       >
                                         <span className="font-bold">{opt.id}.</span>
                                         <span>{opt.text}</span>
@@ -1365,11 +1449,10 @@ const MindSagaControlRoomPage = () => {
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                        g.difficulty === 'easy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${g.difficulty === 'easy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
                         g.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                        'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                      }`}>
+                          'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                        }`}>
                         {g.difficulty}
                       </span>
                     </div>
@@ -1399,9 +1482,8 @@ const MindSagaControlRoomPage = () => {
                   <div className="flex items-center justify-between pt-3 border-t border-zinc-800/80">
                     <button
                       onClick={() => handleToggleGameActive(g)}
-                      className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg ${
-                        g.is_active ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
-                      }`}
+                      className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg ${g.is_active ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
+                        }`}
                     >
                       {g.is_active ? 'Deactivate' : 'Activate'}
                     </button>
@@ -1575,15 +1657,14 @@ const MindSagaControlRoomPage = () => {
                               {Number(item.final_weighted_score).toFixed(2)}
                             </td>
                             <td className="p-3 text-center">
-                              <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider ${
-                                item.qualification_status === 'finalist'
-                                  ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
-                                  : item.qualification_status === 'qualified_round_3'
+                              <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider ${item.qualification_status === 'finalist'
+                                ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                                : item.qualification_status === 'qualified_round_3'
                                   ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30'
                                   : item.qualification_status === 'qualified_round_2'
-                                  ? 'bg-blue-500/10 text-blue-300 border border-blue-500/30'
-                                  : 'bg-zinc-800 text-zinc-400'
-                              }`}>
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/30'
+                                    : 'bg-zinc-800 text-zinc-400'
+                                }`}>
                                 {item.qualification_status.replace(/_/g, ' ')}
                               </span>
                             </td>
@@ -1653,11 +1734,10 @@ const MindSagaControlRoomPage = () => {
 
               <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-between font-semibold">
                 <span className="text-zinc-400">Total Weight Sum:</span>
-                <span className={`text-sm font-bold ${
-                  Number(configForm.round1_weight) + Number(configForm.round2_weight) + Number(configForm.round3_weight) === 100
-                    ? 'text-emerald-400'
-                    : 'text-red-400'
-                }`}>
+                <span className={`text-sm font-bold ${Number(configForm.round1_weight) + Number(configForm.round2_weight) + Number(configForm.round3_weight) === 100
+                  ? 'text-emerald-400'
+                  : 'text-red-400'
+                  }`}>
                   {Number(configForm.round1_weight) + Number(configForm.round2_weight) + Number(configForm.round3_weight)}%
                 </span>
               </div>
@@ -1680,11 +1760,10 @@ const MindSagaControlRoomPage = () => {
                       type="button"
                       key={st.val}
                       onClick={() => setConfigForm({ ...configForm, active_round: st.val })}
-                      className={`p-3 rounded-xl border text-left transition ${
-                        Number(configForm.active_round) === st.val
-                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
-                      }`}
+                      className={`p-3 rounded-xl border text-left transition ${Number(configForm.active_round) === st.val
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                        }`}
                     >
                       <span className="font-bold text-xs block">{st.title}</span>
                       <span className="text-[10px] opacity-80 mt-0.5 block">{st.desc}</span>
@@ -1767,6 +1846,220 @@ const MindSagaControlRoomPage = () => {
           </div>
         )}
       </div>
+
+      {/* TEST SETTINGS & BUILDER MODAL */}
+      {testModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-7 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3.5 border-b border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">
+                    {editingTestId ? 'Edit Aptitude Test Settings' : 'Create New Aptitude Test'}
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">Configure timer duration, marks, question pool, and negative marking.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setTestModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTest} className="space-y-4 text-xs">
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1">Test Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={testForm.title}
+                  onChange={(e) => setTestForm({ ...testForm, title: e.target.value })}
+                  placeholder="e.g. Mind Saga Phase 1: Cognitive Aptitude"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1">Test Description & Instructions</label>
+                <textarea
+                  rows="2"
+                  value={testForm.description}
+                  onChange={(e) => setTestForm({ ...testForm, description: e.target.value })}
+                  placeholder="Instructions for participants before starting..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Duration & Marks Grid */}
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="p-3.5 bg-zinc-950/80 rounded-2xl border border-zinc-800/80 space-y-1.5">
+                  <label className="text-zinc-300 font-bold block flex items-center justify-between">
+                    <span>Duration (Minutes) *</span>
+                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max="300"
+                    value={testForm.duration_minutes}
+                    onChange={(e) => setTestForm({ ...testForm, duration_minutes: parseInt(e.target.value) || 25 })}
+                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-zinc-500 block">Exam countdown timer</span>
+                </div>
+
+                <div className="p-3.5 bg-zinc-950/80 rounded-2xl border border-zinc-800/80 space-y-1.5">
+                  <label className="text-zinc-300 font-bold block flex items-center justify-between">
+                    <span>Total Marks *</span>
+                    <Award className="w-3.5 h-3.5 text-purple-400" />
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    step="0.5"
+                    value={testForm.total_marks}
+                    onChange={(e) => setTestForm({ ...testForm, total_marks: parseFloat(e.target.value) || 40 })}
+                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-indigo-300 font-mono font-bold text-sm focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-zinc-500 block">Maximum score achievable</span>
+                </div>
+              </div>
+
+              {/* Passing Marks & Random Pool Count */}
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="p-3.5 bg-zinc-950/80 rounded-2xl border border-zinc-800/80 space-y-1.5">
+                  <label className="text-zinc-300 font-semibold block">Pass Marks</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={testForm.pass_marks}
+                    onChange={(e) => setTestForm({ ...testForm, pass_marks: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-zinc-500 block">Cut-off score benchmark</span>
+                </div>
+
+                <div className="p-3.5 bg-zinc-950/80 rounded-2xl border border-zinc-800/80 space-y-1.5">
+                  <label className="text-zinc-300 font-semibold block">Random Question Count</label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="All questions in pool"
+                    value={testForm.random_question_count}
+                    onChange={(e) => setTestForm({ ...testForm, random_question_count: e.target.value ? parseInt(e.target.value) : '' })}
+                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-indigo-500"
+                  />
+                  <span className="text-[10px] text-zinc-500 block">e.g. 4 questions picked from pool</span>
+                </div>
+              </div>
+
+              {/* Negative Marking Configuration */}
+              <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={testForm.negative_marking_enabled}
+                      onChange={(e) => setTestForm({ ...testForm, negative_marking_enabled: e.target.checked })}
+                      className="w-4 h-4 rounded text-indigo-600 bg-zinc-900 border-zinc-700"
+                    />
+                    <span className="text-zinc-200 font-bold">Enable Negative Marking</span>
+                  </label>
+                  <span className="text-[10px] text-zinc-400 font-mono">Deduction per incorrect answer</span>
+                </div>
+
+                {testForm.negative_marking_enabled && (
+                  <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between gap-3">
+                    <span className="text-zinc-400 font-medium">Negative Marks Penalty:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-400 font-bold font-mono">-</span>
+                      <input
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="10"
+                        value={testForm.default_negative_marks}
+                        onChange={(e) => setTestForm({ ...testForm, default_negative_marks: parseFloat(e.target.value) || 0 })}
+                        className="w-24 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-red-300 font-mono font-bold text-xs"
+                      />
+                      <span className="text-zinc-400 text-xs">Marks</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Randomization Options */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <label className="flex items-center gap-2 p-3 bg-zinc-950 rounded-xl border border-zinc-800 cursor-pointer hover:border-zinc-700 transition">
+                  <input
+                    type="checkbox"
+                    checked={testForm.shuffle_questions}
+                    onChange={(e) => setTestForm({ ...testForm, shuffle_questions: e.target.checked })}
+                    className="w-4 h-4 rounded text-indigo-600 bg-zinc-900 border-zinc-700"
+                  />
+                  <span className="text-zinc-300 font-medium text-xs">Shuffle Questions</span>
+                </label>
+
+                <label className="flex items-center gap-2 p-3 bg-zinc-950 rounded-xl border border-zinc-800 cursor-pointer hover:border-zinc-700 transition">
+                  <input
+                    type="checkbox"
+                    checked={testForm.shuffle_options}
+                    onChange={(e) => setTestForm({ ...testForm, shuffle_options: e.target.checked })}
+                    className="w-4 h-4 rounded text-indigo-600 bg-zinc-900 border-zinc-700"
+                  />
+                  <span className="text-zinc-300 font-medium text-xs">Shuffle MCQ Options</span>
+                </label>
+              </div>
+
+              {/* Schedule (Optional) */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="text-zinc-400 font-semibold block mb-1">Schedule Window Start</label>
+                  <input
+                    type="datetime-local"
+                    value={testForm.schedule_start}
+                    onChange={(e) => setTestForm({ ...testForm, schedule_start: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-white font-mono text-[11px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 font-semibold block mb-1">Schedule Window End</label>
+                  <input
+                    type="datetime-local"
+                    value={testForm.schedule_end}
+                    onChange={(e) => setTestForm({ ...testForm, schedule_end: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-white font-mono text-[11px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setTestModalOpen(false)}
+                  className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl font-medium transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold shadow-md shadow-indigo-600/20 transition"
+                >
+                  {editingTestId ? 'Update Test Settings' : 'Create Test'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* QUESTION BUILDER MODAL */}
       {questionModalOpen && (
@@ -2085,11 +2378,10 @@ const MindSagaControlRoomPage = () => {
                         title: editingGame ? gameForm.title : 'Deductive Symbol Matrix Deduction'
                       });
                     }}
-                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${
-                      gameForm.game_key === 'deductive_logic'
-                        ? 'bg-purple-950/30 border-purple-500 text-white ring-1 ring-purple-500'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                    }`}
+                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${gameForm.game_key === 'deductive_logic'
+                      ? 'bg-purple-950/30 border-purple-500 text-white ring-1 ring-purple-500'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      }`}
                   >
                     <BrainCircuit className="w-5 h-5 text-purple-400 shrink-0" />
                     <div>
@@ -2106,11 +2398,10 @@ const MindSagaControlRoomPage = () => {
                         title: editingGame ? gameForm.title : 'Motion Matrix Reflex Challenge'
                       });
                     }}
-                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${
-                      gameForm.game_key === 'motion_challenge'
-                        ? 'bg-indigo-950/30 border-indigo-500 text-white ring-1 ring-indigo-500'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                    }`}
+                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${gameForm.game_key === 'motion_challenge'
+                      ? 'bg-indigo-950/30 border-indigo-500 text-white ring-1 ring-indigo-500'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      }`}
                   >
                     <Target className="w-5 h-5 text-indigo-400 shrink-0" />
                     <div>
@@ -2149,11 +2440,10 @@ const MindSagaControlRoomPage = () => {
                       type="button"
                       key={lvl.id}
                       onClick={() => setGameForm({ ...gameForm, difficulty: lvl.id })}
-                      className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                        gameForm.difficulty === lvl.id
-                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${gameForm.difficulty === lvl.id
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                        }`}
                     >
                       <span className="font-bold uppercase text-xs">{lvl.label}</span>
                       <span className="text-[9px] opacity-75 mt-0.5">{lvl.desc}</span>
@@ -2294,15 +2584,14 @@ const MindSagaControlRoomPage = () => {
                 </div>
 
                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border ${
-                    maximizedSession.status === 'terminated'
-                      ? 'bg-red-950/80 border-red-500 text-red-300'
-                      : maximizedSession.violation_count >= 3
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border ${maximizedSession.status === 'terminated'
+                    ? 'bg-red-950/80 border-red-500 text-red-300'
+                    : maximizedSession.violation_count >= 3
                       ? 'bg-red-600 text-white'
                       : maximizedSession.violation_count > 0
-                      ? 'bg-amber-500 text-black font-extrabold'
-                      : 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                  }`}>
+                        ? 'bg-amber-500 text-black font-extrabold'
+                        : 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                    }`}>
                     {maximizedSession.status === 'terminated'
                       ? 'TERMINATED'
                       : `${maximizedSession.violation_count} / 3 Strikes`}
@@ -2326,18 +2615,16 @@ const MindSagaControlRoomPage = () => {
 
                 <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800">
                   <span className="text-zinc-500 block font-medium">Camera Feed</span>
-                  <span className={`font-bold text-sm mt-0.5 block ${
-                    maximizedSession.camera_status === 'connected' ? 'text-emerald-400' : 'text-red-400'
-                  }`}>
+                  <span className={`font-bold text-sm mt-0.5 block ${maximizedSession.camera_status === 'connected' ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
                     {maximizedSession.camera_status === 'connected' ? '● Connected' : '✕ Disconnected'}
                   </span>
                 </div>
 
                 <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800">
                   <span className="text-zinc-500 block font-medium">Security Strikes</span>
-                  <span className={`font-bold text-sm mt-0.5 block ${
-                    maximizedSession.violation_count >= 3 ? 'text-red-400' : maximizedSession.violation_count > 0 ? 'text-amber-400' : 'text-emerald-400'
-                  }`}>
+                  <span className={`font-bold text-sm mt-0.5 block ${maximizedSession.violation_count >= 3 ? 'text-red-400' : maximizedSession.violation_count > 0 ? 'text-amber-400' : 'text-emerald-400'
+                    }`}>
                     {maximizedSession.violation_count} of 3
                   </span>
                 </div>
@@ -2441,11 +2728,10 @@ const MindSagaControlRoomPage = () => {
                     key={i}
                     type="button"
                     onClick={() => setBlockModal({ ...blockModal, reason: reasonText })}
-                    className={`p-2 rounded-xl border text-left text-xs transition ${
-                      blockModal.reason === reasonText
-                        ? 'bg-red-950/40 border-red-500 text-red-200'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
-                    }`}
+                    className={`p-2 rounded-xl border text-left text-xs transition ${blockModal.reason === reasonText
+                      ? 'bg-red-950/40 border-red-500 text-red-200'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
                   >
                     {reasonText}
                   </button>

@@ -990,8 +990,8 @@ class MindSagaController {
 
         $testId = (int)($body['test_id'] ?? 0);
         if ($testId === 0) {
-            // Find active published test for this sub-event
-            $tStmt = $db->prepare("SELECT id FROM mind_saga_aptitude_tests WHERE sub_event_id = ? AND is_published = 1 ORDER BY id ASC LIMIT 1");
+            // Find active published test for this sub-event, fallback to any test
+            $tStmt = $db->prepare("SELECT id FROM mind_saga_aptitude_tests WHERE sub_event_id = ? ORDER BY is_published DESC, id ASC LIMIT 1");
             $tStmt->execute([$subId]);
             $testId = (int)($tStmt->fetchColumn() ?? 0);
         }
@@ -1001,24 +1001,31 @@ class MindSagaController {
             return;
         }
 
+        $userEmail = $user['email'] ?? ($user['user']['email'] ?? '');
+        $userId = (int)($user['userId'] ?? ($user['id'] ?? ($user['user']['id'] ?? 0)));
+        $userName = $user['name'] ?? ($user['user']['name'] ?? 'Candidate');
+        $userRole = $user['role'] ?? ($user['user']['role'] ?? 'participant');
+
         // Get participant registration
-        $regStmt = $db->prepare("SELECT er.id as registration_id, er.full_name, er.email FROM event_registrations er
-            JOIN event_registration_sub_events ers ON ers.registration_id = er.id
-            WHERE ers.sub_event_id = ? AND (er.email = ? OR er.id = ?)
-        ");
-        $regStmt->execute([$subId, $user['email'] ?? '', (int)($user['id'] ?? 0)]);
+        $regStmt = $db->prepare("SELECT id as registration_id, full_name, email FROM event_registrations 
+            WHERE (email = ? AND email != '') OR (id = ? AND id > 0) LIMIT 1");
+        $regStmt->execute([$userEmail, $userId]);
         $reg = $regStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$reg) {
-            // Check if admin is previewing or allow fallback
-            if (in_array($user['role'], ['coordinator', 'core_member', 'member'])) {
-                // Find or create test placeholder reg
-                $testRegStmt = $db->prepare("SELECT id as registration_id, full_name, email FROM event_registrations WHERE email = ? LIMIT 1");
-                $testRegStmt->execute([$user['email']]);
-                $reg = $testRegStmt->fetch(PDO::FETCH_ASSOC);
-                if (!$reg) {
-                    $reg = ['registration_id' => 999999, 'full_name' => $user['name'] ?? 'Admin Preview', 'email' => $user['email']];
-                }
+            $msStmt = $db->prepare("SELECT er.id as registration_id, er.full_name, er.email 
+                FROM mind_saga_scores ms 
+                JOIN event_registrations er ON ms.registration_id = er.id 
+                WHERE ms.sub_event_id = ? AND ((er.email = ? AND er.email != '') OR er.id = ?) LIMIT 1");
+            $msStmt->execute([$subId, $userEmail, $userId]);
+            $reg = $msStmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        if (!$reg) {
+            if (in_array($userRole, ['coordinator', 'core_member', 'member', 'admin'])) {
+                $reg = ['registration_id' => $userId ?: 999999, 'full_name' => $userName, 'email' => $userEmail ?: 'admin@preview.local'];
+            } else if ($userId > 0) {
+                $reg = ['registration_id' => $userId, 'full_name' => $userName, 'email' => $userEmail];
             } else {
                 Router::sendJson(['error' => 'You are not registered for Mind Saga in this event.'], 403);
                 return;
@@ -1035,7 +1042,7 @@ class MindSagaController {
         $activeRound = (int)($config['active_round'] ?? 1);
         $maxAttemptsR1 = (int)($config['max_attempts_r1'] ?? 1);
 
-        if (!in_array($user['role'], ['coordinator', 'core_member', 'member'])) {
+        if (!in_array($userRole, ['coordinator', 'core_member', 'member', 'admin'])) {
             if ($activeRound < 1) {
                 Router::sendJson(['error' => 'Round 1: Aptitude Assessment has not been unlocked by the administrator yet.'], 403);
                 return;
@@ -1723,7 +1730,12 @@ class MindSagaController {
         $activeRound = (int)($config['active_round'] ?? 1);
         $maxAttemptsR2 = (int)($config['max_attempts_r2'] ?? 1);
 
-        if (!in_array($user['role'], ['coordinator', 'core_member', 'member'])) {
+        $userEmail = $user['email'] ?? ($user['user']['email'] ?? '');
+        $userId = (int)($user['userId'] ?? ($user['id'] ?? ($user['user']['id'] ?? 0)));
+        $userName = $user['name'] ?? ($user['user']['name'] ?? 'Candidate');
+        $userRole = $user['role'] ?? ($user['user']['role'] ?? 'participant');
+
+        if (!in_array($userRole, ['coordinator', 'core_member', 'member', 'admin'])) {
             if ($activeRound < 2) {
                 Router::sendJson(['error' => 'Round 2: Gaming Arena has not been unlocked by the administrator yet.'], 403);
                 return;
@@ -1731,12 +1743,16 @@ class MindSagaController {
         }
 
         // Find registration
-        $regStmt = $db->prepare("SELECT er.id as registration_id FROM event_registrations er
-            JOIN event_registration_sub_events ers ON ers.registration_id = er.id
-            WHERE ers.sub_event_id = ? AND (er.email = ? OR er.id = ?)
-        ");
-        $regStmt->execute([$subId, $user['email'] ?? '', (int)($user['id'] ?? 0)]);
-        $regId = (int)($regStmt->fetchColumn() ?? 999999);
+        $regStmt = $db->prepare("SELECT id as registration_id FROM event_registrations 
+            WHERE (email = ? AND email != '') OR (id = ? AND id > 0) LIMIT 1");
+        $regStmt->execute([$userEmail, $userId]);
+        $regId = (int)($regStmt->fetchColumn() ?? 0);
+
+        if ($regId === 0) {
+            $msStmt = $db->prepare("SELECT registration_id FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ? LIMIT 1");
+            $msStmt->execute([$subId, $userId]);
+            $regId = (int)($msStmt->fetchColumn() ?? ($userId ?: 999999));
+        }
 
         // Check completed gaming sessions / tournament attempts
         $gCountStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated')");
@@ -2710,6 +2726,13 @@ class MindSagaController {
             'aud' => 'teammavericks_rms_client',
             'iat' => $issuedAt,
             'exp' => $expiry,
+            'userId' => (int)$candidate['registration_id'],
+            'id' => (int)$candidate['registration_id'],
+            'name' => $candidate['full_name'],
+            'email' => $candidate['email'],
+            'role' => 'participant',
+            'mustChangePassword' => false,
+            'permissions' => [],
             'user' => [
                 'id' => (int)$candidate['registration_id'],
                 'name' => $candidate['full_name'],

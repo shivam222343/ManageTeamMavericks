@@ -94,6 +94,10 @@ const MindSagaAptitudeTestPage = () => {
   const initSession = useCallback(async () => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token') || sessionStorage.getItem('mind_saga_auth_token');
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
       const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/aptitude/start`);
       const data = res.data;
 
@@ -412,11 +416,40 @@ const MindSagaAptitudeTestPage = () => {
     }
   };
 
+  const [redirectCountdown, setRedirectCountdown] = useState(4);
+
+  // Auto-redirect effect when test is completed or auto-submitted
+  useEffect(() => {
+    if (!testResult) return;
+    setWarningModal({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
+
+    if (document.fullscreenElement) {
+      try {
+        document.exitFullscreen().catch(() => {});
+      } catch (e) {}
+    }
+
+    const timer = setInterval(() => {
+      setRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [testResult, eventId, subEventId, navigate]);
+
   // 7. Final Submit
   const handleSubmitTest = async (isAuto = false) => {
     if (!isAuto && !window.confirm('Are you sure you want to submit your aptitude test? You cannot make further changes.')) {
       return;
     }
+
+    setWarningModal({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
 
     try {
       setSubmitting(true);
@@ -478,7 +511,7 @@ const MindSagaAptitudeTestPage = () => {
             </h2>
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">
               {isAuto
-                ? 'Your test was automatically submitted because time expired or proctoring threshold was reached. All your saved answers have been evaluated.'
+                ? 'Your test was automatically submitted because time expired or 3 anti-cheating strikes were reached. All your saved answers have been evaluated.'
                 : 'Your answers have been securely recorded and evaluated by the server marking engine.'}
             </p>
           </div>
@@ -509,7 +542,7 @@ const MindSagaAptitudeTestPage = () => {
               onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga`)}
               className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs transition shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Okay · Proceed to Next Round (Gaming)</span>
+              <span>{redirectCountdown > 0 ? `Redirecting in ${redirectCountdown}s...` : 'Returning to Arena...'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button

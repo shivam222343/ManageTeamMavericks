@@ -26,6 +26,13 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
+// In-memory session store (persists across SPA route navigation, resets on browser refresh/tab close)
+let memoryVerifiedSession = {
+  verified: false,
+  key: '',
+  candidate: null
+};
+
 const MindSagaParticipantArena = () => {
   const { id: eventId, subId: subEventId } = useParams();
   const { user } = useAuth();
@@ -33,21 +40,23 @@ const MindSagaParticipantArena = () => {
   const isDark = theme === 'dark';
   const navigate = useNavigate();
 
-  // Access Key Gate State: Resets to false on every page refresh!
-  const [isKeyVerified, setIsKeyVerified] = useState(false);
-  const [keyInput, setKeyInput] = useState('');
+  // Access Key Gate State: initialized from in-memory session if already verified in this tab session
+  const [isKeyVerified, setIsKeyVerified] = useState(() => memoryVerifiedSession.verified);
+  const [keyInput, setKeyInput] = useState(() => memoryVerifiedSession.key || '');
   const [verifyingKey, setVerifyingKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [arenaData, setArenaData] = useState(null);
-  const [verifiedCandidate, setVerifiedCandidate] = useState(null);
+  const [verifiedCandidate, setVerifiedCandidate] = useState(() => memoryVerifiedSession.candidate);
 
   // Check if admin preview (allows coordinators/core_members to bypass, but participants MUST verify key)
-  const isAdminRole = user?.role && ['coordinator', 'core_member', 'member'].includes(user.role);
+  const isAdminRole = user?.role && ['coordinator', 'core_member', 'member', 'admin'].includes(user.role);
 
   useEffect(() => {
     if (isAdminRole) {
       setIsKeyVerified(true);
       fetchParticipantStatus();
+    } else if (memoryVerifiedSession.verified && memoryVerifiedSession.key) {
+      fetchParticipantStatus(memoryVerifiedSession.key);
     }
   }, [eventId, subEventId, isAdminRole]);
 
@@ -95,6 +104,12 @@ const MindSagaParticipantArena = () => {
       if (data.candidate) {
         setVerifiedCandidate(data.candidate);
       }
+
+      memoryVerifiedSession = {
+        verified: true,
+        key: cleanKey,
+        candidate: data.candidate || null
+      };
 
       if (!data.is_live && data.platform_status === 'locked' && !isAdminRole) {
         toast.error('Mind Saga platform is currently LOCKED by the admin. Please wait for the admin to unlock.', {

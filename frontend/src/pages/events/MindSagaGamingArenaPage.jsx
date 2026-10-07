@@ -70,6 +70,7 @@ const MindSagaGamingArenaPage = () => {
   const [fullscreenCountdown, setFullscreenCountdown] = useState(10);
   const [warningType, setWarningType] = useState('fullscreen'); // 'fullscreen' | 'tab_switch' | 'camera'
   const [exitConfirmModal, setExitConfirmModal] = useState(false);
+  const [nextGameConfirmModal, setNextGameConfirmModal] = useState(false);
 
   const videoRef = useRef(null);
   const pipVideoRef = useRef(null);
@@ -119,6 +120,10 @@ const MindSagaGamingArenaPage = () => {
   const fetchPipeline = useCallback(async () => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token') || sessionStorage.getItem('mind_saga_auth_token');
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
       const res = await axios.get(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games`);
       const allGames = Array.isArray(res.data) ? res.data : [];
       const activeOnly = allGames.filter((g) => g.is_active !== 0 && g.is_active !== false);
@@ -237,6 +242,33 @@ const MindSagaGamingArenaPage = () => {
       console.error('Failed to log proctor event:', err);
     }
   }, [eventId, subEventId]);
+
+  const [redirectCountdown, setRedirectCountdown] = useState(4);
+
+  // Auto-redirect effect when gaming round completes or auto-submits
+  useEffect(() => {
+    if (!gameResult) return;
+    setShowWarningModal(false);
+
+    if (document.fullscreenElement) {
+      try {
+        document.exitFullscreen().catch(() => {});
+      } catch (e) {}
+    }
+
+    const timer = setInterval(() => {
+      setRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameResult, eventId, subEventId, navigate]);
 
   // 4. Auto-Submit Gaming Round
   const handleAutoSubmitRound = async (reason = 'Security policy violation or timer expiry.') => {
@@ -365,6 +397,10 @@ const MindSagaGamingArenaPage = () => {
   const startSpecificGame = async (gameConfig, gameIdx) => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token') || sessionStorage.getItem('mind_saga_auth_token');
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
       const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/start`, {
         game_config_id: gameConfig?.id,
         game_key: gameConfig?.game_key
@@ -475,6 +511,15 @@ const MindSagaGamingArenaPage = () => {
           await document.exitFullscreen();
         } catch (e) {}
       }
+    }
+  };
+
+  // Handle Next Game Click with confirmation if timer has not ended
+  const handleNextGameClick = () => {
+    if (remainingSeconds > 0) {
+      setNextGameConfirmModal(true);
+    } else {
+      handleCompleteCurrentGame();
     }
   };
 
@@ -672,7 +717,7 @@ const MindSagaGamingArenaPage = () => {
             onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga`)}
             className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs transition shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 cursor-pointer"
           >
-            <span>Okay · Return to Mind Saga Arena</span>
+            <span>{redirectCountdown > 0 ? `Redirecting in ${redirectCountdown}s...` : 'Returning to Arena...'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </motion.div>
@@ -778,7 +823,7 @@ const MindSagaGamingArenaPage = () => {
 
             {/* Skip / Next Game Button */}
             <button
-              onClick={handleCompleteCurrentGame}
+              onClick={handleNextGameClick}
               className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shadow-md transition cursor-pointer"
             >
               <span>{currentGameIndex + 1 < pipelineGames.length ? 'Next Game' : 'Finish Round'}</span>
@@ -1147,6 +1192,45 @@ const MindSagaGamingArenaPage = () => {
                 className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-rose-600/20 cursor-pointer"
               >
                 Exit & Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEXT GAME CONFIRMATION WARNING MODAL */}
+      {nextGameConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-indigo-500/40 rounded-3xl max-w-md w-full p-6 sm:p-7 text-center space-y-4 shadow-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto shadow-inner">
+              <Zap className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">
+                {currentGameIndex + 1 < pipelineGames.length ? 'Advance to Next Challenge?' : 'Complete Gaming Round?'}
+              </h3>
+              <p className="text-xs text-zinc-300 mt-2 leading-relaxed">
+                You still have <strong className="text-indigo-400 font-mono text-sm">{formatTimer(remainingSeconds)}</strong> remaining on this challenge timer. Are you sure you want to finalize this game early and advance?
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setNextGameConfirmModal(false)}
+                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Keep Playing
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNextGameConfirmModal(false);
+                  handleCompleteCurrentGame();
+                }}
+                className="flex-1 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>{currentGameIndex + 1 < pipelineGames.length ? 'Yes, Next Game' : 'Yes, Finish'}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
