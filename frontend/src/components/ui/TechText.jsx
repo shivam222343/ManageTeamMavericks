@@ -35,6 +35,7 @@ const signed = value => (value > 0 ? `+${value}` : value < 0 ? `−${-value}` : 
 
 const TechText = ({
   text = 'React Bits',
+  align = 'center',
   fontFamily = '',
   fontWeight = 600,
   fontSize = 150,
@@ -65,6 +66,7 @@ const TechText = ({
   useEffect(() => {
     settingsRef.current = {
       text,
+      align,
       fontFamily,
       fontWeight,
       fontSize,
@@ -168,6 +170,7 @@ const TechText = ({
     const ensureLayout = s => {
       const key = [
         s.text,
+        s.align,
         family(s),
         s.fontWeight,
         s.fontSize,
@@ -199,7 +202,7 @@ const TechText = ({
 
       const fit = Math.min(
         1,
-        (width * 0.9) / Math.max(measuredLeft + measuredRight, 1),
+        (width * 0.95) / Math.max(measuredLeft + measuredRight, 1),
         (height * 0.66) / Math.max(measuredAscent + measuredDescent, 1)
       );
       const size = s.fontSize * fit;
@@ -212,7 +215,7 @@ const TechText = ({
 
       const inkWidth = inkLeft + inkRight;
       const inkHeight = inkAscent + inkDescent;
-      const x = (width - inkWidth) / 2 + inkLeft;
+      const x = s.align === 'left' ? inkLeft + 2 : (width - inkWidth) / 2 + inkLeft;
       const baseline = (height - inkHeight) / 2 + inkAscent;
       const next = {
         size,

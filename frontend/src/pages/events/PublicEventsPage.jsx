@@ -291,17 +291,47 @@ const PublicEventsPage = () => {
             {/* Left Column - Large Editorial Headline & Search */}
             <div className="lg:col-span-6 space-y-6">
 
-              <motion.h1
+              <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="font-display-heavy text-5xl sm:text-6xl md:text-7xl lg:text-[76px] uppercase leading-[0.9] tracking-tight text-zinc-900 dark:text-white"
+                className="space-y-1"
               >
-                EXPLORE OUR <br />
-                <span className="bg-gradient-to-r from-blue-500 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                  FLAGSHIP EVENTS.
-                </span>
-              </motion.h1>
+                <h1 className="font-display-heavy text-5xl sm:text-6xl md:text-7xl lg:text-[76px] uppercase leading-[0.9] tracking-tight text-zinc-900 dark:text-white">
+                  EXPLORE OUR
+                </h1>
+                <h2 className="sr-only">FLAGSHIP EVENTS.</h2>
+
+                {/* Front 1st Page Hero - Interactive TechText for "FLAGSHIP EVENTS." */}
+                <div 
+                  style={{ width: '100%', position: 'relative' }}
+                  className="h-[68px] sm:h-[84px] md:h-[102px] lg:h-[116px] -mt-1 sm:-mt-2"
+                >
+                  <TechText
+                    text="FLAGSHIP EVENTS."
+                    align="left"
+                    fontWeight={600}
+                    fontSize={150}
+                    reveal="letter"
+                    dashLength={4}
+                    dashGap={2}
+                    specks={15}
+                    fontFamily=""
+                    color={isDark ? '#ffffff' : '#0f172a'}
+                    accentColor={isDark ? '#38bdf8' : '#2563eb'}
+                    letterSpacing={-0.05}
+                    reach={200}
+                    softness={0.7}
+                    strokeWidth={1.5}
+                    speed={1}
+                    lineStyle="dashed"
+                    selection
+                    labels
+                    draggable
+                    sweep
+                  />
+                </div>
+              </motion.div>
 
               <div className="space-y-3 pt-1 max-w-xl">
                 <p className="font-mono-tag text-xs font-black tracking-widest uppercase text-blue-500">
