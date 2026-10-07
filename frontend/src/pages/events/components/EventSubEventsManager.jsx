@@ -21,7 +21,8 @@ import {
   Unlock,
   AlertCircle,
   ArrowRight,
-  Sliders
+  Sliders,
+  BrainCircuit
 } from 'lucide-react';
 
 const EventSubEventsManager = ({ eventId, event, onUpdate }) => {
@@ -352,14 +353,33 @@ const EventSubEventsManager = ({ eventId, event, onUpdate }) => {
 
                 {/* Action buttons & Quick Close/Open Toggle */}
                 <div className="space-y-2 pt-3 border-t border-zinc-200/60 dark:border-zinc-800/60">
-                  <Link
-                    to={`/dashboard/events/${eventId}/sub-events/${sub.id}`}
-                    className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase tracking-wider transition shadow-md shadow-purple-600/20 cursor-pointer text-center"
-                  >
-                    <Sliders size={13} />
-                    <span>Manage Subevent</span>
-                    <ArrowRight size={13} />
-                  </Link>
+                  {sub.slug?.toLowerCase().includes('mind') || sub.name?.toLowerCase().includes('mind') ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Link
+                        to={`/dashboard/events/${eventId}/sub-events/${sub.id}/mind-saga`}
+                        className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-[11px] font-black uppercase tracking-wider transition shadow-md shadow-indigo-600/20 text-center"
+                      >
+                        <BrainCircuit size={13} />
+                        <span>Mind Saga 3-Rounds</span>
+                      </Link>
+                      <Link
+                        to={`/dashboard/events/${eventId}/sub-events/${sub.id}`}
+                        className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-[11px] font-black uppercase tracking-wider transition text-center"
+                      >
+                        <Sliders size={13} />
+                        <span>Control Room</span>
+                      </Link>
+                    </div>
+                  ) : (
+                    <Link
+                      to={`/dashboard/events/${eventId}/sub-events/${sub.id}`}
+                      className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase tracking-wider transition shadow-md shadow-purple-600/20 cursor-pointer text-center"
+                    >
+                      <Sliders size={13} />
+                      <span>Manage Subevent</span>
+                      <ArrowRight size={13} />
+                    </Link>
+                  )}
 
                   <div className="flex items-center gap-2">
                     <button

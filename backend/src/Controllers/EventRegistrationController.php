@@ -783,6 +783,42 @@ class EventRegistrationController {
                 if (is_string($s['team_members'])) {
                     $s['team_members'] = json_decode($s['team_members'], true);
                 }
+                
+                // Mind Saga Enrichment: Fetch access key, qualification, and platform status
+                try {
+                    $msStmt = $db->prepare("SELECT access_key, qualification_status FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ?");
+                    $msStmt->execute([$s['sub_event_id'], $reg['id']]);
+                    $msScore = $msStmt->fetch(PDO::FETCH_ASSOC);
+
+                    $msCfgStmt = $db->prepare("SELECT platform_status FROM mind_saga_configs WHERE sub_event_id = ?");
+                    $msCfgStmt->execute([$s['sub_event_id']]);
+                    $msCfg = $msCfgStmt->fetch(PDO::FETCH_ASSOC);
+
+                    $isMindSaga = ($msScore !== false) || ($msCfg !== false) || (stripos($s['sub_event_name'] ?? '', 'mind') !== false);
+
+                    if ($isMindSaga) {
+                        if (empty($msScore['access_key'])) {
+                            $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                            $p1 = ''; $p2 = '';
+                            for ($c = 0; $c < 4; $c++) {
+                                $p1 .= $chars[rand(0, strlen($chars) - 1)];
+                                $p2 .= $chars[rand(0, strlen($chars) - 1)];
+                            }
+                            $genKey = "MS-{$p1}-{$p2}";
+                            $db->prepare("INSERT INTO mind_saga_scores (sub_event_id, registration_id, access_key) 
+                                VALUES (?, ?, ?) 
+                                ON DUPLICATE KEY UPDATE access_key = VALUES(access_key)
+                            ")->execute([$s['sub_event_id'], $reg['id'], $genKey]);
+                            $s['mind_saga_key'] = $genKey;
+                        } else {
+                            $s['mind_saga_key'] = $msScore['access_key'];
+                        }
+                        $s['mind_saga_status'] = $msScore['qualification_status'] ?? 'in_round_1';
+                        $s['mind_saga_platform_status'] = $msCfg['platform_status'] ?? 'locked';
+                    }
+                } catch (\Exception $e) {
+                    // Silently continue if mind_saga table is not yet initialized
+                }
             }
             $reg['sub_events'] = $subList;
         }

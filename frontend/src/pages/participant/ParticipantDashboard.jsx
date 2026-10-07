@@ -31,7 +31,11 @@ import {
   ScanLine,
   Layers,
   Check,
-  X
+  X,
+  Key,
+  Unlock,
+  BrainCircuit,
+  Play
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import Footer from '../../components/layout/Footer';
@@ -474,6 +478,104 @@ const ParticipantDashboard = () => {
                           </div>
                         )}
 
+                        {/* Mind Saga Direct Launchers & Candidate Access Key if registered for Mind Saga */}
+                        {subList.some(s => s.mind_saga_key || s.sub_event_name?.toLowerCase().includes('mind') || s.sub_event_slug?.toLowerCase().includes('mind')) && (
+                          <div className="pt-2.5 space-y-2">
+                            {subList
+                              .filter(s => s.mind_saga_key || s.sub_event_name?.toLowerCase().includes('mind') || s.sub_event_slug?.toLowerCase().includes('mind'))
+                              .map((msSub, msIdx) => {
+                                const isLive = msSub.mind_saga_platform_status === 'live';
+                                const accessKey = msSub.mind_saga_key || 'MS-PENDING';
+                                const publicLink = `${window.location.origin}/mindsaga`;
+
+                                return (
+                                  <div
+                                    key={msIdx}
+                                    className={`p-3 rounded-2xl border transition-all ${
+                                      isDark
+                                        ? 'bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-zinc-900 border-indigo-500/30'
+                                        : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-white border-indigo-200 shadow-sm'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="p-1 rounded-lg bg-indigo-500/20 text-indigo-400">
+                                          <BrainCircuit size={13} />
+                                        </div>
+                                        <span className="font-display-heavy text-xs uppercase tracking-tight text-indigo-400 font-bold">
+                                          {msSub.sub_event_name || 'Mind Saga'}
+                                        </span>
+                                      </div>
+
+                                      {/* Platform Status Pill */}
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border ${
+                                          isLive
+                                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 animate-pulse'
+                                            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                        }`}
+                                      >
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                        <span>{isLive ? 'LIVE' : 'LOCKED'}</span>
+                                      </span>
+                                    </div>
+
+                                    {/* Access Key Display Box */}
+                                    <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-black/30 border border-indigo-500/20 mb-2.5">
+                                      <div className="flex items-center gap-1.5 truncate">
+                                        <Key size={12} className="text-indigo-400 shrink-0" />
+                                        <div className="truncate">
+                                          <span className="text-[8px] font-mono uppercase text-slate-400 block leading-none">Access Key</span>
+                                          <span className="font-mono text-[11px] font-black text-indigo-300 tracking-wider select-all">
+                                            {accessKey}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopy(accessKey, 'Mind Saga Access Key')}
+                                          className="p-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                          title="Copy Access Key"
+                                        >
+                                          <Copy size={11} />
+                                          <span className="hidden sm:inline">Copy Key</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopy(publicLink, 'Mind Saga Platform Link')}
+                                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                          title="Copy Public Platform Link"
+                                        >
+                                          <Globe size={11} />
+                                          <span className="hidden sm:inline">Link</span>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Arena Entry Action */}
+                                    {isLive ? (
+                                      <Link
+                                        to={`/events/${reg.event_id}/sub-events/${msSub.sub_event_id}/mind-saga`}
+                                        className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-[11px] font-black uppercase tracking-wider transition shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 text-center cursor-pointer"
+                                      >
+                                        <Play size={12} />
+                                        <span>Enter Mind Saga Arena (3 Rounds)</span>
+                                        <ArrowUpRight size={12} />
+                                      </Link>
+                                    ) : (
+                                      <div className="w-full py-2 px-3 rounded-xl bg-zinc-800/80 border border-zinc-700/60 text-zinc-400 text-[10px] font-bold flex items-center justify-center gap-1.5 text-center">
+                                        <Lock size={12} className="text-amber-400" />
+                                        <span>Locked by Admin · Opens when Admin goes LIVE</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 pt-2">
                           <button
                             onClick={() => setSelectedPass(reg)}
@@ -690,29 +792,51 @@ const ParticipantDashboard = () => {
                     <div className="space-y-2">
                       {selectedPass.sub_events.map((sub, sIdx) => {
                         const subAtt = sub.attended === 1 || sub.attended === true || sub.attended === '1';
+                        const isMindSaga = sub.mind_saga_key || sub.sub_event_name?.toLowerCase().includes('mind') || sub.sub_event_slug?.toLowerCase().includes('mind');
+
                         return (
                           <div
                             key={sIdx}
-                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                            className={`p-3 rounded-xl border flex flex-col gap-2 text-xs ${
                               isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
                             }`}
                           >
-                            <div className="space-y-0.5">
-                              <p className="font-bold text-zinc-900 dark:text-zinc-100">
-                                {sub.sub_event_name} {sub.team_name && `(${sub.team_name})`}
-                              </p>
-                              <span className="text-[10px] text-slate-400 capitalize">{sub.sub_event_type || 'Track'}</span>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="space-y-0.5">
+                                <p className="font-bold text-zinc-900 dark:text-zinc-100">
+                                  {sub.sub_event_name} {sub.team_name && `(${sub.team_name})`}
+                                </p>
+                                <span className="text-[10px] text-slate-400 capitalize">{sub.sub_event_type || 'Track'}</span>
+                              </div>
+
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                                  subAtt
+                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                    : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                }`}
+                              >
+                                {subAtt ? 'Present' : 'Absent'}
+                              </span>
                             </div>
 
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider border ${
-                                subAtt
-                                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                                  : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                              }`}
-                            >
-                              {subAtt ? 'Present' : 'Absent'}
-                            </span>
+                            {/* Mind Saga Key Callout in Modal */}
+                            {isMindSaga && (
+                              <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <Key size={12} className="text-indigo-400" />
+                                  <span className="text-[10px] text-slate-400">Mind Saga Key:</span>
+                                  <span className="font-mono font-bold text-indigo-400 select-all">{sub.mind_saga_key || 'MS-PENDING'}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(sub.mind_saga_key, 'Mind Saga Access Key')}
+                                  className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

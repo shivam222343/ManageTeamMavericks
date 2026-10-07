@@ -56,6 +56,11 @@ import EventAttendancePage from './pages/events/EventAttendancePage';
 import SubEventControlRoomPage from './pages/events/SubEventControlRoomPage';
 import CreateSubEventGroupPage from './pages/events/CreateSubEventGroupPage';
 import AutoGroupSubEventPage from './pages/events/AutoGroupSubEventPage';
+import MindSagaControlRoomPage from './pages/events/MindSagaControlRoomPage';
+import MindSagaParticipantArena from './pages/events/MindSagaParticipantArena';
+import MindSagaAptitudeTestPage from './pages/events/MindSagaAptitudeTestPage';
+import MindSagaGamingArenaPage from './pages/events/MindSagaGamingArenaPage';
+import MindSagaPublicEntryPage from './pages/events/MindSagaPublicEntryPage';
 
 // Judge Portal Pages
 import JudgeLoginPage from './pages/judge/JudgeLoginPage';
@@ -120,6 +125,37 @@ function App() {
         <Route path="/events" element={<PublicEventsPage />} />
         <Route path="/events/:slug" element={<PublicEventRegisterPage />} />
         <Route path="/register/:slug" element={<PublicEventRegisterPage />} />
+
+        {/* Public Mind Saga Assessment Platform Routes (Access with Unique Key & Live Lock Guard) */}
+        <Route path="/mindsaga" element={<MindSagaPublicEntryPage />} />
+        <Route path="/mindsaga/:subId" element={<MindSagaPublicEntryPage />} />
+        <Route path="/events/:id/sub-events/:subId/mind-saga/portal" element={<MindSagaPublicEntryPage />} />
+        <Route path="/events/:id/sub-events/:subId/mind-saga/enter" element={<MindSagaPublicEntryPage />} />
+
+        <Route
+          path="/events/:id/sub-events/:subId/mind-saga"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <MindSagaParticipantArena />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:id/sub-events/:subId/mind-saga/test"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <MindSagaAptitudeTestPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:id/sub-events/:subId/mind-saga/game"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <MindSagaGamingArenaPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Auth routes */}
         <Route path="/login" element={<Login />} />
@@ -218,6 +254,7 @@ function App() {
           <Route path="events/:id" element={<EventDetailPage />} />
           <Route path="events/:id/attendance" element={<EventAttendancePage />} />
           <Route path="events/:id/sub-events/:subId" element={<SubEventControlRoomPage />} />
+          <Route path="events/:id/sub-events/:subId/mind-saga" element={<MindSagaControlRoomPage />} />
           <Route path="events/:id/sub-events/:subId/create-group" element={<CreateSubEventGroupPage />} />
           <Route path="events/:id/sub-events/:subId/auto-group" element={<AutoGroupSubEventPage />} />
           <Route path="events/:id/edit" element={<CreateEventPage />} />

@@ -39,6 +39,7 @@ use App\Controllers\EventRegistrationController;
 use App\Controllers\EventSubEventController;
 use App\Controllers\EventAttendanceController;
 use App\Controllers\SubEventControlRoomController;
+use App\Controllers\MindSagaController;
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: *");
@@ -203,6 +204,54 @@ $router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/panels/{panelId}', 
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/shortlist',             [SubEventControlRoomController::class, 'getShortlist']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/shortlist/promote',     [SubEventControlRoomController::class, 'promoteShortlist']);
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/evaluations',           [SubEventControlRoomController::class, 'getEvaluations']);
+
+// --- MIND SAGA MODULE ROUTES ---
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/overview',                  [MindSagaController::class, 'getOverview']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/config',                    [MindSagaController::class, 'updateConfig']);
+
+// Mind Saga Round 1: Aptitude Tests & Questions CRUD
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests',            [MindSagaController::class, 'listTests']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests',            [MindSagaController::class, 'createTest']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}',   [MindSagaController::class, 'getTest']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}',   [MindSagaController::class, 'updateTest']);
+$router->addRoute('PATCH',  '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}/publish', [MindSagaController::class, 'togglePublishTest']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}',   [MindSagaController::class, 'deleteTest']);
+
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}/questions', [MindSagaController::class, 'addQuestion']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/questions/{qId}',   [MindSagaController::class, 'updateQuestion']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}/reorder',   [MindSagaController::class, 'reorderQuestions']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/aptitude/questions/{qId}',   [MindSagaController::class, 'deleteQuestion']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/upload-media',      [MindSagaController::class, 'uploadMedia']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/evaluate-written-preview', [MindSagaController::class, 'previewWrittenEvaluation']);
+
+// Mind Saga Round 1: Participant Test Session Lifecycle
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/start',            [MindSagaController::class, 'startTestSession']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/autosave',         [MindSagaController::class, 'autosaveAnswers']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/proctor-event',    [MindSagaController::class, 'logProctorEvent']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/submit',           [MindSagaController::class, 'submitTest']);
+
+// Mind Saga Round 2: Gaming Engine
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/games',                      [MindSagaController::class, 'listGames']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/start',                [MindSagaController::class, 'startGameSession']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/submit',               [MindSagaController::class, 'submitGameScore']);
+
+// Mind Saga Proctoring CCTV & Live Monitoring
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/proctoring/live',           [MindSagaController::class, 'getLiveProctoring']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/terminate-session', [MindSagaController::class, 'terminateSession']);
+
+// Mind Saga Master Leaderboard, Participant Status & Qualification
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/leaderboard',               [MindSagaController::class, 'getLeaderboard']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/promote',                   [MindSagaController::class, 'promoteParticipants']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/participant-status',        [MindSagaController::class, 'getParticipantStatus']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/platform-status',           [MindSagaController::class, 'togglePlatformStatus']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/send-keys-email',           [MindSagaController::class, 'sendKeysEmail']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/regenerate-keys',           [MindSagaController::class, 'regenerateAccessKeys']);
+
+// Mind Saga Public Entry Portal & Key Authentication
+$router->addRoute('GET',    '/mindsaga/public',                                                    [MindSagaController::class, 'getPublicPlatformInfo']);
+$router->addRoute('GET',    '/mindsaga/public/{subId}',                                            [MindSagaController::class, 'getPublicPlatformInfo']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/public-info',               [MindSagaController::class, 'getPublicPlatformInfo']);
+$router->addRoute('POST',   '/mindsaga/auth/login-with-key',                                       [MindSagaController::class, 'loginWithKey']);
 
 // --- JUDGE PORTAL & ACCESS CODE AUTHENTICATION ROUTES ---
 $router->addRoute('POST',   '/judge/auth/login',                                     [SubEventControlRoomController::class, 'judgeLogin']);

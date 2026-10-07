@@ -13,12 +13,38 @@ class Cache {
         self::$redisAttempted = true;
         if (class_exists('Redis')) {
             try {
+                $redisUrl = getenv('REDIS_URL') ?: ($_ENV['REDIS_URL'] ?? null);
+                $host = getenv('REDIS_HOST') ?: ($_ENV['REDIS_HOST'] ?? '127.0.0.1');
+                $port = (int)(getenv('REDIS_PORT') ?: ($_ENV['REDIS_PORT'] ?? 6379));
+                $password = getenv('REDIS_PASSWORD') ?: ($_ENV['REDIS_PASSWORD'] ?? null);
+                $user = getenv('REDIS_USERNAME') ?: ($_ENV['REDIS_USERNAME'] ?? null);
+
                 $r = new \Redis();
-                if ($r->connect('127.0.0.1', 6379, 0.2)) {
+
+                if (!empty($redisUrl)) {
+                    $parsed = parse_url($redisUrl);
+                    $host = $parsed['host'] ?? '127.0.0.1';
+                    $port = (int)($parsed['port'] ?? 6379);
+                    $password = $parsed['pass'] ?? null;
+                    $user = $parsed['user'] ?? null;
+                    if (isset($parsed['scheme']) && $parsed['scheme'] === 'rediss') {
+                        $host = 'tls://' . $host;
+                    }
+                }
+
+                $connected = @$r->connect($host, $port, 1.0);
+                if ($connected) {
+                    if (!empty($password)) {
+                        if (!empty($user) && $user !== 'default') {
+                            @$r->auth([$user, $password]);
+                        } else {
+                            @$r->auth($password);
+                        }
+                    }
                     self::$redis = $r;
                 }
             } catch (\Exception $e) {
-                // Redis is down or unavailable
+                // Redis is down or unavailable - will fallback to file cache seamlessly
             }
         }
         return self::$redis;
@@ -107,5 +133,33 @@ class Cache {
                 @unlink($file);
             }
         }
+    }
+
+    public static function checkRateLimit(string $actionKey, int $maxAttempts = 60, int $windowSeconds = 60): bool {
+        $redis = self::getRedis();
+        if ($redis) {
+            try {
+                $key = 'rate_limit:' . $actionKey;
+                $current = $redis->incr($key);
+                if ($current === 1) {
+                    $redis->expire($key, $windowSeconds);
+                }
+                return $current <= $maxAttempts;
+            } catch (\Exception $e) {
+                // Fallback below
+            }
+        }
+
+        // File-based rate limiter fallback
+        $key = 'rl_' . md5($actionKey);
+        $data = self::get($key);
+        $now = time();
+        if (!$data || $data['reset_at'] < $now) {
+            $data = ['count' => 1, 'reset_at' => $now + $windowSeconds];
+        } else {
+            $data['count']++;
+        }
+        self::set($key, $data, $windowSeconds);
+        return $data['count'] <= $maxAttempts;
     }
 }
