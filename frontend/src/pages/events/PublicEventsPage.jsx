@@ -604,17 +604,14 @@ const PublicEventsPage = () => {
 
           <div className="max-w-7xl mx-auto">
             {/* Section Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-              <div>
-                <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
-                  WHAT WE BUILD &amp; RUN
-                </p>
-                <h2 className="font-display-heavy text-4xl sm:text-5xl md:text-6xl uppercase tracking-tight text-zinc-900 dark:text-white">
-                  FLAGSHIP <br />
-                  EVENTS.
-                </h2>
-              </div>
-              <p className={`max-w-sm text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className="text-center max-w-3xl mx-auto mb-12">
+              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
+                WHAT WE BUILD &amp; RUN
+              </p>
+              <h2 className="font-display-heavy text-3xl sm:text-5xl md:text-6xl uppercase tracking-tight text-zinc-900 dark:text-white mb-3">
+                FLAGSHIP EVENTS.
+              </h2>
+              <p className={`max-w-lg mx-auto text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 From multi-day college symposiums to placement boot camps and rural tech outreaches — Team Mavericks runs it all.
               </p>
             </div>
