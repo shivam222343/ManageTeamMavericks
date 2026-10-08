@@ -31,6 +31,7 @@ import Footer from '../../components/layout/Footer';
 import ElectricBorder from '../../components/ui/ElectricBorder';
 import InteractiveBackground from '../../components/ui/InteractiveBackground';
 import TechText from '../../components/ui/TechText';
+import StrokeText from '../../components/ui/StrokeText';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
@@ -342,12 +343,28 @@ const PublicEventsPage = () => {
                 </div>
               </motion.h1>
 
-              <div className="space-y-3 pt-2 max-w-xl text-left">
-                <p className="font-mono-tag text-xs font-black tracking-widest uppercase text-blue-400">
-                  Team Mavericks • Student Organization
-                </p>
-                <p className="text-sm sm:text-base leading-relaxed text-[#D1DCEB] font-normal">
-                  Register for national symposiums, hackathons, workshops, and exhibitions hosted by Team Mavericks at KIT&apos;s College of Engineering, Kolhapur.
+              <div className="space-y-3 pt-1 max-w-xl">
+                <StrokeText
+                  text="Team Mavericks • Student Organization"
+                  strokeColor={isDark ? '#60A5FA' : '#2563EB'}
+                  fillColor={isDark ? '#93C5FD' : '#1D4ED8'}
+                  strokeWidth={1}
+                  drawDuration={1.6}
+                  fillDelay={0.2}
+                  stagger={0.03}
+                  ease="power2.out"
+                  trigger="mount"
+                  fillMode="wipe"
+                  fontSize={16}
+                  fontWeight={800}
+                  letterSpacing={1.5}
+                  uppercase={true}
+                  align="left"
+                  fontFamily="'DM Mono', 'Space Grotesk', monospace"
+                  className="font-mono-tag"
+                />
+                <p className={`text-sm sm:text-base leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Register for national symposiums, hackathons, workshops, and exhibitions hosted by Team Mavericks at KIT's College of Engineering, Kolhapur.
                 </p>
               </div>
 
