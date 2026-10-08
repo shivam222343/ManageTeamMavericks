@@ -30,6 +30,7 @@ import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
+import StrokeText from '../../components/ui/StrokeText';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
@@ -303,9 +304,25 @@ const PublicEventsPage = () => {
               </motion.h1>
 
               <div className="space-y-3 pt-1 max-w-xl">
-                <p className="font-mono-tag text-xs font-black tracking-widest uppercase text-blue-500">
-                  Team Mavericks • Student Organization
-                </p>
+                <StrokeText
+                  text="Team Mavericks • Student Organization"
+                  strokeColor={isDark ? '#60A5FA' : '#2563EB'}
+                  fillColor={isDark ? '#93C5FD' : '#1D4ED8'}
+                  strokeWidth={1}
+                  drawDuration={1.6}
+                  fillDelay={0.2}
+                  stagger={0.03}
+                  ease="power2.out"
+                  trigger="mount"
+                  fillMode="wipe"
+                  fontSize={16}
+                  fontWeight={800}
+                  letterSpacing={1.5}
+                  uppercase={true}
+                  align="left"
+                  fontFamily="'DM Mono', 'Space Grotesk', monospace"
+                  className="font-mono-tag"
+                />
                 <p className={`text-sm sm:text-base leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   Register for national symposiums, hackathons, workshops, and exhibitions hosted by Team Mavericks at KIT's College of Engineering, Kolhapur.
                 </p>
