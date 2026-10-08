@@ -33,6 +33,13 @@ use App\Controllers\AnalyticsController;
 use App\Controllers\FaqController;
 use App\Controllers\MemberController;
 use App\Controllers\PanelController;
+use App\Controllers\EventController;
+use App\Controllers\EventFormController;
+use App\Controllers\EventRegistrationController;
+use App\Controllers\EventSubEventController;
+use App\Controllers\EventAttendanceController;
+use App\Controllers\SubEventControlRoomController;
+use App\Controllers\MindSagaController;
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: *");
@@ -139,6 +146,137 @@ $router->addRoute('POST', '/evaluation-criteria', [PanelController::class, 'save
 
 // --- ANALYTICS INSIGHTS ROUTES ---
 $router->addRoute('GET', '/analytics', [AnalyticsController::class, 'getStats']);
+
+// --- EVENTS MANAGEMENT ROUTES ---
+$router->addRoute('GET',    '/events/public',                   [EventController::class, 'listPublic']);
+$router->addRoute('GET',    '/events',                          [EventController::class, 'list']);
+$router->addRoute('POST',   '/events',                          [EventController::class, 'create']);
+$router->addRoute('POST',   '/events/upload-qr',                [EventController::class, 'uploadQr']);
+$router->addRoute('GET',    '/events/slug/{slug}',              [EventController::class, 'getBySlug']);
+$router->addRoute('GET',    '/events/{id}',                     [EventController::class, 'get']);
+$router->addRoute('PUT',    '/events/{id}',                     [EventController::class, 'update']);
+$router->addRoute('PATCH',  '/events/{id}/status',              [EventController::class, 'patchStatus']);
+$router->addRoute('DELETE', '/events/{id}',                     [EventController::class, 'delete']);
+
+// --- EVENT REGISTRATION FORM ROUTES ---
+$router->addRoute('GET',    '/events/{id}/registration-form',          [EventFormController::class, 'getForm']);
+$router->addRoute('POST',   '/events/{id}/registration-form',          [EventFormController::class, 'createForm']);
+$router->addRoute('PUT',    '/events/{id}/registration-form/sections', [EventFormController::class, 'saveFormSections']);
+
+// --- EVENT REGISTRATION ROUTES ---
+$router->addRoute('GET',    '/events/{id}/registrations',          [EventRegistrationController::class, 'listForEvent']);
+$router->addRoute('GET',    '/events/{id}/check-email',            [EventRegistrationController::class, 'checkEmail']);
+$router->addRoute('POST',   '/events/{id}/check-email',            [EventRegistrationController::class, 'checkEmail']);
+$router->addRoute('POST',   '/events/{id}/register',               [EventRegistrationController::class, 'register']);
+$router->addRoute('GET',    '/events/slug/{slug}/form',            [EventRegistrationController::class, 'getPublicForm']);
+$router->addRoute('GET',    '/event-registrations/{id}',           [EventRegistrationController::class, 'get']);
+$router->addRoute('PATCH',  '/event-registrations/{id}/status',    [EventRegistrationController::class, 'updateStatus']);
+$router->addRoute('DELETE', '/event-registrations/{id}',           [EventRegistrationController::class, 'delete']);
+
+// --- EVENT SUB-EVENTS ROUTES ---
+$router->addRoute('GET',    '/events/{id}/sub-events',                 [EventSubEventController::class, 'list']);
+$router->addRoute('POST',   '/events/{id}/sub-events',                 [EventSubEventController::class, 'create']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subEventId}',    [EventSubEventController::class, 'update']);
+$router->addRoute('PATCH',  '/events/{id}/sub-events/{subEventId}/status', [EventSubEventController::class, 'patchStatus']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subEventId}',    [EventSubEventController::class, 'delete']);
+
+// --- SUB-EVENT CONTROL ROOM & ROUND MANAGEMENT ROUTES ---
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/control-room',          [SubEventControlRoomController::class, 'getControlRoom']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/rounds',                [SubEventControlRoomController::class, 'listRounds']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/rounds',                [SubEventControlRoomController::class, 'createRound']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/rounds/{roundId}',      [SubEventControlRoomController::class, 'updateRound']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/rounds/{roundId}',      [SubEventControlRoomController::class, 'deleteRound']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/participants',          [SubEventControlRoomController::class, 'listParticipants']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/participants',          [SubEventControlRoomController::class, 'addSpotParticipant']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/groups',                [SubEventControlRoomController::class, 'listGroups']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/groups',                [SubEventControlRoomController::class, 'createGroup']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/groups/auto-generate',  [SubEventControlRoomController::class, 'autoGenerateGroups']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/groups/{groupId}',      [SubEventControlRoomController::class, 'deleteGroup']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/panels',                [SubEventControlRoomController::class, 'listPanels']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/panels',                [SubEventControlRoomController::class, 'createPanel']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/panels/{panelId}/assign-group',     [SubEventControlRoomController::class, 'assignGroupToPanel']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/panels/{panelId}/regenerate-codes', [SubEventControlRoomController::class, 'regenerateJudgeCodes']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/panels/{panelId}',      [SubEventControlRoomController::class, 'deletePanel']);
+
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/shortlist',             [SubEventControlRoomController::class, 'getShortlist']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/shortlist/promote',     [SubEventControlRoomController::class, 'promoteShortlist']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/evaluations',           [SubEventControlRoomController::class, 'getEvaluations']);
+
+// --- MIND SAGA MODULE ROUTES ---
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/overview',                  [MindSagaController::class, 'getOverview']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/config',                    [MindSagaController::class, 'updateConfig']);
+
+// Mind Saga Round 1: Aptitude Tests & Questions CRUD
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests',            [MindSagaController::class, 'listTests']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests',            [MindSagaController::class, 'createTest']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}',   [MindSagaController::class, 'getTest']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}',   [MindSagaController::class, 'updateTest']);
+$router->addRoute('PATCH',  '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}/publish', [MindSagaController::class, 'togglePublishTest']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}',   [MindSagaController::class, 'deleteTest']);
+
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}/questions', [MindSagaController::class, 'addQuestion']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/aptitude/questions/{qId}',   [MindSagaController::class, 'updateQuestion']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/tests/{testId}/reorder',   [MindSagaController::class, 'reorderQuestions']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/aptitude/questions/{qId}',   [MindSagaController::class, 'deleteQuestion']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/upload-media',      [MindSagaController::class, 'uploadMedia']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/evaluate-written-preview', [MindSagaController::class, 'previewWrittenEvaluation']);
+
+// Mind Saga Round 1: Participant Test Session Lifecycle
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/start',            [MindSagaController::class, 'startTestSession']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/autosave',         [MindSagaController::class, 'autosaveAnswers']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/proctor-event',    [MindSagaController::class, 'logProctorEvent']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/aptitude/submit',           [MindSagaController::class, 'submitTest']);
+
+// Mind Saga Round 2: Gaming Engine
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/games',                      [MindSagaController::class, 'listGames']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games',                      [MindSagaController::class, 'createGameConfig']);
+$router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/games/{gameId}',             [MindSagaController::class, 'updateGameConfig']);
+$router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/games/{gameId}',             [MindSagaController::class, 'deleteGameConfig']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/start',                [MindSagaController::class, 'startGameSession']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/submit',               [MindSagaController::class, 'submitGameScore']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/proctor-event',        [MindSagaController::class, 'logGameProctorEvent']);
+
+// Mind Saga Proctoring CCTV & Live Monitoring
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/proctoring/live',           [MindSagaController::class, 'getLiveProctoring']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/snapshot',       [MindSagaController::class, 'saveProctorSnapshot']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/terminate-session', [MindSagaController::class, 'terminateSession']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctoring/dismiss-stream',    [MindSagaController::class, 'dismissStream']);
+
+// Mind Saga Master Leaderboard, Participant Status & Qualification
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/leaderboard',               [MindSagaController::class, 'getLeaderboard']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/promote',                   [MindSagaController::class, 'promoteParticipants']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/participant-status',        [MindSagaController::class, 'getParticipantStatus']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/platform-status',           [MindSagaController::class, 'togglePlatformStatus']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/active-round',              [MindSagaController::class, 'setActiveRound']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/send-keys-email',           [MindSagaController::class, 'sendKeysEmail']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/regenerate-keys',           [MindSagaController::class, 'regenerateAccessKeys']);
+
+// Mind Saga Public Entry Portal & Key Authentication
+$router->addRoute('GET',    '/mindsaga/public',                                                    [MindSagaController::class, 'getPublicPlatformInfo']);
+$router->addRoute('GET',    '/mindsaga/public/{subId}',                                            [MindSagaController::class, 'getPublicPlatformInfo']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/public-info',               [MindSagaController::class, 'getPublicPlatformInfo']);
+$router->addRoute('POST',   '/mindsaga/auth/login-with-key',                                       [MindSagaController::class, 'loginWithKey']);
+
+// --- JUDGE PORTAL & ACCESS CODE AUTHENTICATION ROUTES ---
+$router->addRoute('POST',   '/judge/auth/login',                                     [SubEventControlRoomController::class, 'judgeLogin']);
+$router->addRoute('GET',    '/judge/panel-data',                                     [SubEventControlRoomController::class, 'getJudgePanelData']);
+$router->addRoute('POST',   '/judge/submit-evaluation',                              [SubEventControlRoomController::class, 'submitJudgeEvaluation']);
+
+// --- EVENT & SUB-EVENT ATTENDANCE ROUTES ---
+$router->addRoute('GET',    '/events/{id}/attendance',                              [EventAttendanceController::class, 'listEventAttendance']);
+$router->addRoute('POST',   '/events/{id}/attendance/mark',                         [EventAttendanceController::class, 'markEventAttendance']);
+$router->addRoute('POST',   '/events/{id}/attendance/bulk-mark',                    [EventAttendanceController::class, 'bulkMarkEventAttendance']);
+$router->addRoute('GET',    '/events/{id}/attendance/qr-code',                      [EventAttendanceController::class, 'getAttendanceQr']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subEventId}/attendance',      [EventAttendanceController::class, 'listSubEventAttendance']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subEventId}/attendance/mark', [EventAttendanceController::class, 'markSubEventAttendance']);
+$router->addRoute('POST',   '/events/attendance/scan',                              [EventAttendanceController::class, 'scanAttendance']);
+
+// --- PARTICIPANT PORTAL ROUTES ---
+$router->addRoute('GET',    '/participant/dashboard',             [EventRegistrationController::class, 'getParticipantDashboard']);
+$router->addRoute('PUT',    '/participant/profile',               [EventRegistrationController::class, 'updateParticipantProfile']);
 
 // --- SEED ROUTE (temporary — remove after seeding) ---
 $router->addRoute('GET', '/seed', function() {
