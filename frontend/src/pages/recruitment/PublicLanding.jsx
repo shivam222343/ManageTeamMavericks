@@ -33,6 +33,7 @@ import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import DitherVeil from '../../components/ui/DitherVeil';
 import ParticleText from '../../components/ui/ParticleText';
+import MapCursorBackground from '../../components/ui/MapCursorBackground';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -526,8 +527,10 @@ const PublicLanding = () => {
   }
 
   return (
-    <div className={`min-h-screen w-full transition-colors duration-300 font-sans selection:bg-blue-600 selection:text-white ${isDark ? 'bg-[#070C18] text-[#F8FAFC]' : 'bg-[#F8FAFC] text-[#0A1128]'
+    <div className={`min-h-screen w-full transition-colors duration-300 font-sans relative selection:bg-blue-600 selection:text-white ${isDark ? 'bg-transparent text-[#F8FAFC]' : 'bg-[#F8FAFC]/90 text-[#0A1128]'
       }`}>
+      {/* Animated Map-style background and glowing cursor trail */}
+      <MapCursorBackground />
 
       {/* Custom Styles */}
       <style>{`
@@ -556,6 +559,32 @@ const PublicLanding = () => {
         .flat-card {
           border-radius: 0px;
           transition: all 0.2s ease-in-out;
+        }
+
+        /* Hero upper headline icy-blue gradient & subtle glow */
+        .hero-headline-upper {
+          display: inline-block;
+          font-family: 'Barlow Condensed', sans-serif;
+          font-weight: 800;
+          letter-spacing: 0.01em;
+          line-height: 0.92;
+          text-transform: uppercase;
+        }
+
+        .hero-headline-upper-dark {
+          background: linear-gradient(180deg, #F0F9FF 0%, #BAE6FD 26%, #60A5FA 68%, #2563EB 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: #93C5FD;
+          filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.55)) drop-shadow(0 0 32px rgba(37, 99, 235, 0.35));
+        }
+
+        .hero-headline-upper-light {
+          background: linear-gradient(180deg, #0A1E3F 0%, #0F3E78 55%, #1D4ED8 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: #0A1128;
+          filter: drop-shadow(0 2px 10px rgba(37, 99, 235, 0.2));
         }
 
         /* Particle hero row: desktop uses larger negative offset */
@@ -675,18 +704,33 @@ const PublicLanding = () => {
           {/* Left Column - Large Editorial Headline */}
           <div className="lg:col-span-6 space-y-6">
             {/* Row 1 */}
-            <h1 className="font-display-heavy text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-left uppercase leading-[0.9]" style={{ marginBottom: 0 }}>
+            <h1
+              className={`hero-headline-upper text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-left uppercase leading-[0.9] ${
+                isDark ? 'hero-headline-upper-dark' : 'hero-headline-upper-light'
+              }`}
+              style={{ marginBottom: 0 }}
+            >
               ARE YOU A TRUE
             </h1>
             {/* Row 2: Maverick (particle canvas) + ? on the same flex row */}
             <div className="particle-hero-row" style={{ display: 'flex', alignItems: 'center', marginTop: '-4em', marginBottom: '5em', gap: 0 }}>
-              <div style={{ flex: '1 1 auto', height: 'clamp(100px, 20vw, 160px)', minWidth: 0 }}>
+              <div
+                style={{
+                  flex: '1 1 auto',
+                  height: 'clamp(100px, 20vw, 160px)',
+                  minWidth: 0,
+                  filter: isDark
+                    ? 'drop-shadow(0 0 14px rgba(0, 240, 255, 0.45)) drop-shadow(0 0 32px rgba(0, 102, 255, 0.35))'
+                    : 'drop-shadow(0 2px 10px rgba(2, 132, 199, 0.2))'
+                }}
+              >
                 <ParticleText
                   text="MAVERICK?"
                   particleSize={2.2}
                   density={4}
-                  color={isDark ? '#f8fafc' : '#0B132B'}
-                  highlightColor="#3b82f6"
+                  color={isDark ? '#00F0FF' : '#0284C7'}
+                  highlightColor={isDark ? '#0066FF' : '#1D4ED8'}
+                  glowColor={isDark ? '#00F0FF' : '#0284C7'}
                   scatter={190}
                   gatherDuration={1600}
                   stagger={420}

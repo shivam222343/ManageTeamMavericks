@@ -53,6 +53,7 @@ const ParticleText = ({
   density = 4,
   color = '#ffffff',
   highlightColor = '#8b5cf6',
+  glowColor,
   scatter = 180,
   gatherDuration = 1600,
   stagger = 420,
@@ -126,13 +127,8 @@ const ParticleText = ({
       const size = particle.size;
       ctx.fillStyle = particle.color;
 
-      if (size <= 2.1) {
-        ctx.fillRect(particle.x - size / 2, particle.y - size / 2, size, size);
-        return;
-      }
-
       ctx.beginPath();
-      ctx.arc(particle.x, particle.y, size / 2, 0, Math.PI * 2);
+      ctx.arc(particle.x, particle.y, Math.max(0.6, size / 2), 0, Math.PI * 2);
       ctx.fill();
     };
 
@@ -140,8 +136,8 @@ const ParticleText = ({
       ctx.clearRect(0, 0, width, height);
 
       if (glow && !reducedMotion) {
-        ctx.shadowBlur = particleSize * 3;
-        ctx.shadowColor = highlightColor;
+        ctx.shadowBlur = Math.max(8, particleSize * 4);
+        ctx.shadowColor = glowColor || highlightColor;
       } else {
         ctx.shadowBlur = 0;
       }
@@ -288,7 +284,10 @@ const ParticleText = ({
       particles = selected.map((target, index) => {
         const seed = ((index * 9301 + 49297) % 233280) / 233280;
         const depth = 0.45 + (((index * 233 + 97) % 1000) / 1000) * 0.9;
-        const blend = baseRgb && highlightRgb ? clamp(target.x / Math.max(1, width) + (seed - 0.5) * 0.35, 0, 1) : 0;
+        const vPos = clamp((target.y - (height / 2 - 35)) / 70, 0, 1);
+        const blend = baseRgb && highlightRgb
+          ? clamp(vPos * 0.55 + (seed - 0.5) * 0.4 + (target.x / Math.max(1, width)) * 0.25, 0, 1)
+          : 0;
         const particleColor = baseRgb && highlightRgb ? rgbToCss(mixRgb(baseRgb, highlightRgb, blend)) : color;
         const angle = seed * Math.PI * 2;
         const distance = (reducedMotion ? 0 : scatter) * (0.35 + depth * 0.75);
