@@ -12,13 +12,22 @@ use PDO;
 
 class EventRegistrationController {
 
+    private static bool $migrated = false;
+
     /**
      * Ensure database columns for participants exist
      */
     private function ensureMigration(): void {
+        if (self::$migrated) {
+            return;
+        }
+        self::$migrated = true;
         $db = Database::getConnection();
         try {
             $db->exec("ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'member'");
+        } catch (\Exception $e) { /* ignore */ }
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) DEFAULT NULL");
         } catch (\Exception $e) { /* ignore */ }
         try {
             $db->exec("ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS user_id INT DEFAULT NULL");
@@ -735,9 +744,16 @@ class EventRegistrationController {
         $userId = $user['userId'];
 
         // Get user details
-        $uStmt = $db->prepare("SELECT id, name, email, role, created_at FROM users WHERE id = ?");
-        $uStmt->execute([$userId]);
-        $profile = $uStmt->fetch(PDO::FETCH_ASSOC);
+        $profile = null;
+        try {
+            $uStmt = $db->prepare("SELECT id, name, email, role, avatar_url, created_at FROM users WHERE id = ?");
+            $uStmt->execute([$userId]);
+            $profile = $uStmt->fetch(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            $uStmt = $db->prepare("SELECT id, name, email, role, created_at FROM users WHERE id = ?");
+            $uStmt->execute([$userId]);
+            $profile = $uStmt->fetch(PDO::FETCH_ASSOC);
+        }
 
         // Fetch all registrations for this participant
         $regStmt = $db->prepare("
@@ -876,11 +892,124 @@ class EventRegistrationController {
             $stmt->execute([$newHash, $user['userId']]);
         }
 
-        $stmt2 = $db->prepare("SELECT id, name, email, role FROM users WHERE id = ?");
-        $stmt2->execute([$user['userId']]);
+        $stmt2 = $db->prepare("SELECT id, name, email, role, avatar_url FROM users WHERE id = ?");
+        try {
+            $stmt2->execute([$user['userId']]);
+            $updatedUser = $stmt2->fetch(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            $stmtFallback = $db->prepare("SELECT id, name, email, role FROM users WHERE id = ?");
+            $stmtFallback->execute([$user['userId']]);
+            $updatedUser = $stmtFallback->fetch(PDO::FETCH_ASSOC);
+        }
+
         Router::sendJson([
             'message' => 'Profile updated successfully',
-            'user'    => $stmt2->fetch(PDO::FETCH_ASSOC)
+            'user'    => $updatedUser
+        ]);
+    }
+
+    /**
+     * POST /api.php/participant/upload-photo
+     * Save uploaded avatar image to server in uploads/user_img/ folder
+     */
+    public function uploadParticipantPhoto(): void {
+        $user = AuthMiddleware::authenticate();
+        $this->ensureMigration();
+
+        if (empty($_FILES['photo']) || $_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
+            $errCode = $_FILES['photo']['error'] ?? 'missing';
+            $contentLen = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+            if ($errCode === UPLOAD_ERR_INI_SIZE || $errCode === UPLOAD_ERR_FORM_SIZE || $contentLen > 5 * 1024 * 1024) {
+                Router::sendJson(['error' => 'Image size must be less than 5MB.'], 400);
+                return;
+            }
+            Router::sendJson(['error' => 'No image uploaded or upload failed (Code: ' . $errCode . ')'], 400);
+            return;
+        }
+
+        $file = $_FILES['photo'];
+        $maxSize = 5 * 1024 * 1024; // 5MB limit
+        if ($file['size'] > $maxSize) {
+            Router::sendJson(['error' => 'Image size must be less than 5MB.'], 400);
+            return;
+        }
+
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        if (!in_array($ext, $allowedExts)) {
+            Router::sendJson(['error' => 'Allowed formats: JPG, JPEG, PNG, WEBP, GIF'], 400);
+            return;
+        }
+
+        // Validate MIME type
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $file['tmp_name']);
+            finfo_close($finfo);
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+            if (!in_array($mime, $allowedMimes)) {
+                Router::sendJson(['error' => 'Invalid image content type: ' . $mime], 400);
+                return;
+            }
+        }
+
+        // Target folder in backend/uploads/user_img/
+        $uploadDir = dirname(__DIR__, 2) . '/uploads/user_img';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
+        $userId = $user['userId'];
+        $safeFileName = 'user_' . $userId . '_' . time() . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
+        $destPath = $uploadDir . '/' . $safeFileName;
+
+        if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+            Router::sendJson(['error' => 'Failed to save uploaded photo to server storage'], 500);
+            return;
+        }
+
+        // Also mirror to frontend/public/uploads/user_img/ if directory exists
+        $frontendDir = dirname(__DIR__, 3) . '/frontend/public/uploads/user_img';
+        if (!is_dir($frontendDir)) {
+            @mkdir($frontendDir, 0777, true);
+        }
+        if (is_dir($frontendDir)) {
+            @copy($destPath, $frontendDir . '/' . $safeFileName);
+        }
+
+        $avatarUrl = '/uploads/user_img/' . $safeFileName;
+
+        // Persist to users table
+        $db = Database::getConnection();
+        try {
+            $stmt = $db->prepare("UPDATE users SET avatar_url = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$avatarUrl, $userId]);
+        } catch (\Exception $e) {}
+
+        Router::sendJson([
+            'success'    => true,
+            'message'    => 'ID Card photo uploaded successfully',
+            'avatar_url' => $avatarUrl
+        ]);
+    }
+
+    /**
+     * DELETE /api.php/participant/photo
+     * Reset participant avatar photo
+     */
+    public function removeParticipantPhoto(): void {
+        $user = AuthMiddleware::authenticate();
+        $this->ensureMigration();
+
+        $db = Database::getConnection();
+        try {
+            $stmt = $db->prepare("UPDATE users SET avatar_url = NULL, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$user['userId']]);
+        } catch (\Exception $e) {}
+
+        Router::sendJson([
+            'success' => true,
+            'message' => 'Avatar photo reset to default'
         ]);
     }
 

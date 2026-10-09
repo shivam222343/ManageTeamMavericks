@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import ElectricBorder from './ElectricBorder';
 import './TearTicket.css';
@@ -89,7 +89,7 @@ const TearTicket = ({
     }
   };
 
-  const bgStyle = background || (isDark ? '#0E172A' : '#FFFFFF');
+  const bgStyle = background || (isDark ? '#0C1222' : '#FFFFFF');
   const textColor = color || (isDark ? '#F8FAFC' : '#0F172A');
   const pageBg = isDark ? '#070C18' : '#FAFAF9';
   const effectiveElectricColor = electricColor || (isDark ? '#38bdf8' : '#1e40af');
@@ -108,14 +108,18 @@ const TearTicket = ({
         backgroundColor: bgStyle,
         color: textColor,
         width: typeof width === 'number' ? `${width}px` : width,
-        minHeight: typeof height === 'number' ? `${height}px` : height,
-        border: border ? `${borderWidth}px solid ${isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(203, 213, 225, 0.9)'}` : 'none',
-        '--ticket-page-bg': pageBg
+        minHeight: height === 'auto' ? 'auto' : (typeof height === 'number' ? `${height}px` : height),
+        border: border ? (isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(226, 232, 240, 0.95)') : 'none',
+        boxShadow: isDark
+          ? '0 20px 50px -12px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+          : '0 15px 40px -10px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1)',
+        '--ticket-page-bg': pageBg,
+        '--stub-width': typeof stubSize === 'number' ? `${stubSize}px` : stubSize
       }}
-      className={`tear-ticket-container shadow-xl select-none ${className}`}
+      className={`tear-ticket-container select-none ${className}`}
     >
       {/* Main Ticket Section (Left / Top) */}
-      <div className="tear-ticket-main p-5 sm:p-6">
+      <div className="tear-ticket-main p-4 sm:p-6">
         {image && (
           <div
             className="w-full h-28 sm:h-32 mb-4 rounded-xl overflow-hidden relative bg-zinc-900 shadow-inner shrink-0"
@@ -151,30 +155,31 @@ const TearTicket = ({
         </div>
       </div>
 
-      {/* Ticket Stub Section (Right / Tearable) */}
+      {/* Ticket Stub Section (Right on desktop / Bottom on mobile) */}
       <motion.div
         drag={!isTorn}
         dragConstraints={{ top: 0, left: -20, right: 40, bottom: 120 }}
         dragElastic={resistance}
         style={{
-          width: `${stubSize}px`,
           x: dragX,
           y: dragY,
           rotate: stubRotate,
           opacity: isTorn ? 0 : stubOpacity,
-          backgroundColor: isDark ? '#0B132B' : '#F1F5F9'
+          backgroundColor: isDark ? '#080D19' : '#F8FAFC'
         }}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={handleDragEnd}
-        className={`tear-ticket-stub p-4 border-l border-dashed ${isDark ? 'border-blue-500/30' : 'border-slate-300'} ${
+        className={`tear-ticket-stub p-4 ${isDark ? 'border-blue-500/20' : 'border-slate-200'} ${
           isDragging ? 'is-dragging' : ''
         } ${isTorn ? 'is-torn' : ''}`}
       >
         <div className="w-full text-center flex flex-col items-center justify-between h-full relative">
           {stub}
           {!isTorn && (
-            <div className="tear-indicator-badge flex items-center gap-1 opacity-70 hover:opacity-100">
-              <span>↕ PULL TO TEAR</span>
+            <div className="pt-2 text-center w-full">
+              <span className="text-[8px] font-mono tracking-widest uppercase py-0.5 px-2 rounded-md bg-black/20 dark:bg-white/5 text-slate-400 dark:text-slate-500 inline-block">
+                ↕ PULL TO TEAR
+              </span>
             </div>
           )}
         </div>

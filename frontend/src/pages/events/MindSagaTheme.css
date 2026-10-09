@@ -1,0 +1,513 @@
+/* ==========================================================================
+   MINDSAGA RETRO SPACE PLATFORM THEME & MICRO-DETAILING SYSTEM
+   Inspired by Uiverse.io retro sci-fi space aesthetic
+   ========================================================================== */
+
+/* --- Cosmic Deep Space Background --- */
+.mindsaga-space-bg {
+  position: relative;
+  min-height: 100vh;
+  background: 
+    linear-gradient(
+      140deg,
+      rgba(2, 0, 36, 0.98) 0%,
+      rgba(10, 15, 38, 0.96) 35%,
+      rgba(15, 23, 42, 0.94) 70%,
+      rgba(18, 55, 75, 0.92) 100%
+    ),
+    radial-gradient(
+      ellipse 80% 50% at 50% -20%,
+      rgba(56, 189, 248, 0.15),
+      rgba(255, 255, 255, 0)
+    );
+  color: #f8fafc;
+  overflow-x: hidden;
+}
+
+/* --- Animated Shooting Stars Layer --- */
+.mindsaga-bg-stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mindsaga-star {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 
+    0 0 0 4px rgba(255, 255, 255, 0.08),
+    0 0 0 8px rgba(255, 255, 255, 0.04),
+    0 0 20px rgba(56, 189, 248, 0.3);
+  animation: mindsagaStarAnimate 3.5s linear infinite;
+}
+
+.mindsaga-star::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 320px;
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(56, 189, 248, 0.4), transparent);
+}
+
+@keyframes mindsagaStarAnimate {
+  0% {
+    transform: rotate(315deg) translateX(0);
+    opacity: 1;
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(315deg) translateX(-1100px);
+    opacity: 0;
+  }
+}
+
+.mindsaga-star:nth-child(1) {
+  top: 5%;
+  right: 5%;
+  left: initial;
+  animation-delay: 0s;
+  animation-duration: 2.2s;
+}
+
+.mindsaga-star:nth-child(2) {
+  top: 12%;
+  right: 35%;
+  left: initial;
+  animation-delay: 0.8s;
+  animation-duration: 3.2s;
+}
+
+.mindsaga-star:nth-child(3) {
+  top: 28%;
+  right: 15%;
+  left: initial;
+  animation-delay: 1.8s;
+  animation-duration: 2.8s;
+}
+
+.mindsaga-star:nth-child(4) {
+  top: 45%;
+  right: 50%;
+  left: initial;
+  animation-delay: 2.5s;
+  animation-duration: 3.6s;
+}
+
+.mindsaga-star:nth-child(5) {
+  top: 65%;
+  right: 20%;
+  left: initial;
+  animation-delay: 1.2s;
+  animation-duration: 3.0s;
+}
+
+/* --- Holographic Subtitle Flickering --- */
+.mindsaga-flicker {
+  animation: mindsagaFlickering 2.4s linear infinite both;
+}
+
+@keyframes mindsagaFlickering {
+  0%, 100% { opacity: 1; }
+  41.99% { opacity: 1; }
+  42% { opacity: 0; }
+  43% { opacity: 0; }
+  43.01% { opacity: 1; }
+  47.99% { opacity: 1; }
+  48% { opacity: 0.1; }
+  49% { opacity: 0.1; }
+  49.01% { opacity: 1; }
+}
+
+/* --- Outlined Hero Typography --- */
+.mindsaga-title-outline {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  -webkit-text-stroke: 1.5px #ffffff;
+  letter-spacing: 0.22rem;
+  color: transparent;
+  text-shadow: 0 0 16px rgba(206, 206, 206, 0.45);
+}
+
+.mindsaga-title-outline::before,
+.mindsaga-title-outline::after {
+  content: "—";
+  color: #ffffff;
+  opacity: 0.85;
+}
+
+/* --- Cosmic Cards with Cyber-HUD Micro-detailing --- */
+.mindsaga-card {
+  position: relative;
+  background: linear-gradient(
+      145deg,
+      rgba(15, 23, 42, 0.82) 0%,
+      rgba(8, 14, 30, 0.9) 60%,
+      rgba(13, 37, 56, 0.85) 100%
+    );
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0px !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mindsaga-card:hover {
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 20px 45px -8px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Cyber Corner Brackets */
+.mindsaga-card::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid rgba(255, 255, 255, 0.5);
+  border-left: 2px solid rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  border-top-left-radius: 0px !important;
+}
+
+.mindsaga-card::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  border-bottom-right-radius: 0px !important;
+}
+
+/* Variant Accents */
+.mindsaga-card-emerald {
+  border-color: rgba(52, 211, 153, 0.35);
+}
+.mindsaga-card-emerald:hover {
+  border-color: rgba(52, 211, 153, 0.6);
+  box-shadow: 0 20px 45px -8px rgba(0, 0, 0, 0.8), 0 0 20px rgba(52, 211, 153, 0.2);
+}
+
+.mindsaga-card-purple {
+  border-color: rgba(192, 132, 252, 0.35);
+}
+.mindsaga-card-purple:hover {
+  border-color: rgba(192, 132, 252, 0.6);
+  box-shadow: 0 20px 45px -8px rgba(0, 0, 0, 0.8), 0 0 20px rgba(192, 132, 252, 0.2);
+}
+
+.mindsaga-card-amber {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+.mindsaga-card-amber:hover {
+  border-color: rgba(251, 191, 36, 0.6);
+  box-shadow: 0 20px 45px -8px rgba(0, 0, 0, 0.8), 0 0 20px rgba(251, 191, 36, 0.2);
+}
+
+/* --- Signature Shimmer Beam Action Button --- */
+.mindsaga-btn-space {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  background: linear-gradient(90deg, #243949 0%, #517fa4 100%);
+  color: #ffffff;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+  font-family: monospace;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+  border: 1.5px solid #ffffff;
+  border-radius: 0px !important;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+}
+
+.mindsaga-btn-space:hover:not(:disabled) {
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+}
+
+.mindsaga-btn-space:hover:not(:disabled)::before {
+  animation: mindsagaSh02 0.5s 0s linear;
+}
+
+.mindsaga-btn-space::before {
+  content: "";
+  display: block;
+  width: 0px;
+  height: 90%;
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  opacity: 0;
+  background: #ffffff;
+  box-shadow: 0 0 50px 30px #ffffff;
+  transform: skewX(-20deg);
+}
+
+@keyframes mindsagaSh02 {
+  from {
+    opacity: 0;
+    left: 0%;
+  }
+  50% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    left: 100%;
+  }
+}
+
+.mindsaga-btn-space:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* --- Secondary Outline Button --- */
+.mindsaga-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0px !important;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.mindsaga-btn-outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+/* --- Telemetry HUD Badges --- */
+.mindsaga-hud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  font-family: monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0px !important;
+  color: #e2e8f0;
+}
+
+/* Live Radar Dot */
+.mindsaga-radar-dot {
+  position: relative;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+}
+
+.mindsaga-radar-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid #34d399;
+  animation: mindsagaPing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes mindsagaPing {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* --- Micro-detail Scanline Grid (Subtle Texture) --- */
+.mindsaga-scanlines {
+  background-image: linear-gradient(
+    rgba(255, 255, 255, 0.02) 1px,
+    transparent 1px
+  );
+  background-size: 100% 4px;
+}
+
+/* ==========================================================================
+   MINDSAGA PLATFORM - LIGHT THEME SYSTEM (0 CURVE CORNERS & PROPER LIGHT PALETTE)
+   ========================================================================== */
+body.light .mindsaga-space-bg,
+.light .mindsaga-space-bg {
+  background: 
+    linear-gradient(
+      140deg,
+      #f8fafc 0%,
+      #f1f5f9 45%,
+      #e2e8f0 100%
+    ) !important;
+  color: #0f172a !important;
+}
+
+body.light .mindsaga-bg-stars,
+.light .mindsaga-bg-stars,
+body:not(.dark) .mindsaga-bg-stars {
+  opacity: 1 !important;
+}
+
+body.light .mindsaga-star,
+.light .mindsaga-star,
+body:not(.dark) .mindsaga-star {
+  width: 5px !important;
+  height: 5px !important;
+  background: #000000 !important;
+  box-shadow: 
+    0 0 0 2.5px rgba(0, 0, 0, 0.35),
+    0 0 0 6px rgba(15, 23, 42, 0.2),
+    0 0 14px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.light .mindsaga-star::before,
+.light .mindsaga-star::before,
+body:not(.dark) .mindsaga-star::before {
+  height: 2.5px !important;
+  width: 360px !important;
+  background: linear-gradient(
+    90deg,
+    #000000 0%,
+    #0f172a 40%,
+    rgba(30, 41, 59, 0.45) 75%,
+    transparent 100%
+  ) !important;
+}
+
+body.light .mindsaga-title-outline,
+.light .mindsaga-title-outline {
+  -webkit-text-stroke: 1.5px #0f172a !important;
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+body.light .mindsaga-title-outline::before,
+body.light .mindsaga-title-outline::after,
+.light .mindsaga-title-outline::before,
+.light .mindsaga-title-outline::after {
+  color: #0f172a !important;
+}
+
+body.light .mindsaga-card,
+.light .mindsaga-card {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+  border-radius: 0px !important;
+}
+
+body.light .mindsaga-card:hover,
+.light .mindsaga-card:hover {
+  border-color: #0f172a !important;
+  box-shadow: 0 8px 25px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px #0f172a !important;
+}
+
+body.light .mindsaga-card::before,
+body.light .mindsaga-card::after,
+.light .mindsaga-card::before,
+.light .mindsaga-card::after {
+  border-color: #0f172a !important;
+  border-radius: 0px !important;
+}
+
+body.light .mindsaga-card-emerald,
+.light .mindsaga-card-emerald {
+  border-color: #10b981 !important;
+}
+
+body.light .mindsaga-card-purple,
+.light .mindsaga-card-purple {
+  border-color: #8b5cf6 !important;
+}
+
+body.light .mindsaga-card-amber,
+.light .mindsaga-card-amber {
+  border-color: #f59e0b !important;
+}
+
+body.light .mindsaga-hud-badge,
+.light .mindsaga-hud-badge {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  border-radius: 0px !important;
+}
+
+body.light .mindsaga-btn-space,
+.light .mindsaga-btn-space {
+  background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%) !important;
+  border-color: #0f172a !important;
+  color: #ffffff !important;
+  border-radius: 0px !important;
+  text-shadow: none !important;
+}
+
+body.light .mindsaga-btn-space:hover:not(:disabled),
+.light .mindsaga-btn-space:hover:not(:disabled) {
+  background: #1e293b !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25) !important;
+}
+
+body.light .mindsaga-btn-outline,
+.light .mindsaga-btn-outline {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  border-radius: 0px !important;
+}
+
+body.light .mindsaga-btn-outline:hover:not(:disabled),
+.light .mindsaga-btn-outline:hover:not(:disabled) {
+  background: #f1f5f9 !important;
+  border-color: #0f172a !important;
+}
+
+body.light .mindsaga-scanlines,
+.light .mindsaga-scanlines {
+  background-image: linear-gradient(
+    rgba(15, 23, 42, 0.03) 1px,
+    transparent 1px
+  ) !important;
+}
+

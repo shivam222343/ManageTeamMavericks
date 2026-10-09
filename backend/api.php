@@ -277,6 +277,8 @@ $router->addRoute('POST',   '/events/attendance/scan',                          
 // --- PARTICIPANT PORTAL ROUTES ---
 $router->addRoute('GET',    '/participant/dashboard',             [EventRegistrationController::class, 'getParticipantDashboard']);
 $router->addRoute('PUT',    '/participant/profile',               [EventRegistrationController::class, 'updateParticipantProfile']);
+$router->addRoute('POST',   '/participant/upload-photo',          [EventRegistrationController::class, 'uploadParticipantPhoto']);
+$router->addRoute('DELETE', '/participant/photo',                 [EventRegistrationController::class, 'removeParticipantPhoto']);
 
 // --- SEED ROUTE (temporary — remove after seeding) ---
 $router->addRoute('GET', '/seed', function() {
