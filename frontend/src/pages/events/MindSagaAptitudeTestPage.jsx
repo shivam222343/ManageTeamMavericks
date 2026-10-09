@@ -22,16 +22,20 @@ import {
   Maximize2,
   X,
   Volume2,
-  ArrowRight
+  ArrowRight,
+  Sun,
+  Moon,
+  VideoOff
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import DrawingCanvasModal from '../../components/ui/DrawingCanvasModal';
 import VoiceAnswerRecorder from '../../components/ui/VoiceAnswerRecorder';
+import './MindSagaTheme.css';
 
 const MindSagaAptitudeTestPage = () => {
   const { id: eventId, subId: subEventId } = useParams();
-  const { theme } = useTheme ? useTheme() : { theme: 'dark' };
+  const { theme, toggleTheme } = useTheme ? useTheme() : { theme: 'dark', toggleTheme: () => {} };
   const isDark = theme === 'dark';
   const navigate = useNavigate();
 
@@ -55,7 +59,7 @@ const MindSagaAptitudeTestPage = () => {
   const [fullscreenExits, setFullscreenExits] = useState(0);
   const [fullscreenCountdown, setFullscreenCountdown] = useState(10);
   const [warningModal, setWarningModal] = useState({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(Boolean(typeof document !== 'undefined' && document.fullscreenElement));
   const [exitConfirmModal, setExitConfirmModal] = useState(false);
   const [fullscreenReady, setFullscreenReady] = useState(false); // Must enter fullscreen before test begins
 
@@ -63,9 +67,20 @@ const MindSagaAptitudeTestPage = () => {
   const [drawingModalOpen, setDrawingModalOpen] = useState(false);
 
   const videoRef = useRef(null);
+  const captureVideoRef = useRef(null);
   const autosaveTimerRef = useRef(null);
   const fullscreenExitsRef = useRef(0);
   const isFullscreenWarningRef = useRef(false);
+
+  // Global Fullscreen state tracker
+  useEffect(() => {
+    const handleFS = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    handleFS();
+    document.addEventListener('fullscreenchange', handleFS);
+    return () => document.removeEventListener('fullscreenchange', handleFS);
+  }, []);
 
   // Keep refs synced
   useEffect(() => {
@@ -132,12 +147,22 @@ const MindSagaAptitudeTestPage = () => {
   // 2. Camera & Microphone Setup
   const startMedia = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setCameraStatus('connecting');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+        audio: true
+      });
       setCameraStream(stream);
       setCameraStatus('connected');
       setMicStatus('connected');
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+      if (captureVideoRef.current) {
+        captureVideoRef.current.srcObject = stream;
+        captureVideoRef.current.play().catch(() => {});
       }
 
       stream.getVideoTracks().forEach((track) => {
@@ -169,48 +194,90 @@ const MindSagaAptitudeTestPage = () => {
     };
   }, []);
 
+  // Sync camera streams to video elements whenever available
+  useEffect(() => {
+    if (cameraStream) {
+      const syncVid = (el) => {
+        if (el && el.srcObject !== cameraStream) {
+          el.srcObject = cameraStream;
+          el.play().catch(() => {});
+        }
+      };
+      syncVid(videoRef.current);
+      syncVid(captureVideoRef.current);
+    }
+  }, [cameraStream, fullscreenReady, isFullscreen]);
+
   // Periodic CCTV Live Frame Streaming & Admin Heartbeat Listener
+  const sendSnapshotFrame = useCallback(async () => {
+    if (!sessionData?.session_token || testResult || cameraStatus !== 'connected') return;
+    try {
+      let snapshotData = null;
+
+      // 1. Hardware-level ImageCapture API: grabs raw frame even if tab/element is backgrounded
+      try {
+        const videoTrack = cameraStream?.getVideoTracks?.()?.[0];
+        if (videoTrack && videoTrack.readyState === 'live' && typeof window.ImageCapture === 'function') {
+          const imageCapture = new window.ImageCapture(videoTrack);
+          const bitmap = await imageCapture.grabFrame();
+          const canvas = document.createElement('canvas');
+          canvas.width = 320;
+          canvas.height = 240;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bitmap, 0, 0, 320, 240);
+          snapshotData = canvas.toDataURL('image/jpeg', 0.65);
+        }
+      } catch (icErr) {
+        // Fallback to video elements below
+      }
+
+      // 2. Video element fallback if ImageCapture did not produce frame
+      if (!snapshotData) {
+        const candidates = [captureVideoRef.current, videoRef.current];
+        for (const vid of candidates) {
+          if (vid && vid.videoWidth > 0) {
+            const captureCanvas = document.createElement('canvas');
+            captureCanvas.width = 320;
+            captureCanvas.height = 240;
+            const ctx = captureCanvas.getContext('2d');
+            ctx.drawImage(vid, 0, 0, 320, 240);
+            snapshotData = captureCanvas.toDataURL('image/jpeg', 0.65);
+            break;
+          }
+        }
+      }
+
+      const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/snapshot`, {
+        session_token: sessionData.session_token,
+        image_data: snapshotData,
+        camera_status: cameraStatus,
+        round: 1
+      });
+
+      if (res.data?.terminated) {
+        const blockReason = res.data?.termination_reason || 'Terminated by Proctor Administrator.';
+        setWarningModal({
+          isOpen: true,
+          title: 'Test Terminated by Administrator',
+          message: `Your test session has been immediately blocked and terminated: ${blockReason}`,
+          isFullscreenWarning: false
+        });
+        handleSubmitTest(true);
+      }
+    } catch (err) {
+      // Silent fail on minor network hiccups
+    }
+  }, [sessionData, testResult, cameraStatus, cameraStream, eventId, subEventId]);
+
   useEffect(() => {
     if (!sessionData?.session_token || testResult || cameraStatus !== 'connected') return;
 
-    const captureCanvas = document.createElement('canvas');
-    captureCanvas.width = 320;
-    captureCanvas.height = 240;
-    const ctx = captureCanvas.getContext('2d');
+    // Send initial snapshot immediately
+    sendSnapshotFrame();
 
-    const streamInterval = setInterval(async () => {
-      try {
-        let snapshotData = null;
-        if (videoRef.current && videoRef.current.videoWidth > 0) {
-          ctx.drawImage(videoRef.current, 0, 0, 320, 240);
-          snapshotData = captureCanvas.toDataURL('image/jpeg', 0.6);
-        }
-
-        const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/snapshot`, {
-          session_token: sessionData.session_token,
-          image_data: snapshotData,
-          camera_status: cameraStatus,
-          round: 1
-        });
-
-        if (res.data?.terminated) {
-          clearInterval(streamInterval);
-          const blockReason = res.data?.termination_reason || 'Terminated by Proctor Administrator.';
-          setWarningModal({
-            isOpen: true,
-            title: 'Test Terminated by Administrator',
-            message: `Your test session has been immediately blocked and terminated: ${blockReason}`,
-            isFullscreenWarning: false
-          });
-          handleSubmitTest(true);
-        }
-      } catch (err) {
-        // Silent fail on minor network hiccups
-      }
-    }, 2500);
-
+    const streamInterval = setInterval(sendSnapshotFrame, 2500);
     return () => clearInterval(streamInterval);
-  }, [sessionData, testResult, cameraStatus, eventId, subEventId]);
+  }, [sessionData, testResult, cameraStatus, sendSnapshotFrame]);
 
   // 3. Server-side countdown timer
   useEffect(() => {
@@ -264,17 +331,19 @@ const MindSagaAptitudeTestPage = () => {
 
   // 5. Anti-cheating Listeners: Fullscreen, Tab Switch, DevTools, Copy/Paste
   useEffect(() => {
-    if (!sessionData || testResult) return;
+    if (!sessionData || testResult || !fullscreenReady) return;
 
     // Visibility change / tab switch
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        if (!document.fullscreenElement) return; // Fullscreen exit takes precedence
         logProctorViolation('tab_hidden', 'Participant navigated away from test tab.');
       }
     };
 
     // Window blur
     const handleWindowBlur = () => {
+      if (!document.fullscreenElement) return; // Fullscreen exit takes precedence
       logProctorViolation('window_blur', 'Test window lost focus.');
     };
 
@@ -341,7 +410,7 @@ const MindSagaAptitudeTestPage = () => {
       document.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [sessionData, testResult, logProctorViolation]);
+  }, [sessionData, testResult, fullscreenReady, logProctorViolation]);
 
   // 6. Debounced Autosave Buffer
   const triggerAutosave = useCallback((updatedAnswers) => {
@@ -424,24 +493,43 @@ const MindSagaAptitudeTestPage = () => {
   };
 
   // Fullscreen toggle request
-  const requestFullscreen = () => {
-    const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch(() => {});
+  const requestFullscreen = async () => {
+    try {
+      const elem = document.documentElement;
+      if (!document.fullscreenElement && elem.requestFullscreen) {
+        await elem.requestFullscreen();
+      }
+      setIsFullscreen(true);
+      setWarningModal((prev) => (prev.isFullscreenWarning ? { isOpen: false, title: '', message: '', isFullscreenWarning: false } : prev));
+    } catch (err) {
+      toast.error('Could not enter fullscreen mode.');
     }
   };
 
-  // Enter fullscreen and mark ready to begin test
-  const handleEnterFullscreenAndStart = async () => {
+  // Enter fullscreen (pre-flight)
+  const handleEnterFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
         await document.documentElement.requestFullscreen();
       }
       setIsFullscreen(true);
-      setFullscreenReady(true);
     } catch (err) {
-      toast.error('Please allow fullscreen to begin the aptitude test. This is mandatory for proctoring.');
+      toast.error('Please allow fullscreen to begin the aptitude test.');
     }
+  };
+
+  // Officially start test once both camera is verified and fullscreen is active
+  const handleStartAptitudeTest = () => {
+    if (!document.fullscreenElement) {
+      toast.error('Fullscreen mode is mandatory to begin.');
+      return;
+    }
+    if (cameraStatus !== 'connected' || !cameraStream) {
+      toast.error('Camera must be active and verified to begin.');
+      return;
+    }
+    setFullscreenReady(true);
+    sendSnapshotFrame();
   };
 
   const [redirectCountdown, setRedirectCountdown] = useState(4);
@@ -500,71 +588,155 @@ const MindSagaAptitudeTestPage = () => {
     }
   };
 
-  // FULLSCREEN PRE-FLIGHT SCREEN — shown after session loads but before test UI
+  // FULLSCREEN & CAMERA PRE-FLIGHT VERIFICATION SCREEN
   if (!loading && sessionData && !fullscreenReady && !testResult) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-zinc-900 border border-indigo-500/40 rounded-3xl p-6 sm:p-10 text-center space-y-6 shadow-2xl shadow-indigo-900/40"
-        >
-          {/* Icon */}
-          <div className="w-20 h-20 rounded-3xl bg-indigo-600/10 border border-indigo-500/30 flex items-center justify-center mx-auto shadow-inner">
-            <Maximize2 className="w-10 h-10 text-indigo-400" />
-          </div>
+    const isCameraReady = cameraStatus === 'connected' && Boolean(cameraStream);
+    const canStart = isCameraReady && isFullscreen;
 
-          {/* Title */}
-          <div>
-            <span className="px-3 py-1 rounded-full text-[11px] font-bold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              Mandatory — Round 1 Aptitude Test
+    return (
+      <div className="mindsaga-space-bg min-h-screen flex items-center justify-center p-4 relative text-slate-900 dark:text-slate-100">
+        {/* Animated Shooting Stars */}
+        <section className="mindsaga-bg-stars">
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+        </section>
+
+        {/* Hidden persistent capture video */}
+        <video
+          ref={captureVideoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{ position: 'fixed', top: -9999, left: -9999, width: 320, height: 240, pointerEvents: 'none', opacity: 0 }}
+        />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mindsaga-card max-w-lg w-full p-6 sm:p-8 space-y-5 rounded-none relative z-10"
+        >
+          {/* Header */}
+          <div className="text-center">
+            <span className="mindsaga-hud-badge border-purple-500/30 text-purple-600 dark:text-purple-300 rounded-none">
+              Phase 1 Aptitude
             </span>
-            <h2 className="text-2xl font-black text-white mt-3 leading-tight">
-              Fullscreen Required to Begin
+            <h2 className="text-xl sm:text-2xl font-bold font-mono uppercase mt-2 text-slate-900 dark:text-white tracking-tight">
+              Pre-Flight Security Check
             </h2>
-            <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-              Mind Saga enforces strict fullscreen proctoring. You must enter fullscreen mode before your test starts. Exiting fullscreen during the test will trigger a 10-second auto-submit countdown.
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Camera verification &amp; Fullscreen required to start
             </p>
           </div>
 
-          {/* Test info card */}
-          <div className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 text-xs text-left space-y-2">
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Test</span>
-              <span className="text-white font-semibold">{sessionData?.test?.title || 'Aptitude Test'}</span>
+          {/* Camera Video Stream Preview Box */}
+          <div className={`relative aspect-video rounded-none overflow-hidden border flex items-center justify-center shadow-inner ${
+            isDark ? 'bg-zinc-950 border-white/10' : 'bg-slate-100 border-slate-300'
+          }`}>
+            {isCameraReady ? (
+              <>
+                <video
+                  ref={(el) => {
+                    if (el && cameraStream && el.srcObject !== cameraStream) {
+                      el.srcObject = cameraStream;
+                      el.play().catch(() => {});
+                    }
+                  }}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover transform -scale-x-100"
+                />
+                <div className="absolute top-2.5 left-2.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-none flex items-center gap-1.5 border border-white/10 text-[10px] font-mono font-bold text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-none bg-emerald-500 animate-ping" />
+                  CAMERA ACTIVE &amp; VERIFIED
+                </div>
+              </>
+            ) : (
+              <div className="text-center p-4 space-y-2.5">
+                <VideoOff className="w-9 h-9 text-rose-500 mx-auto" />
+                <p className="text-xs font-mono text-rose-500 font-semibold">
+                  {cameraStatus === 'denied' ? 'Camera permission denied' : 'Camera permission required'}
+                </p>
+                <button
+                  type="button"
+                  onClick={startMedia}
+                  className="mindsaga-btn-space px-4 py-2 text-xs rounded-none cursor-pointer"
+                >
+                  Enable Camera
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Verification Status Badges */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className={`p-2.5 rounded-none border flex items-center justify-between ${
+              isCameraReady
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-500'
+            }`}>
+              <span className="font-mono font-bold uppercase text-[11px]">Camera</span>
+              <span className="font-bold flex items-center gap-1 text-[11px]">
+                {isCameraReady ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                {isCameraReady ? 'Verified' : 'Required'}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Questions</span>
-              <span className="text-indigo-400 font-bold">{questions.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Duration</span>
-              <span className="text-indigo-400 font-bold font-mono">{Math.round(remainingSeconds / 60)} min</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Anti-Cheat Strikes</span>
-              <span className="text-amber-400 font-bold">3 max before auto-submit</span>
+
+            <div className={`p-2.5 rounded-none border flex items-center justify-between ${
+              isFullscreen
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+            }`}>
+              <span className="font-mono font-bold uppercase text-[11px]">Fullscreen</span>
+              <span className="font-bold flex items-center gap-1 text-[11px]">
+                {isFullscreen ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                {isFullscreen ? 'Active' : 'Required'}
+              </span>
             </div>
           </div>
 
-          {/* Rules */}
-          <div className="text-xs text-zinc-400 text-left space-y-1.5 bg-zinc-950/50 p-3 rounded-xl border border-zinc-800">
-            <p className="font-semibold text-zinc-300">Rules during the test:</p>
-            <p>• Do NOT exit fullscreen — 3 strikes = auto-submit</p>
-            <p>• Do NOT switch tabs or blur the window</p>
-            <p>• Keep your webcam enabled at all times</p>
-            <p>• No copy/paste, right-click, or DevTools</p>
+          {/* Minimal Examination Rules */}
+          <div className={`p-3 rounded-none border text-xs text-left space-y-1.5 ${
+            isDark ? 'bg-zinc-950/60 border-white/10' : 'bg-slate-50 border-slate-200'
+          }`}>
+            <p className="font-mono font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px]">Proctoring Rules:</p>
+            <p className="text-slate-600 dark:text-slate-400">• Fullscreen mode is mandatory throughout the test</p>
+            <p className="text-slate-600 dark:text-slate-400">• Camera must remain clearly visible at all times</p>
+            <p className="text-slate-600 dark:text-slate-400">• Exiting fullscreen triggers strike penalties (3 strikes max)</p>
           </div>
 
-          {/* CTA */}
-          <button
-            type="button"
-            onClick={handleEnterFullscreenAndStart}
-            className="w-full py-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-2xl font-black text-sm transition shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2.5 uppercase tracking-wider cursor-pointer"
-          >
-            <Maximize2 className="w-5 h-5" />
-            <span>Enter Fullscreen &amp; Begin Test</span>
-          </button>
+          {/* Action Button: Gated ONLY to show Start when both conditions are satisfied */}
+          {canStart ? (
+            <button
+              type="button"
+              onClick={handleStartAptitudeTest}
+              className="mindsaga-btn-space w-full py-3.5 text-sm uppercase tracking-wider rounded-none cursor-pointer flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>Start Aptitude Test</span>
+            </button>
+          ) : !isFullscreen ? (
+            <button
+              type="button"
+              onClick={handleEnterFullscreen}
+              className="mindsaga-btn-space w-full py-3.5 text-sm uppercase tracking-wider rounded-none cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Maximize2 className="w-4 h-4" />
+              <span>Enter Fullscreen Mode</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startMedia}
+              className="mindsaga-btn-space w-full py-3.5 text-sm uppercase tracking-wider rounded-none cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Video className="w-4 h-4" />
+              <span>Enable Camera to Begin</span>
+            </button>
+          )}
         </motion.div>
       </div>
     );
@@ -572,9 +744,7 @@ const MindSagaAptitudeTestPage = () => {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        isDark ? 'bg-zinc-950 text-white' : 'bg-slate-50 text-slate-900'
-      }`}>
+      <div className="mindsaga-space-bg min-h-screen flex items-center justify-center">
         <MajorLoader fullPage />
       </div>
     );
@@ -585,50 +755,52 @@ const MindSagaAptitudeTestPage = () => {
     const isAuto = testResult.is_auto_submitted || testResult.status === 'auto_submitted';
 
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${
-        isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'
-      }`}>
+      <div className="mindsaga-space-bg min-h-screen flex items-center justify-center p-4 relative text-slate-900 dark:text-slate-100">
+        <section className="mindsaga-bg-stars">
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+          <span className="mindsaga-star"></span>
+        </section>
+
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className={`max-w-md w-full rounded-3xl border p-6 sm:p-8 text-center space-y-5 shadow-2xl ${
-            isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
-          }`}
+          className="mindsaga-card max-w-md w-full p-6 sm:p-8 text-center space-y-5 rounded-none relative z-10"
         >
-          <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto shadow-inner ${
+          <div className={`w-14 h-14 rounded-none border flex items-center justify-center mx-auto ${
             isAuto
-              ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-              : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
           }`}>
-            {isAuto ? <Clock className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
+            {isAuto ? <Clock className="w-7 h-7" /> : <CheckCircle2 className="w-7 h-7" />}
           </div>
 
           <div>
-            <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {isAuto ? 'Aptitude Test Auto-Submitted!' : 'Aptitude Test Completed!'}
+            <h2 className="text-xl font-bold font-mono uppercase text-slate-900 dark:text-white">
+              {isAuto ? 'Test Auto-Submitted' : 'Test Completed'}
             </h2>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              {isAuto
-                ? 'Your test was automatically submitted because time expired or 3 anti-cheating strikes were reached. All your saved answers have been evaluated.'
-                : 'Your answers have been securely recorded and evaluated by the server marking engine.'}
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {isAuto ? 'Auto-submitted due to timeout or strike limit.' : 'Answers recorded and evaluated.'}
             </p>
           </div>
 
-          <div className={`p-4 rounded-2xl border space-y-2 text-xs ${
-            isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-slate-50 border-slate-200'
+          <div className={`p-4 rounded-none border space-y-2 text-xs ${
+            isDark ? 'bg-zinc-950/80 border-white/10' : 'bg-slate-50 border-slate-200'
           }`}>
             <div className="flex justify-between items-center">
-              <span className="text-slate-400 font-medium">Score Earned:</span>
-              <span className="font-bold text-indigo-400 text-sm font-mono">{testResult.score ?? testResult.total_score ?? 0} pts</span>
+              <span className="text-slate-500 dark:text-slate-400">Score</span>
+              <span className="font-bold text-indigo-500 dark:text-indigo-400 text-sm font-mono">{testResult.score ?? testResult.total_score ?? 0} pts</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-400 font-medium">Percentage:</span>
-              <span className={`font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{testResult.percentage ?? 0}%</span>
+              <span className="text-slate-500 dark:text-slate-400">Percentage</span>
+              <span className="font-bold font-mono text-slate-900 dark:text-white">{testResult.percentage ?? 0}%</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-400 font-medium">Submission Mode:</span>
+              <span className="text-slate-500 dark:text-slate-400">Status</span>
               <span className={`font-semibold uppercase text-[11px] ${
-                isAuto ? 'text-amber-400' : 'text-emerald-400'
+                isAuto ? 'text-amber-500' : 'text-emerald-500'
               }`}>
                 {testResult.status || (isAuto ? 'AUTO_SUBMITTED' : 'SUBMITTED')}
               </span>
@@ -638,19 +810,17 @@ const MindSagaAptitudeTestPage = () => {
           <div className="space-y-2.5 pt-2">
             <button
               onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga`)}
-              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs transition shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer"
+              className="mindsaga-btn-space w-full py-3 text-xs uppercase tracking-wider rounded-none flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>{redirectCountdown > 0 ? `Redirecting in ${redirectCountdown}s...` : 'Returning to Arena...'}</span>
+              <span>{redirectCountdown > 0 ? `Arena in ${redirectCountdown}s...` : 'Return to Arena'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
               onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga/game`)}
-              className={`w-full py-2.5 border rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                isDark ? 'border-zinc-800 hover:bg-zinc-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
-              }`}
+              className="mindsaga-btn-outline w-full py-2.5 text-xs font-semibold rounded-none flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Launch Round 2 Gaming Directly</span>
+              <span>Launch Round 2 Gaming</span>
             </button>
           </div>
         </motion.div>
@@ -669,57 +839,86 @@ const MindSagaAptitudeTestPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col selection:bg-indigo-500/30">
+    <div className="mindsaga-space-bg min-h-screen flex flex-col relative text-slate-900 dark:text-slate-100 selection:bg-indigo-500/30">
+      {/* Animated Shooting Stars */}
+      <section className="mindsaga-bg-stars">
+        <span className="mindsaga-star"></span>
+        <span className="mindsaga-star"></span>
+        <span className="mindsaga-star"></span>
+        <span className="mindsaga-star"></span>
+        <span className="mindsaga-star"></span>
+      </section>
+
+      {/* Hidden persistent capture video */}
+      <video
+        ref={captureVideoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ position: 'fixed', top: -9999, left: -9999, width: 320, height: 240, pointerEvents: 'none', opacity: 0 }}
+      />
+
       {/* Test Header */}
-      <header className="border-b border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-40">
+      <header className="border-b border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <BrainCircuit className="w-5 h-5 text-indigo-400" />
+          <BrainCircuit className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
           <div>
-            <h1 className="text-sm font-bold text-white tracking-tight">{sessionData?.test?.title || 'Aptitude Test'}</h1>
-            <div className="flex items-center gap-2 text-[11px] text-zinc-400">
-              <span>Question {currentQIndex + 1} of {questions.length}</span>
+            <h1 className="text-sm font-bold tracking-tight text-slate-900 dark:text-white">{sessionData?.test?.title || 'Aptitude Test'}</h1>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+              <span>Q {currentQIndex + 1}/{questions.length}</span>
               <span>•</span>
-              <span className={`font-mono ${savingStatus === 'saving' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                {savingStatus === 'saving' ? 'Autosaving...' : '● Autosaved'}
+              <span className={`font-mono ${savingStatus === 'saving' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                {savingStatus === 'saving' ? 'Saving...' : 'Saved'}
               </span>
             </div>
           </div>
         </div>
 
         {/* Center Countdown Timer */}
-        <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 font-mono font-bold text-sm ${
+        <div className={`px-3.5 py-1 rounded-none border flex items-center gap-2 font-mono font-bold text-xs ${
           remainingSeconds < 300
-            ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse'
-            : 'bg-zinc-900 border-zinc-800 text-white'
+            ? 'bg-red-500/10 border-red-500/30 text-red-500 animate-pulse'
+            : isDark ? 'bg-zinc-900 border-white/10 text-white' : 'bg-slate-100 border-slate-300 text-slate-900'
         }`}>
-          <Clock className="w-4 h-4 text-indigo-400" />
+          <Clock className="w-3.5 h-3.5 text-indigo-400" />
           <span>{formatTimer(remainingSeconds)}</span>
         </div>
 
-        {/* Right side proctor status & submit button */}
+        {/* Right side controls & submit button */}
         <div className="flex items-center gap-2">
-          {!isFullscreen && (
-            <button
-              onClick={requestFullscreen}
-              className="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition hidden sm:flex"
-            >
-              <Maximize2 className="w-3.5 h-3.5" /> Fullscreen
-            </button>
-          )}
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-1.5 border border-slate-300 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/10 rounded-none transition cursor-pointer text-slate-700 dark:text-slate-200"
+            title="Toggle Theme"
+          >
+            {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={requestFullscreen}
+            className="p-1.5 rounded-none border border-slate-300 dark:border-white/15 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition flex items-center gap-1.5 cursor-pointer text-xs font-mono"
+            title="Toggle Full Screen Mode"
+          >
+            <Maximize2 className="w-4 h-4 text-sky-500" />
+            <span className="hidden md:inline">{isFullscreen ? 'Full Screen' : 'Go Full Screen'}</span>
+          </button>
 
           <button
             onClick={() => handleSubmitTest(false)}
             disabled={submitting}
-            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition cursor-pointer"
+            className="mindsaga-btn-space px-3.5 py-1 text-xs rounded-none cursor-pointer flex items-center gap-1.5"
           >
             <Send className="w-3.5 h-3.5" />
-            <span>Finish Test</span>
+            <span>Finish</span>
           </button>
 
           <button
             onClick={() => setExitConfirmModal(true)}
-            className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-            title="Exit Test and Submit"
+            className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-600 dark:text-red-300 border border-red-500/30 rounded-none text-xs font-mono font-semibold flex items-center gap-1 transition cursor-pointer"
+            title="Exit Test"
           >
             <X className="w-3.5 h-3.5" />
             <span>Exit</span>
@@ -728,42 +927,42 @@ const MindSagaAptitudeTestPage = () => {
       </header>
 
       {/* Main Test Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 gap-4">
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 gap-4 relative z-10">
         {/* Left/Main Question Pane */}
-        <main className="flex-1 bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-6">
+        <main className="flex-1 mindsaga-card p-5 sm:p-6 rounded-none flex flex-col justify-between space-y-6">
           {currentQ ? (
             <div className="space-y-6">
               {/* Question Header & Review Flag */}
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <span className="mindsaga-hud-badge border-purple-500/30 text-purple-600 dark:text-purple-300 text-xs rounded-none">
                     {currentQ.question_type.replace('_', ' ')}
                   </span>
-                  <span className="text-xs text-zinc-400 font-semibold">{currentQ.marks} Marks</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{currentQ.marks} Marks</span>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => toggleReviewMark(qId)}
-                  className={`px-3 py-1 rounded-xl text-xs font-medium flex items-center gap-1.5 transition ${
+                  className={`px-3 py-1 rounded-none text-xs font-medium flex items-center gap-1.5 border transition cursor-pointer ${
                     markedForReview.has(qId)
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
+                      : 'border-slate-300 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Bookmark className={`w-3.5 h-3.5 ${markedForReview.has(qId) ? 'fill-amber-400' : ''}`} />
-                  <span>{markedForReview.has(qId) ? 'Marked for Review' : 'Mark for Review'}</span>
+                  <span>{markedForReview.has(qId) ? 'Marked' : 'Mark Review'}</span>
                 </button>
               </div>
 
               {/* Question Statement */}
               <div className="space-y-3">
-                <h2 className="text-base sm:text-lg font-medium text-white leading-relaxed">
+                <h2 className="text-base sm:text-lg font-medium text-slate-900 dark:text-white leading-relaxed">
                   {currentQIndex + 1}. {currentQ.question_text}
                 </h2>
 
                 {currentQ.image_url && (
-                  <img src={currentQ.image_url} alt="Question diagram" className="max-h-60 rounded-xl border border-zinc-800 my-2" />
+                  <img src={currentQ.image_url} alt="Question diagram" className="max-h-60 rounded-none border border-slate-300 dark:border-white/10 my-2" />
                 )}
               </div>
 
@@ -779,14 +978,16 @@ const MindSagaAptitudeTestPage = () => {
                           key={opt.id}
                           type="button"
                           onClick={() => handleSelectSingleOption(qId, opt.id)}
-                          className={`w-full text-left p-3.5 rounded-xl border flex items-center gap-3 transition ${
+                          className={`w-full text-left p-3.5 rounded-none border flex items-center gap-3 transition cursor-pointer ${
                             isSelected
-                              ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-md shadow-indigo-600/10'
-                              : 'bg-zinc-950/70 border-zinc-800/80 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700'
+                              ? 'bg-indigo-600/15 border-indigo-500 text-slate-900 dark:text-white font-semibold'
+                              : isDark
+                                ? 'bg-zinc-950/70 border-white/10 text-slate-300 hover:bg-zinc-900 hover:border-white/20'
+                                : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100 hover:border-slate-300'
                           }`}
                         >
-                          <span className={`w-6 h-6 rounded-full border flex items-center justify-center font-bold text-xs ${
-                            isSelected ? 'border-indigo-400 bg-indigo-600 text-white' : 'border-zinc-700 text-zinc-400'
+                          <span className={`w-6 h-6 rounded-none border flex items-center justify-center font-bold text-xs ${
+                            isSelected ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-400 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
                           }`}>
                             {opt.id}
                           </span>
@@ -800,7 +1001,7 @@ const MindSagaAptitudeTestPage = () => {
                 {/* 2. MULTIPLE CHOICE */}
                 {currentQ.question_type === 'multiple_choice' && (
                   <div className="space-y-2">
-                    <p className="text-[11px] text-zinc-400 italic">Select all correct options:</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">Select all correct options:</p>
                     {currentQ.options?.map((opt) => {
                       const isSelected = Array.isArray(currentAnswer) && currentAnswer.includes(opt.id);
                       return (
@@ -808,18 +1009,20 @@ const MindSagaAptitudeTestPage = () => {
                           key={opt.id}
                           type="button"
                           onClick={() => handleToggleMultipleOption(qId, opt.id)}
-                          className={`w-full text-left p-3.5 rounded-xl border flex items-center gap-3 transition ${
+                          className={`w-full text-left p-3.5 rounded-none border flex items-center gap-3 transition cursor-pointer ${
                             isSelected
-                              ? 'bg-purple-600/20 border-purple-500 text-white shadow-md'
-                              : 'bg-zinc-950/70 border-zinc-800/80 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700'
+                              ? 'bg-purple-600/15 border-purple-500 text-slate-900 dark:text-white font-semibold'
+                              : isDark
+                                ? 'bg-zinc-950/70 border-white/10 text-slate-300 hover:bg-zinc-900 hover:border-white/20'
+                                : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100 hover:border-slate-300'
                           }`}
                         >
-                          <span className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs ${
-                            isSelected ? 'border-purple-400 bg-purple-600 text-white' : 'border-zinc-700 text-zinc-400'
+                          <span className={`w-5 h-5 rounded-none border flex items-center justify-center text-xs ${
+                            isSelected ? 'border-purple-500 bg-purple-600 text-white' : 'border-slate-400 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
                           }`}>
                             {isSelected && <Check className="w-3.5 h-3.5" />}
                           </span>
-                          <span className="font-bold text-xs text-zinc-400">{opt.id}.</span>
+                          <span className="font-bold text-xs text-slate-500 dark:text-zinc-400">{opt.id}.</span>
                           <span className="text-xs sm:text-sm">{opt.text}</span>
                         </button>
                       );
@@ -834,8 +1037,10 @@ const MindSagaAptitudeTestPage = () => {
                       rows="5"
                       value={typeof currentAnswer === 'object' && currentAnswer !== null ? currentAnswer.text || '' : currentAnswer || ''}
                       onChange={(e) => handleWrittenTextChange(qId, e.target.value)}
-                      placeholder="Type your comprehensive explanation here..."
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 text-xs sm:text-sm text-white focus:outline-none focus:border-indigo-500 leading-relaxed font-sans"
+                      placeholder="Type response here..."
+                      className={`w-full rounded-none p-3.5 text-xs sm:text-sm focus:outline-none focus:border-indigo-500 leading-relaxed font-sans border ${
+                        isDark ? 'bg-zinc-950 border-white/10 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
                     />
 
                     {currentQ.allow_voice_answer && (
@@ -850,24 +1055,24 @@ const MindSagaAptitudeTestPage = () => {
                 {currentQ.question_type === 'drawing_response' && (
                   <div className="space-y-3">
                     {currentAnswer?.data_url ? (
-                      <div className="relative border border-zinc-800 rounded-xl overflow-hidden bg-slate-900">
+                      <div className="relative border border-slate-300 dark:border-white/10 rounded-none overflow-hidden bg-slate-900">
                         <img src={currentAnswer.data_url} alt="User sketch" className="w-full h-auto max-h-72 object-contain" />
                         <button
                           type="button"
                           onClick={() => setDrawingModalOpen(true)}
-                          className="absolute top-3 right-3 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg flex items-center gap-1.5"
+                          className="absolute top-3 right-3 px-3 py-1.5 mindsaga-btn-space rounded-none text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" /> Edit Diagram
                         </button>
                       </div>
                     ) : (
-                      <div className="text-center py-10 border-2 border-dashed border-zinc-800 rounded-xl space-y-3 bg-zinc-950/40">
+                      <div className="text-center py-10 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-none space-y-3 bg-black/10">
                         <Pencil className="w-8 h-8 text-indigo-400 mx-auto" />
-                        <p className="text-xs text-zinc-400">Illustrate architecture or flowchart for this problem.</p>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400">Illustrate architecture or flowchart.</p>
                         <button
                           type="button"
                           onClick={() => setDrawingModalOpen(true)}
-                          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20"
+                          className="mindsaga-btn-space px-4 py-2 text-xs rounded-none cursor-pointer"
                         >
                           Launch Drawing Canvas
                         </button>
@@ -878,16 +1083,16 @@ const MindSagaAptitudeTestPage = () => {
               </div>
             </div>
           ) : (
-            <div className="text-center py-20 text-zinc-500">No question selected.</div>
+            <div className="text-center py-20 text-slate-500">No question selected.</div>
           )}
 
           {/* Navigation Controls */}
-          <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-white/10">
             <button
               type="button"
               disabled={currentQIndex === 0}
               onClick={() => setCurrentQIndex((prev) => prev - 1)}
-              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-xs font-semibold flex items-center gap-1.5 transition"
+              className="mindsaga-btn-outline px-4 py-2 rounded-none text-xs font-semibold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" /> Previous
             </button>
@@ -896,7 +1101,7 @@ const MindSagaAptitudeTestPage = () => {
               type="button"
               disabled={currentQIndex >= questions.length - 1}
               onClick={() => setCurrentQIndex((prev) => prev + 1)}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-md shadow-indigo-600/20"
+              className="mindsaga-btn-space px-5 py-2 rounded-none text-xs font-semibold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer"
             >
               Next <ChevronRight className="w-4 h-4" />
             </button>
@@ -906,20 +1111,22 @@ const MindSagaAptitudeTestPage = () => {
         {/* Right Sidebar: WebRTC Video & Question Palette */}
         <aside className="w-full lg:w-72 space-y-4">
           {/* Proctoring Camera Preview Tile */}
-          <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-3 space-y-2">
+          <div className="mindsaga-card p-3 rounded-none space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
+              <span className="font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5 text-indigo-400" />
-                Live Proctor Camera
+                Live Camera
               </span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold ${
-                cameraStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+              <span className={`px-2 py-0.5 rounded-none text-[10px] font-mono font-semibold ${
+                cameraStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30' : 'bg-red-500/10 text-red-500 border border-red-500/30'
               }`}>
                 {cameraStatus === 'connected' ? '● Connected' : 'Disconnected'}
               </span>
             </div>
 
-            <div className="relative aspect-video rounded-xl bg-zinc-950 overflow-hidden border border-zinc-800">
+            <div className={`relative aspect-video rounded-none overflow-hidden border ${
+              isDark ? 'bg-zinc-950 border-white/10' : 'bg-slate-100 border-slate-300'
+            }`}>
               <video
                 ref={videoRef}
                 autoPlay
@@ -931,8 +1138,8 @@ const MindSagaAptitudeTestPage = () => {
           </div>
 
           {/* Question Navigator Palette */}
-          <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 space-y-3">
-            <h3 className="font-bold text-white text-xs">Question Palette</h3>
+          <div className="mindsaga-card p-4 rounded-none space-y-3">
+            <h3 className="font-bold font-mono uppercase text-slate-900 dark:text-white text-xs">Question Palette</h3>
 
             <div className="grid grid-cols-5 gap-2">
               {questions.map((q, idx) => {
@@ -940,17 +1147,17 @@ const MindSagaAptitudeTestPage = () => {
                 const isMarked = markedForReview.has(q.id);
                 const isCurrent = currentQIndex === idx;
 
-                let btnClass = 'bg-zinc-950 text-zinc-400 border-zinc-800';
-                if (isCurrent) btnClass = 'ring-2 ring-indigo-500 bg-indigo-950/40 text-white font-bold';
-                else if (isMarked) btnClass = 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold';
-                else if (isAnswered) btnClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-bold';
+                let btnClass = isDark ? 'bg-zinc-950 text-zinc-400 border-white/10' : 'bg-slate-50 text-slate-600 border-slate-200';
+                if (isCurrent) btnClass = 'ring-2 ring-indigo-500 bg-indigo-600/20 text-slate-900 dark:text-white font-bold border-indigo-500';
+                else if (isMarked) btnClass = 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 font-bold';
+                else if (isAnswered) btnClass = 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40 font-bold';
 
                 return (
                   <button
                     key={q.id}
                     type="button"
                     onClick={() => setCurrentQIndex(idx)}
-                    className={`aspect-square rounded-xl border text-xs flex items-center justify-center transition hover:scale-105 ${btnClass}`}
+                    className={`aspect-square rounded-none border text-xs flex items-center justify-center transition cursor-pointer hover:scale-105 ${btnClass}`}
                   >
                     {idx + 1}
                   </button>
@@ -959,17 +1166,17 @@ const MindSagaAptitudeTestPage = () => {
             </div>
 
             {/* Legend */}
-            <div className="pt-3 border-t border-zinc-800/80 space-y-1 text-[11px] text-zinc-400">
+            <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-1 text-[11px] text-slate-500 dark:text-zinc-400">
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/40" />
+                <span className="w-3 h-3 rounded-none bg-emerald-500/20 border border-emerald-500/40" />
                 <span>Answered</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-amber-500/20 border border-amber-500/40" />
-                <span>Marked for review</span>
+                <span className="w-3 h-3 rounded-none bg-amber-500/20 border border-amber-500/40" />
+                <span>Review</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-zinc-950 border border-zinc-800" />
+                <span className={`w-3 h-3 rounded-none border ${isDark ? 'bg-zinc-950 border-white/10' : 'bg-slate-50 border-slate-300'}`} />
                 <span>Unattempted</span>
               </div>
             </div>
@@ -988,29 +1195,29 @@ const MindSagaAptitudeTestPage = () => {
       {/* Proctoring Warning Modal */}
       {warningModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in">
-          <div className="bg-zinc-900 border border-red-500/50 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl text-center">
-            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center mx-auto">
-              <ShieldAlert className="w-7 h-7" />
+          <div className="mindsaga-card rounded-none w-full max-w-md p-6 space-y-4 shadow-2xl text-center border-red-500/60">
+            <div className="w-12 h-12 rounded-none bg-red-500/10 border border-red-500/30 text-red-500 flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">{warningModal.title}</h3>
-              <p className="text-xs text-zinc-300 mt-1 leading-relaxed">{warningModal.message}</p>
+              <h3 className="font-bold font-mono uppercase text-slate-900 dark:text-white text-base">{warningModal.title}</h3>
+              <p className="text-xs text-slate-600 dark:text-zinc-300 mt-1">{warningModal.message}</p>
             </div>
 
-            {warningModal.isFullscreenWarning && (
-              <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl space-y-2 text-left">
+            {(!document.fullscreenElement || !isFullscreen || warningModal.isFullscreenWarning) && (
+              <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-none space-y-2 text-left">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-red-300 font-medium">Auto-Submit Countdown</span>
-                  <span className="font-mono font-bold text-red-400 text-sm">{fullscreenCountdown}s</span>
+                  <span className="text-red-400 font-medium">Return Countdown</span>
+                  <span className="font-mono font-bold text-red-400 text-sm animate-pulse">{fullscreenCountdown}s</span>
                 </div>
-                <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-zinc-800 rounded-none h-1.5 overflow-hidden">
                   <div
                     className="bg-red-500 h-full transition-all duration-1000 ease-linear"
-                    style={{ width: `${(fullscreenCountdown / 10) * 100}%` }}
+                    style={{ width: `${Math.max(0, Math.min(100, (fullscreenCountdown / 10) * 100))}%` }}
                   />
                 </div>
                 <p className="text-[11px] text-zinc-400">
-                  Strike {fullscreenExits} of 3. On the 3rd exit, the test is submitted immediately.
+                  Strike {fullscreenExits}/3. On 3rd exit, test auto-submits.
                 </p>
               </div>
             )}
@@ -1020,10 +1227,10 @@ const MindSagaAptitudeTestPage = () => {
                 setWarningModal({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
                 requestFullscreen();
               }}
-              className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
+              className="mindsaga-btn-space w-full py-2.5 rounded-none text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer font-mono uppercase tracking-wider"
             >
               <Maximize2 className="w-4 h-4" />
-              Return to Full-Screen Now
+              <span>Enter Full Screen & Continue</span>
             </button>
           </div>
         </div>
@@ -1032,23 +1239,23 @@ const MindSagaAptitudeTestPage = () => {
       {/* EXIT TEST CONFIRMATION WARNING MODAL */}
       {exitConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
-          <div className="bg-zinc-900 border border-red-500/40 rounded-3xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl">
-            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center mx-auto">
-              <AlertCircle className="w-8 h-8" />
+          <div className="mindsaga-card rounded-none max-w-md w-full p-6 text-center space-y-4 shadow-2xl border-red-500/50">
+            <div className="w-12 h-12 rounded-none bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Exit Aptitude Test?</h3>
-              <p className="text-xs text-zinc-300 mt-2 leading-relaxed">
-                Exiting will submit your current test progress and <strong>consume 1 attempt</strong>. If all your allowed attempts are exhausted, you will <strong>NOT</strong> be permitted to re-attempt this round.
+              <h3 className="text-base font-bold font-mono uppercase text-slate-900 dark:text-white">Exit Aptitude Test?</h3>
+              <p className="text-xs text-slate-600 dark:text-zinc-300 mt-2">
+                Submits test and consumes 1 attempt.
               </p>
             </div>
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setExitConfirmModal(false)}
-                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                className="mindsaga-btn-outline flex-1 py-2 text-xs rounded-none cursor-pointer"
               >
-                Stay in Test
+                Stay
               </button>
               <button
                 type="button"
@@ -1056,9 +1263,9 @@ const MindSagaAptitudeTestPage = () => {
                   setExitConfirmModal(false);
                   handleSubmitTest(true);
                 }}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-red-600/20 cursor-pointer"
+                className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded-none text-xs font-bold transition shadow-lg cursor-pointer"
               >
-                Exit & Submit
+                Exit &amp; Submit
               </button>
             </div>
           </div>
@@ -1068,30 +1275,50 @@ const MindSagaAptitudeTestPage = () => {
       {/* MANDATORY WEBCAM SURVEILLANCE MODAL */}
       {cameraStatus !== 'connected' && !loading && !testResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in">
-          <div className="bg-zinc-900 border-2 border-rose-500/80 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center space-y-5 shadow-2xl shadow-rose-600/30">
-            <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
-              <Video className="w-8 h-8" />
+          <div className="mindsaga-card rounded-none max-w-md w-full p-6 sm:p-8 text-center space-y-4 shadow-2xl border-rose-500/80">
+            <div className="w-12 h-12 rounded-none bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center justify-center mx-auto">
+              <Video className="w-6 h-6" />
             </div>
             <div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30">
+              <span className="mindsaga-hud-badge border-rose-500/30 text-rose-500 rounded-none text-xs">
                 Surveillance Enforced
               </span>
-              <h3 className="text-xl font-black text-white mt-3">Live Camera Required</h3>
-              <p className="text-xs text-zinc-300 mt-2 leading-relaxed">
-                Mind Saga enforces continuous live camera proctoring. You must allow webcam access to continue the aptitude assessment.
+              <h3 className="text-lg font-bold font-mono uppercase text-slate-900 dark:text-white mt-2">Live Camera Required</h3>
+              <p className="text-xs text-slate-600 dark:text-zinc-300 mt-1">
+                Continuous live webcam proctoring is mandatory.
               </p>
             </div>
             <button
               type="button"
               onClick={startMedia}
-              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
+              className="mindsaga-btn-space w-full py-3 rounded-none font-bold text-xs flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
             >
               <Video className="w-4 h-4" />
-              <span>Enable Webcam Now</span>
+              <span>Enable Webcam</span>
             </button>
           </div>
         </div>
       )}
+
+      {/* Persistent Floating Corner Full Screen Button */}
+      <button
+        type="button"
+        onClick={requestFullscreen}
+        className="fixed top-16 right-4 z-40 bg-slate-900/90 dark:bg-black/90 text-sky-400 hover:text-white border border-sky-500/50 hover:border-sky-400 px-3 py-2 rounded-none text-xs font-mono uppercase tracking-wider flex items-center gap-2 shadow-2xl backdrop-blur-md cursor-pointer transition-all hover:scale-105"
+        title="Enter Full Screen Mode"
+      >
+        <Maximize2 className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+        <span>{isFullscreen ? 'Full Screen Active' : 'Go Full Screen'}</span>
+      </button>
+
+      {/* Permanently mounted hidden capture video for reliable frame grabbing */}
+      <video
+        ref={captureVideoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ position: 'fixed', top: -9999, left: -9999, width: 320, height: 240, opacity: 0, pointerEvents: 'none' }}
+      />
     </div>
   );
 };

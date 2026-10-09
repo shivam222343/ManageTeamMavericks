@@ -1034,19 +1034,10 @@ const PublicEventRegisterPage = () => {
         </header>
 
         {/* Hero Section */}
-        <section className="pt-16 pb-12 px-2.5 sm:px-6 max-w-7xl mx-auto">
-          <div className="flex flex-col lg:flex-row items-start justify-between gap-10">
-            <div className="flex-1 max-w-3xl">
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-widest mb-6 border shadow-sm ${isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-700 border-blue-200'
-                  }`}
-              >
-                <Sparkles size={14} className="animate-pulse" />
-                TEAM MAVERICKS // OFFICIAL REGISTRATION
-              </motion.div>
-
+        <section className="pt-12 sm:pt-16 pb-12 px-3 sm:px-6 max-w-7xl mx-auto">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-14">
+            {/* Left Content - Minimum Required Info */}
+            <div className="flex-1 w-full max-w-2xl">
               <motion.h1
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1065,129 +1056,104 @@ const PublicEventRegisterPage = () => {
                 {eventSubtitle}
               </motion.p>
 
+              {/* Minimal required description */}
               <motion.p
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className={`mt-5 text-sm sm:text-base leading-relaxed max-w-2xl ${isDark ? 'text-slate-300' : 'text-slate-600'
-                  }`}
+                className={`mt-4 text-sm sm:text-base leading-relaxed ${
+                  isDark ? 'text-slate-300' : 'text-slate-600'
+                }`}
               >
-                {eventDesc}
+                Intensive placement preparation bootcamp featuring Aptitude tests, Group Discussions, and 1-on-1 Mock Interviews.
               </motion.p>
 
-              {/* Highlights Pill List */}
+              {/* Minimal Meta Chips */}
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="mt-8 space-y-2.5"
+                className="mt-6 flex flex-wrap gap-2.5"
               >
-                {eventHighlights.map((h, i) => (
-                  <div key={i} className="flex items-center gap-2.5 text-xs sm:text-sm font-medium">
-                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                    <span>{h}</span>
-                  </div>
-                ))}
-              </motion.div>
-            </div>
-
-            {/* Event Quick Info Card */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-              className={`w-full lg:w-96 rounded-3xl border p-6 sm:p-8 space-y-5 shadow-xl ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-white border-slate-200'
-                }`}
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
-                <span className="font-mono-tag text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  EVENT STATUS
-                </span>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isCapacityReached
-                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                    : isRegistrationClosed
-                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  }`}>
-                  {isCapacityReached ? 'CAPACITY FULL' : isRegistrationClosed ? 'REGISTRATION CLOSED' : 'REGISTRATION OPEN'}
-                </span>
-              </div>
-
-              <div className="space-y-4 text-xs">
                 {event.start_date && (
-                  <div className="flex items-start gap-3">
-                    <Calendar size={18} className="text-primary-blue shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-mono-tag text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Date &amp; Time</span>
-                      <p className="font-bold mt-0.5">{formatDate(event.start_date)}</p>
-                    </div>
+                  <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
+                    isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                  }`}>
+                    <Calendar size={13} className="text-primary-blue" />
+                    <span>{formatDate(event.start_date)}</span>
                   </div>
                 )}
-
-                <div className="flex items-start gap-3">
-                  <MapPin size={18} className="text-rose-500 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-mono-tag text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Venue / Location</span>
-                    <p className="font-bold mt-0.5">{event.location || "KIT's College of Engineering, Kolhapur"}</p>
-                  </div>
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
+                  isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <MapPin size={13} className="text-rose-500" />
+                  <span>{event.location || "KIT's College of Engineering"}</span>
                 </div>
-
-                <div className="flex items-start gap-3">
-                  <Globe size={18} className="text-indigo-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-mono-tag text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Event Mode</span>
-                    <p className="font-bold uppercase mt-0.5">{event.mode} format</p>
-                  </div>
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
+                  isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <Coins size={13} className="text-amber-500" />
+                  <span>{isPaid ? `₹${parseFloat(event.registration_fee).toFixed(0)}` : 'Free Entry'}</span>
                 </div>
-
-                {maxParticipants && maxParticipants > 0 ? (
-                  <div className="flex items-start gap-3">
-                    <Users size={18} className="text-purple-400 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-mono-tag text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Seat Capacity</span>
-                      <p className="font-bold mt-0.5">
-                        {isCapacityReached
-                          ? `${maxParticipants}/${maxParticipants} Seats Filled (Housefull)`
-                          : `${totalRegistrations}/${maxParticipants} Registered (${Math.max(0, maxParticipants - totalRegistrations)} spots remaining)`}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="flex items-start gap-3">
-                  <Coins size={18} className="text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-mono-tag text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Registration Fee</span>
-                    <p className="font-bold mt-0.5">
-                      {isPaid ? `₹${parseFloat(event.registration_fee).toFixed(0)} per participant` : 'Free Entry'}
-                    </p>
-                  </div>
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
+                  isCapacityReached 
+                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' 
+                    : isRegistrationClosed 
+                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                  <span>{isCapacityReached ? 'Housefull' : isRegistrationClosed ? 'Closed' : 'Registration Open'}</span>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="pt-2">
+              {/* Direct Actions */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="mt-8 flex flex-wrap items-center gap-3"
+              >
                 {isCapacityReached || isRegistrationClosed ? (
-                  <div className="space-y-2">
-                    <div className="w-full py-3.5 px-5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-xs font-black uppercase tracking-wider text-center border border-zinc-200 dark:border-zinc-700">
-                      {isCapacityReached ? 'Registrations Full (Housefull)' : 'Registrations Closed'}
-                    </div>
-                    <Link
-                      to="/user-login"
-                      className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-blue-500/30 text-primary-blue text-xs font-bold hover:bg-blue-500/10 transition"
-                    >
-                      <span>Already Registered? Sign In</span>
-                    </Link>
+                  <div className="py-3 px-6 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-500 text-xs font-black uppercase tracking-wider">
+                    {isCapacityReached ? 'Registrations Full' : 'Registrations Closed'}
                   </div>
                 ) : (
                   <a
                     href="#registration-form-section"
-                    className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl bg-primary-blue text-white text-xs font-black uppercase tracking-wider hover:bg-blue-600 shadow-md shadow-primary-blue/20 transition cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-primary-blue text-white text-xs font-black uppercase tracking-wider hover:bg-blue-600 shadow-md shadow-primary-blue/20 transition cursor-pointer"
                   >
                     <span>Proceed to Register</span>
                     <ArrowRight size={14} />
                   </a>
                 )}
-              </div>
+                <Link
+                  to="/user-login"
+                  className={`inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl border text-xs font-bold uppercase tracking-wider transition ${
+                    isDark
+                      ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300'
+                      : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  <LogIn size={14} />
+                  <span>Participant Login</span>
+                </Link>
+              </motion.div>
+            </div>
+
+            {/* Right Side - Vector Image Illustration */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              className="w-full lg:w-1/2 flex items-center justify-center relative select-none"
+            >
+              <div className="absolute inset-0 max-w-md mx-auto bg-gradient-to-tr from-blue-500/10 via-indigo-500/10 to-amber-500/10 blur-3xl rounded-full pointer-events-none" />
+              <img
+                src={slug === 'verbafest' || slug === 'varba-fest' || !event.banner_image ? '/verbafest.png' : (event.banner_image || '/verbafest.png')}
+                alt={event.name || "VerbaFest"}
+                className="relative z-10 w-full max-w-[420px] sm:max-w-[480px] lg:max-w-[500px] h-auto object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.2)] hover:scale-[1.02] transition-transform duration-300"
+              />
             </motion.div>
           </div>
         </section>
@@ -1350,13 +1316,12 @@ const PublicEventRegisterPage = () => {
                       <button
                         type="button"
                         onClick={handleSelectAllSubEvents}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                          isAllSubSelected
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${isAllSubSelected
                             ? 'bg-blue-500/15 border-blue-500/40 text-primary-blue'
                             : isDark
-                            ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-                            : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-                        }`}
+                              ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                              : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                          }`}
                       >
                         {isAllSubSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                         <span>{isAllSubSelected ? 'Deselect All' : 'Select All Sub-Events'}</span>
@@ -1365,13 +1330,12 @@ const PublicEventRegisterPage = () => {
 
                     {/* Combo Deal Banner if applicable */}
                     {comboFeeVal !== null && comboFeeVal > 0 && (
-                      <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${
-                        isAllSubSelected
+                      <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${isAllSubSelected
                           ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
                           : isDark
-                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
-                          : 'bg-blue-50 border-blue-200 text-blue-900'
-                      }`}>
+                            ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                            : 'bg-blue-50 border-blue-200 text-blue-900'
+                        }`}>
                         <div className="flex items-center gap-3">
                           <Sparkles size={20} className={isAllSubSelected ? 'text-emerald-500 animate-pulse' : 'text-primary-blue'} />
                           <div>
@@ -1408,22 +1372,20 @@ const PublicEventRegisterPage = () => {
                         return (
                           <div
                             key={sub.id}
-                            className={`rounded-2xl border transition-all ${
-                              isClosed
+                            className={`rounded-2xl border transition-all ${isClosed
                                 ? 'border-slate-300 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/20 opacity-60'
                                 : isSelected
-                                ? 'border-primary-blue/50 bg-blue-500/5 shadow-md shadow-blue-500/5'
-                                : isDark
-                                ? 'border-slate-800 bg-slate-900/30 opacity-80 hover:opacity-100'
-                                : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
-                            }`}
+                                  ? 'border-primary-blue/50 bg-blue-500/5 shadow-md shadow-blue-500/5'
+                                  : isDark
+                                    ? 'border-slate-800 bg-slate-900/30 opacity-80 hover:opacity-100'
+                                    : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+                              }`}
                           >
                             {/* Card Header & Checkbox Toggle */}
                             <div
                               onClick={() => handleToggleSubEvent(sub.id)}
-                              className={`p-4 sm:p-5 flex items-start justify-between gap-4 select-none ${
-                                isClosed ? 'cursor-not-allowed' : 'cursor-pointer'
-                              }`}
+                              className={`p-4 sm:p-5 flex items-start justify-between gap-4 select-none ${isClosed ? 'cursor-not-allowed' : 'cursor-pointer'
+                                }`}
                             >
                               <div className="flex items-start gap-3.5">
                                 <div className="mt-1">
@@ -1441,11 +1403,10 @@ const PublicEventRegisterPage = () => {
                                       {sub.name}
                                     </h5>
                                     <span
-                                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${
-                                        isGroup
+                                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${isGroup
                                           ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
                                           : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                                      }`}
+                                        }`}
                                     >
                                       {isGroup ? `Group (${minTeam}-${maxTeam} members)` : 'Individual'}
                                     </span>
@@ -1515,9 +1476,8 @@ const PublicEventRegisterPage = () => {
                                   {(subData.team_members || []).map((member, mIdx) => (
                                     <div
                                       key={mIdx}
-                                      className={`p-3.5 rounded-xl border space-y-3 ${
-                                        isDark ? 'bg-[#0E172A] border-slate-800' : 'bg-white border-slate-200'
-                                      }`}
+                                      className={`p-3.5 rounded-xl border space-y-3 ${isDark ? 'bg-[#0E172A] border-slate-800' : 'bg-white border-slate-200'
+                                        }`}
                                     >
                                       <div className="flex items-center justify-between">
                                         <span className="font-mono text-[11px] font-bold uppercase text-slate-400">
@@ -1605,111 +1565,111 @@ const PublicEventRegisterPage = () => {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         {(currentSection.fields || []).map((field) => {
-                        const fieldName = `field_${field.id}`;
-                        const isFull = ['textarea', 'file', 'image', 'resume', 'pdf'].includes(field.field_type);
+                          const fieldName = `field_${field.id}`;
+                          const isFull = ['textarea', 'file', 'image', 'resume', 'pdf'].includes(field.field_type);
 
-                        return (
-                          <div key={field.id} className={isFull ? 'sm:col-span-2' : ''}>
-                            <label className="block text-xs font-black uppercase tracking-wider mb-2 text-slate-800 dark:text-slate-200">
-                              {field.label} {field.is_required ? <span className="text-rose-500">*</span> : null}
-                            </label>
+                          return (
+                            <div key={field.id} className={isFull ? 'sm:col-span-2' : ''}>
+                              <label className="block text-xs font-black uppercase tracking-wider mb-2 text-slate-800 dark:text-slate-200">
+                                {field.label} {field.is_required ? <span className="text-rose-500">*</span> : null}
+                              </label>
 
-                            {field.field_type === 'textarea' ? (
-                              <textarea
-                                rows={4}
-                                placeholder={field.placeholder || ''}
-                                {...register(fieldName, {
-                                  required: field.is_required ? `${field.label} is required` : false,
-                                })}
-                                className={inputClass}
-                              />
-                            ) : field.field_type === 'select' ? (
-                              <select
-                                {...register(fieldName, {
-                                  required: field.is_required ? `${field.label} is required` : false,
-                                })}
-                                className={inputClass}
-                              >
-                                <option value="">Select option</option>
-                                {(field.options || []).map((opt) => (
-                                  <option key={opt.id || opt.option_value} value={opt.option_value}>
-                                    {opt.option_label || opt.option_value}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : field.field_type === 'radio' ? (
-                              <div className="space-y-2">
-                                {(field.options || []).map((opt) => (
-                                  <label key={opt.id || opt.option_value} className="flex items-center gap-2.5 text-xs text-slate-800 dark:text-slate-300 font-medium cursor-pointer">
-                                    <input
-                                      type="radio"
-                                      value={opt.option_value}
-                                      {...register(fieldName, {
-                                        required: field.is_required ? `${field.label} is required` : false,
-                                      })}
-                                      className="text-primary-blue focus:ring-primary-blue"
-                                    />
-                                    <span>{opt.option_label || opt.option_value}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            ) : ['file', 'image', 'resume', 'pdf'].includes(field.field_type) ? (
-                              <div className={`border-2 border-dashed rounded-2xl p-6 text-center transition ${isDark ? 'border-slate-800 bg-[#070C18]' : 'border-slate-300 bg-slate-50/70'
-                                }`}>
-                                <Upload size={24} className="mx-auto text-slate-500 dark:text-slate-400 mb-2" />
-                                <p className="text-xs font-bold text-slate-800 dark:text-slate-300">
-                                  {fileInputs[field.id] ? fileInputs[field.id].name : 'Click to choose file or drag & drop'}
-                                </p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-500 mt-1 font-medium">PDF, JPG, PNG up to 10MB</p>
-                                <input
-                                  type="file"
-                                  id={`file-input-${field.id}`}
-                                  className="hidden"
-                                  onChange={(e) => handleFileChange(field.id, e.target.files[0])}
+                              {field.field_type === 'textarea' ? (
+                                <textarea
+                                  rows={4}
+                                  placeholder={field.placeholder || ''}
+                                  {...register(fieldName, {
+                                    required: field.is_required ? `${field.label} is required` : false,
+                                  })}
+                                  className={inputClass}
                                 />
-                                <label
-                                  htmlFor={`file-input-${field.id}`}
-                                  className="mt-3 inline-block px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold cursor-pointer text-white transition shadow-sm"
+                              ) : field.field_type === 'select' ? (
+                                <select
+                                  {...register(fieldName, {
+                                    required: field.is_required ? `${field.label} is required` : false,
+                                  })}
+                                  className={inputClass}
                                 >
-                                  {fileInputs[field.id] ? 'Change Selected File' : 'Browse File'}
-                                </label>
-                              </div>
-                            ) : (
-                              <input
-                                type={
-                                  field.field_type === 'number'
-                                    ? 'number'
-                                    : field.field_type === 'date'
-                                      ? 'date'
-                                      : field.field_type === 'email'
-                                        ? 'email'
-                                        : field.field_type === 'tel'
-                                          ? 'tel'
-                                          : 'text'
-                                }
-                                placeholder={field.placeholder || ''}
-                                {...register(fieldName, {
-                                  required: field.is_required ? `${field.label} is required` : false,
-                                })}
-                                className={inputClass}
-                              />
-                            )}
+                                  <option value="">Select option</option>
+                                  {(field.options || []).map((opt) => (
+                                    <option key={opt.id || opt.option_value} value={opt.option_value}>
+                                      {opt.option_label || opt.option_value}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : field.field_type === 'radio' ? (
+                                <div className="space-y-2">
+                                  {(field.options || []).map((opt) => (
+                                    <label key={opt.id || opt.option_value} className="flex items-center gap-2.5 text-xs text-slate-800 dark:text-slate-300 font-medium cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        value={opt.option_value}
+                                        {...register(fieldName, {
+                                          required: field.is_required ? `${field.label} is required` : false,
+                                        })}
+                                        className="text-primary-blue focus:ring-primary-blue"
+                                      />
+                                      <span>{opt.option_label || opt.option_value}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              ) : ['file', 'image', 'resume', 'pdf'].includes(field.field_type) ? (
+                                <div className={`border-2 border-dashed rounded-2xl p-6 text-center transition ${isDark ? 'border-slate-800 bg-[#070C18]' : 'border-slate-300 bg-slate-50/70'
+                                  }`}>
+                                  <Upload size={24} className="mx-auto text-slate-500 dark:text-slate-400 mb-2" />
+                                  <p className="text-xs font-bold text-slate-800 dark:text-slate-300">
+                                    {fileInputs[field.id] ? fileInputs[field.id].name : 'Click to choose file or drag & drop'}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-500 mt-1 font-medium">PDF, JPG, PNG up to 10MB</p>
+                                  <input
+                                    type="file"
+                                    id={`file-input-${field.id}`}
+                                    className="hidden"
+                                    onChange={(e) => handleFileChange(field.id, e.target.files[0])}
+                                  />
+                                  <label
+                                    htmlFor={`file-input-${field.id}`}
+                                    className="mt-3 inline-block px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold cursor-pointer text-white transition shadow-sm"
+                                  >
+                                    {fileInputs[field.id] ? 'Change Selected File' : 'Browse File'}
+                                  </label>
+                                </div>
+                              ) : (
+                                <input
+                                  type={
+                                    field.field_type === 'number'
+                                      ? 'number'
+                                      : field.field_type === 'date'
+                                        ? 'date'
+                                        : field.field_type === 'email'
+                                          ? 'email'
+                                          : field.field_type === 'tel'
+                                            ? 'tel'
+                                            : 'text'
+                                  }
+                                  placeholder={field.placeholder || ''}
+                                  {...register(fieldName, {
+                                    required: field.is_required ? `${field.label} is required` : false,
+                                  })}
+                                  className={inputClass}
+                                />
+                              )}
 
-                            {field.help_text ? (
-                              <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 font-medium">{field.help_text}</p>
-                            ) : null}
-                            {errors[fieldName] ? (
-                              <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-semibold">
-                                <AlertCircle size={12} /> {errors[fieldName].message}
-                              </p>
-                            ) : null}
-                          </div>
-                        );
-                      })}
+                              {field.help_text ? (
+                                <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 font-medium">{field.help_text}</p>
+                              ) : null}
+                              {errors[fieldName] ? (
+                                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-semibold">
+                                  <AlertCircle size={12} /> {errors[fieldName].message}
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
 
                 {/* Final Step Payment UI (if paid) */}
                 {Boolean(isPaid) && activeStep === totalSteps - 1 ? (
@@ -2137,8 +2097,8 @@ const PublicEventRegisterPage = () => {
                   type="button"
                   onClick={() => setAlertModal({ isOpen: false, title: '', message: '', isDuplicate: false, email: '' })}
                   className={`flex-1 py-3.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider border transition cursor-pointer ${isDark
-                      ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-white'
-                      : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900'
+                    ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-white'
+                    : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900'
                     }`}
                 >
                   Okay, Got It

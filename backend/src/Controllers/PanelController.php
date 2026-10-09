@@ -7,8 +7,13 @@ use App\Middleware\AuthMiddleware;
 use PDO;
 
 class PanelController {
+    private static bool $tablesInitialized = false;
 
     private static function initTables(PDO $db): void {
+        if (self::$tablesInitialized) {
+            return;
+        }
+        self::$tablesInitialized = true;
         $db->exec("CREATE TABLE IF NOT EXISTS panels (
             id INT AUTO_INCREMENT PRIMARY KEY,
             campaign_id INT DEFAULT 1,

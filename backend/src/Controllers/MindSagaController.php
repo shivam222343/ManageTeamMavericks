@@ -12,11 +12,16 @@ use PHPMailer\PHPMailer\Exception;
 use PDO;
 
 class MindSagaController {
+    private static bool $tablesInitialized = false;
 
     /**
      * Ensure all tables and seed configs for Mind Saga exist.
      */
     public static function initTables(PDO $db): void {
+        if (self::$tablesInitialized) {
+            return;
+        }
+        self::$tablesInitialized = true;
         // 1. Mind Saga Master Config
         $db->exec("CREATE TABLE IF NOT EXISTS mind_saga_configs (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1108,6 +1113,7 @@ class MindSagaController {
             }
 
             // Resume active session
+            $db->prepare("UPDATE mind_saga_test_sessions SET camera_status = 'connected', updated_at = NOW() WHERE id = ?")->execute([$session['id']]);
             $assignedQIds = json_decode($session['assigned_question_ids'] ?? '[]', true) ?: [];
             $answersData = json_decode($session['answers_data'] ?? '{}', true) ?: [];
 
@@ -1161,8 +1167,8 @@ class MindSagaController {
         }
 
         $insStmt = $db->prepare("INSERT INTO mind_saga_test_sessions 
-            (test_id, registration_id, sub_event_id, session_token, started_at, duration_seconds, expires_at, status, assigned_question_ids, answers_data, proctoring_events)
-            VALUES (?, ?, ?, ?, NOW(), ?, ?, 'in_progress', ?, '{}', '[]')
+            (test_id, registration_id, sub_event_id, session_token, started_at, duration_seconds, expires_at, status, camera_status, assigned_question_ids, answers_data, proctoring_events)
+            VALUES (?, ?, ?, ?, NOW(), ?, ?, 'in_progress', 'connected', ?, '{}', '[]')
         ");
         $insStmt->execute([
             $testId,
@@ -1790,8 +1796,8 @@ class MindSagaController {
         $token = bin2hex(random_bytes(32));
 
         $insStmt = $db->prepare("INSERT INTO mind_saga_game_sessions 
-            (game_config_id, registration_id, sub_event_id, session_token, started_at, expires_at, status, score, max_score, game_data, moves_log, proctoring_events)
-            VALUES (?, ?, ?, ?, NOW(), ?, 'in_progress', 0, ?, ?, '[]', '[]')
+            (game_config_id, registration_id, sub_event_id, session_token, started_at, expires_at, status, camera_status, score, max_score, game_data, moves_log, proctoring_events)
+            VALUES (?, ?, ?, ?, NOW(), ?, 'in_progress', 'connected', 0, ?, ?, '[]', '[]')
         ");
         $insStmt->execute([$game['id'], $regId, $subId, $token, $expiresAt, (int)$game['max_score'], json_encode($puzzleData)]);
         $sessId = (int)$db->lastInsertId();
@@ -2008,7 +2014,7 @@ class MindSagaController {
         $outerSql = "SELECT * FROM ({$sql}) as cctv_all WHERE 1=1";
 
         if ($filter === 'online') {
-            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected' AND latest_snapshot IS NOT NULL";
+            $outerSql .= " AND status = 'in_progress' AND (camera_status = 'connected' OR latest_snapshot IS NOT NULL)";
         } else if ($filter === 'disconnected') {
             $outerSql .= " AND (camera_status = 'disconnected' OR latest_snapshot IS NULL) AND status = 'in_progress'";
         } else if ($filter === 'warnings') {
@@ -2018,11 +2024,11 @@ class MindSagaController {
         } else if ($filter === 'submitted') {
             $outerSql .= " AND status IN ('submitted', 'auto_submitted')";
         } else {
-            // Default 'all' CCTV view: only display live active streams
-            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected' AND latest_snapshot IS NOT NULL";
+            // Default 'all' CCTV view: display all active in-progress participant sessions
+            $outerSql .= " AND status = 'in_progress'";
         }
 
-        $outerSql .= " ORDER BY (status = 'in_progress') DESC, violation_count DESC, last_snapshot_at DESC, started_at DESC";
+        $outerSql .= " ORDER BY (status = 'in_progress') DESC, (camera_status = 'connected') DESC, (latest_snapshot IS NOT NULL) DESC, violation_count DESC, last_snapshot_at DESC, started_at DESC";
 
         $stmt = $db->prepare($outerSql);
         $stmt->execute([$subId, $subId]);
@@ -2067,93 +2073,67 @@ class MindSagaController {
             return;
         }
 
-        if ($round === 1) {
-            $stmt = $db->prepare("SELECT status, violation_count, proctoring_events FROM mind_saga_test_sessions WHERE session_token = ?");
-            $stmt->execute([$token]);
-            $sess = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($sess) {
-                if ($cameraStatus === 'disconnected' || empty($image)) {
-                    $db->prepare("UPDATE mind_saga_test_sessions SET 
-                        camera_status = 'disconnected',
-                        latest_snapshot = NULL,
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$token]);
-                } else {
-                    $db->prepare("UPDATE mind_saga_test_sessions SET 
-                        latest_snapshot = ?, 
-                        last_snapshot_at = NOW(), 
-                        camera_status = 'connected',
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$image, $token]);
-                }
-
-                $isTerminated = ($sess['status'] === 'terminated');
-                $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
-                $adminTerminatedReason = '';
-                foreach (array_reverse($events) as $ev) {
-                    if (($ev['type'] ?? '') === 'admin_terminated') {
-                        $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
-                        break;
-                    }
-                }
-
-                Router::sendJson([
-                    'success' => true,
-                    'status' => $sess['status'],
-                    'violation_count' => (int)$sess['violation_count'],
-                    'terminated' => $isTerminated,
-                    'termination_reason' => $adminTerminatedReason
-                ]);
-                return;
-            }
+        // Look up session in test_sessions first, then game_sessions
+        $table = null;
+        $stmt = $db->prepare("SELECT id, status, violation_count, proctoring_events FROM mind_saga_test_sessions WHERE session_token = ?");
+        $stmt->execute([$token]);
+        $sess = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($sess) {
+            $table = 'mind_saga_test_sessions';
         } else {
-            $stmt = $db->prepare("SELECT status, violation_count, proctoring_events FROM mind_saga_game_sessions WHERE session_token = ?");
+            $stmt = $db->prepare("SELECT id, status, violation_count, proctoring_events FROM mind_saga_game_sessions WHERE session_token = ?");
             $stmt->execute([$token]);
             $sess = $stmt->fetch(PDO::FETCH_ASSOC);
-
             if ($sess) {
-                if ($cameraStatus === 'disconnected' || empty($image)) {
-                    $db->prepare("UPDATE mind_saga_game_sessions SET 
-                        camera_status = 'disconnected',
-                        latest_snapshot = NULL,
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$token]);
-                } else {
-                    $db->prepare("UPDATE mind_saga_game_sessions SET 
-                        latest_snapshot = ?, 
-                        last_snapshot_at = NOW(), 
-                        camera_status = 'connected',
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$image, $token]);
-                }
-
-                $isTerminated = ($sess['status'] === 'terminated');
-                $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
-                $adminTerminatedReason = '';
-                foreach (array_reverse($events) as $ev) {
-                    if (($ev['type'] ?? '') === 'admin_terminated') {
-                        $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
-                        break;
-                    }
-                }
-
-                Router::sendJson([
-                    'success' => true,
-                    'status' => $sess['status'],
-                    'violation_count' => (int)$sess['violation_count'],
-                    'terminated' => $isTerminated,
-                    'termination_reason' => $adminTerminatedReason
-                ]);
-                return;
+                $table = 'mind_saga_game_sessions';
             }
         }
 
-        Router::sendJson(['error' => 'Session not found'], 404);
+        if ($sess && $table) {
+            if ($cameraStatus === 'disconnected') {
+                $db->prepare("UPDATE {$table} SET 
+                    camera_status = 'disconnected',
+                    updated_at = NOW() 
+                    WHERE session_token = ?
+                ")->execute([$token]);
+            } else if (!empty($image)) {
+                $db->prepare("UPDATE {$table} SET 
+                    latest_snapshot = ?, 
+                    last_snapshot_at = NOW(), 
+                    camera_status = 'connected',
+                    updated_at = NOW() 
+                    WHERE session_token = ?
+                ")->execute([$image, $token]);
+            } else {
+                $db->prepare("UPDATE {$table} SET 
+                    camera_status = 'connected',
+                    last_snapshot_at = NOW(),
+                    updated_at = NOW() 
+                    WHERE session_token = ?
+                ")->execute([$token]);
+            }
+
+            $isTerminated = ($sess['status'] === 'terminated');
+            $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
+            $adminTerminatedReason = '';
+            foreach (array_reverse($events) as $ev) {
+                if (($ev['type'] ?? '') === 'admin_terminated') {
+                    $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
+                    break;
+                }
+            }
+
+            Router::sendJson([
+                'success' => true,
+                'status' => $sess['status'],
+                'violation_count' => (int)$sess['violation_count'],
+                'terminated' => $isTerminated,
+                'termination_reason' => $adminTerminatedReason
+            ]);
+            return;
+        }
+
+        Router::sendJson(['error' => 'Session token not found'], 404);
     }
 
     /**

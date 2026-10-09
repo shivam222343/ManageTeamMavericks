@@ -8,8 +8,13 @@ use App\Middleware\AuthMiddleware;
 use PDO;
 
 class EventSubEventController {
+    private static bool $migrated = false;
 
     public static function ensureMigration(): void {
+        if (self::$migrated) {
+            return;
+        }
+        self::$migrated = true;
         $db = Database::getConnection();
         try {
             // Ensure events table has combo_fee and allow_sub_events

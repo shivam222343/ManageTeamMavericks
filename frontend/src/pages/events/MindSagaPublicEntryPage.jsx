@@ -18,15 +18,22 @@ import {
   Clock,
   ExternalLink,
   ChevronRight,
-  Mail
+  Mail,
+  Sun,
+  Moon
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+
+import './MindSagaTheme.css';
 
 const MindSagaPublicEntryPage = () => {
   const { id: eventId, subId: subEventId } = useParams();
   const navigate = useNavigate();
   const { login } = useAuth ? useAuth() : { login: () => {} };
+  const { theme, toggleTheme } = useTheme ? useTheme() : { theme: 'dark', toggleTheme: () => {} };
+  const isDark = theme === 'dark';
 
   const [accessKey, setAccessKey] = useState('');
   const [email, setEmail] = useState('');
@@ -104,134 +111,124 @@ const MindSagaPublicEntryPage = () => {
   const isLive = pollingStatus === 'live';
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col justify-between selection:bg-indigo-500/30">
-      {/* Top Bar */}
-      <header className="border-b border-zinc-800/80 bg-zinc-900/40 backdrop-blur-md px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+    <div className="mindsaga-space-bg min-h-screen flex flex-col justify-between selection:bg-indigo-500/30 relative">
+      {/* Background Shooting Stars */}
+      <div className="mindsaga-bg-stars" aria-hidden="true">
+        <span className="mindsaga-star" />
+        <span className="mindsaga-star" />
+        <span className="mindsaga-star" />
+        <span className="mindsaga-star" />
+        <span className="mindsaga-star" />
+      </div>
+
+      {/* Top Bar with Micro Telemetry & Theme Toggle */}
+      <header className="relative z-10 border-b border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-950/40 backdrop-blur-xl px-4 sm:px-6 py-3.5 flex items-center justify-between transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-none bg-sky-500/10 text-sky-500 dark:text-sky-400 border border-sky-500/25">
             <BrainCircuit className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-white tracking-tight">Team Mavericks</h1>
-            <p className="text-[11px] text-zinc-400">Mind Saga Official Platform Portal</p>
+            <h1 className="text-sm font-black text-slate-900 dark:text-white tracking-wider uppercase font-mono">Team Mavericks</h1>
+            <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">Mind Saga Arena</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase tracking-wider border ${
-            isLive
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-              : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-            <span>Platform: {isLive ? 'LIVE' : 'LOCKED'}</span>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-none border border-slate-300 dark:border-white/15 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition flex items-center justify-center cursor-pointer"
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+          </button>
+          <span className="mindsaga-hud-badge">
+            <span className={isLive ? 'mindsaga-radar-dot' : 'w-2 h-2 rounded-none bg-amber-400'} />
+            <span>PORTAL: {isLive ? 'LIVE' : 'STANDBY'}</span>
+          </span>
+          <span className="hidden sm:inline-flex mindsaga-hud-badge border-slate-300 dark:border-white/10 text-slate-600 dark:text-slate-400">
+            [ SECURE GATE ]
           </span>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
-        <div className="max-w-lg w-full bg-zinc-900/70 border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl">
-          {/* Header Hero */}
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/30">
-              <BrainCircuit className="w-7 h-7" />
+      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: 14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="w-full max-w-[425px]"
+        >
+          {/* Uiverse Retro Space Form with 0 Curved Corners */}
+          <form className="mindsaga-space-form" onSubmit={handleKeyLogin}>
+            {/* Header Titles */}
+            <div className="form-title">
+              <span>access key</span>
             </div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">Mind Saga Arena Access</h2>
-            <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-              Enter your unique candidate Access Key to access Round 1 Aptitude, Round 2 Gaming, and Round 3 Interview.
-            </p>
-          </div>
+            <div className="title-2">
+              <span>MINDSAGA</span>
+            </div>
 
-          {/* Platform Status Notice Banner */}
-          {!isLive && (
-            <div className="bg-amber-950/20 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-xs">
-              <Lock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-bold text-amber-300 block">Round is Currently Locked by Admin</span>
-                <p className="text-zinc-400 text-[11px] leading-relaxed">
-                  You can enter your key now to verify your credentials. When the administrator starts the round, you will automatically enter the arena.
-                </p>
+            {/* Inner Shooting Stars */}
+            <section className="bg-stars">
+              <span className="star" />
+              <span className="star" />
+              <span className="star" />
+              <span className="star" />
+            </section>
+
+            {/* Platform Status Notice Banner */}
+            {!isLive && (
+              <div className="mb-3.5 bg-amber-500/10 border border-amber-500/30 rounded-none p-2.5 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-200">
+                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-[11px] font-mono">Platform locked by administrator.</span>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Key Entry Form */}
-          <form onSubmit={handleKeyLogin} className="space-y-4">
-            <div className="space-y-1.5 text-xs">
-              <label className="text-zinc-300 font-semibold flex items-center justify-between">
-                <span>Unique Mind Saga Access Key</span>
-                <span className="text-[10px] text-indigo-400 font-mono">Format: MS-XXXX-XXXX</span>
-              </label>
-              <div className="relative">
-                <Key className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 transform -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={accessKey}
-                  onChange={(e) => setAccessKey(e.target.value.toUpperCase())}
-                  placeholder="e.g. MS-8B7X-9N2A"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-white font-mono font-bold tracking-wider uppercase text-sm focus:outline-none focus:border-indigo-500 transition shadow-inner"
-                />
-              </div>
+            {/* Email Input */}
+            <div className="input-container">
+              <input
+                placeholder="Email"
+                type="email"
+                className="input-mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
 
-            <div className="text-center text-[11px] text-zinc-500">
-              <span>— OR ENTER VIA REGISTERED EMAIL —</span>
+            {/* Access Key Input */}
+            <div className="input-container">
+              <input
+                placeholder="Access Key"
+                type="text"
+                className="input-pwd font-mono font-bold uppercase tracking-wider"
+                value={accessKey}
+                onChange={(e) => setAccessKey(e.target.value.toUpperCase())}
+                autoFocus
+              />
             </div>
 
-            <div className="space-y-1.5 text-xs">
-              <div className="relative">
-                <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 transform -translate-y-1/2" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="registered.email@college.edu"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 transition"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25 transition cursor-pointer"
-            >
-              {loading ? (
-                <span>Validating Key...</span>
-              ) : isLive ? (
-                <>
-                  <Play className="w-4 h-4" />
-                  <span>Enter Mind Saga Arena</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Verify Key &amp; Stand By</span>
-                </>
-              )}
+            {/* Submit Button */}
+            <button className="submit" type="submit" disabled={loading}>
+              <span className="sign-text">
+                {loading ? 'Verifying...' : isLive ? 'Enter Arena' : 'Verify Key'}
+              </span>
             </button>
-          </form>
 
-          {/* Helper Instructions & Dashboard Link */}
-          <div className="pt-4 border-t border-zinc-800/80 text-center space-y-2 text-xs">
-            <p className="text-zinc-500">
-              Don't have your access key? Check your email or view your candidate pass.
+            {/* Dashboard Link */}
+            <p className="signup-link">
+              No key?{' '}
+              <Link to="/user-login" className="up">
+                Check Pass
+              </Link>
             </p>
-            <Link
-              to="/user-login"
-              className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-semibold"
-            >
-              <span>Go to Participant Dashboard</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
+          </form>
+        </motion.div>
       </main>
 
       {/* Footer */}
-      <footer className="text-center py-4 text-xs text-zinc-600 border-t border-zinc-900">
-        Team Mavericks • Mind Saga High-Performance Evaluation Engine • All rights reserved.
+      <footer className="relative z-10 text-center py-3.5 text-[11px] font-mono text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-white/5 bg-slate-100/50 dark:bg-slate-950/30">
+        TEAM MAVERICKS • MINDSAGA ARENA
       </footer>
     </div>
   );

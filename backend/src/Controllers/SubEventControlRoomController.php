@@ -9,10 +9,16 @@ use PDO;
 
 class SubEventControlRoomController {
 
+    private static bool $tablesInitialized = false;
+
     /**
-     * Ensure all necessary tables for Sub-Event Control Room exist.
+     * Ensure all control room tables exist.
      */
     public static function initTables(PDO $db): void {
+        if (self::$tablesInitialized) {
+            return;
+        }
+        self::$tablesInitialized = true;
         // 1. Sub-event Rounds
         $db->exec("CREATE TABLE IF NOT EXISTS sub_event_rounds (
             id INT AUTO_INCREMENT PRIMARY KEY,

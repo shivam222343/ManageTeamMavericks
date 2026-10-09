@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -182,8 +182,12 @@ const MindSagaControlRoomPage = () => {
     }
   }, [eventId, subEventId]);
 
+  const isFetchingProctorRef = useRef(false);
+
   // Fetch Live Proctoring Grid (Realtime Camera Telemetry)
   const fetchProctoring = useCallback(async () => {
+    if (isFetchingProctorRef.current) return;
+    isFetchingProctorRef.current = true;
     try {
       const res = await axios.get(`/events/${eventId}/sub-events/${subEventId}/mind-saga/proctoring/live?filter=${proctorFilter}`);
       const data = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.sessions) ? res.data.sessions : []);
@@ -198,6 +202,8 @@ const MindSagaControlRoomPage = () => {
     } catch (err) {
       console.error('Failed to fetch proctoring:', err);
       setProctoringList([]);
+    } finally {
+      isFetchingProctorRef.current = false;
     }
   }, [eventId, subEventId, proctorFilter]);
 
@@ -231,13 +237,13 @@ const MindSagaControlRoomPage = () => {
   useEffect(() => {
     if (activeTab === 'overview' || activeTab === 'aptitude') {
       fetchProctoring();
-      const interval = setInterval(fetchProctoring, 3000); // 3s realtime live camera poll
+      const interval = setInterval(fetchProctoring, 5000); // 5s realtime live camera poll
       return () => clearInterval(interval);
     }
   }, [activeTab, fetchProctoring]);
 
   useEffect(() => {
-    if (activeTab === 'scores' || activeTab === 'keys' || activeTab === 'overview') {
+    if (activeTab === 'scores' || activeTab === 'keys') {
       fetchLeaderboard();
     }
   }, [activeTab, fetchLeaderboard]);
@@ -589,27 +595,27 @@ const MindSagaControlRoomPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-20 selection:bg-indigo-500/30">
+    <div className={`min-h-screen font-sans pb-20 selection:bg-indigo-500/30 transition-colors duration-300 ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-800'}`}>
       {/* Header Banner */}
-      <div className="border-b border-zinc-800/80 bg-zinc-900/90 backdrop-blur-xl sticky top-0 z-20">
+      <div className="border-b border-slate-200 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl sticky top-0 z-20 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Link
                 to={`/dashboard/events/${eventId}`}
-                className="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition"
+                className="p-2 rounded-xl bg-slate-100 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition"
                 title="Back to Event"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Link>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                     <BrainCircuit className="w-6 h-6 text-indigo-400" />
                     {overviewData?.sub_event?.name || 'Mind Saga'}
                   </h1>
                 </div>
-                <p className="text-xs text-zinc-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
                   Aptitude Test Engine • Live CCTV Proctoring
                 </p>
               </div>
@@ -617,8 +623,8 @@ const MindSagaControlRoomPage = () => {
 
             <div className="flex flex-wrap items-center gap-2">
               {/* Active Round Stage Switcher */}
-              <div className="flex items-center bg-zinc-950/80 p-1 rounded-2xl border border-zinc-800 shadow-inner">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-2 sm:px-2.5">
+              <div className="flex items-center bg-slate-100 dark:bg-zinc-950/80 p-1 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-inner">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 px-2 sm:px-2.5">
                   Stage:
                 </span>
                 {[
@@ -635,7 +641,7 @@ const MindSagaControlRoomPage = () => {
                       onClick={() => handleSetActiveRound(r.num)}
                       className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 ${isSelected
                         ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/80 dark:hover:bg-zinc-800/80'
                         }`}
                       title={r.title}
                     >
@@ -647,20 +653,20 @@ const MindSagaControlRoomPage = () => {
 
               {/* Platform Status Go Live / Lock Button */}
               {overviewData?.config?.platform_status === 'live' || platformStatus === 'live' ? (
-                <div className="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-2xl border border-emerald-500/40 shadow-lg shadow-emerald-500/10">
-                  <span className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold text-emerald-400">
+                <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-zinc-950 p-1 rounded-2xl border border-emerald-500/40 shadow-sm">
+                  <span className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                     PLATFORM LIVE
                   </span>
                   <button
                     onClick={() => handleTogglePlatformStatus('locked')}
-                    className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
                   >
                     Lock Platform
                   </button>
                   <button
                     onClick={() => handleTogglePlatformStatus('paused')}
-                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold transition"
+                    className="px-2.5 py-1 bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition cursor-pointer"
                     title="Pause Round"
                   >
                     Pause
@@ -678,7 +684,7 @@ const MindSagaControlRoomPage = () => {
 
               <button
                 onClick={() => handleCopyLink(`${window.location.origin}/events/${eventId}/sub-events/${subEventId}/mind-saga/enter`, 'Public Mind Saga Arena Entry Link')}
-                className="px-3 py-1.5 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                className="px-3 py-1.5 bg-slate-100 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-transparent rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
                 title="Copy public candidate portal link"
               >
                 <Share2 className="w-3.5 h-3.5" />
@@ -688,7 +694,7 @@ const MindSagaControlRoomPage = () => {
               <button
                 onClick={() => fetchOverview(true)}
                 disabled={refreshing}
-                className="px-3 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition"
+                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-transparent text-xs font-medium flex items-center gap-1.5 transition"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
@@ -715,13 +721,13 @@ const MindSagaControlRoomPage = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${isActive
                     ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800/60'
                     }`}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
                   {tab.count !== undefined && (
-                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${isActive ? 'bg-indigo-700 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${isActive ? 'bg-indigo-700 text-white' : 'bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400'}`}>
                       {tab.count}
                     </span>
                   )}
@@ -739,16 +745,16 @@ const MindSagaControlRoomPage = () => {
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* KPI Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4">
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
                 <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
                   <span>Registered Participants</span>
                   <Users className="w-4 h-4 text-indigo-400" />
                 </div>
-                <div className="text-2xl font-bold text-white mt-2">{overviewData?.total_registered || 0}</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">{overviewData?.total_registered || 0}</div>
                 <div className="text-[11px] text-zinc-500 mt-1">Individual participants</div>
               </div>
 
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4">
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
                 <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
                   <span>Active Test Sessions</span>
                   <Zap className="w-4 h-4 text-emerald-400" />
@@ -759,7 +765,7 @@ const MindSagaControlRoomPage = () => {
                 <div className="text-[11px] text-zinc-500 mt-1">Taking Aptitude/Gaming now</div>
               </div>
 
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4">
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
                 <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
                   <span>Proctor Warnings</span>
                   <AlertCircle className="w-4 h-4 text-amber-400" />
@@ -770,7 +776,7 @@ const MindSagaControlRoomPage = () => {
                 <div className="text-[11px] text-zinc-500 mt-1">1-2 tab/fullscreen warnings</div>
               </div>
 
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4">
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
                 <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
                   <span>High Risk / Flagged</span>
                   <ShieldAlert className="w-4 h-4 text-red-400" />
@@ -783,10 +789,10 @@ const MindSagaControlRoomPage = () => {
             </div>
 
             {/* LIVE CCTV MONITORING GRID */}
-            <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5">
+            <div className="bg-white dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-800/80 rounded-2xl shadow-xs p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                 <div>
-                  <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                     <Video className="w-5 h-5 text-indigo-400" />
                     Admin Live CCTV & Proctoring Monitor
                   </h3>
@@ -796,7 +802,7 @@ const MindSagaControlRoomPage = () => {
                 </div>
 
                 {/* Filter pills */}
-                <div className="flex items-center gap-1.5 bg-zinc-950/80 p-1 rounded-xl border border-zinc-800 text-xs">
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-950/80 p-1 rounded-xl border border-slate-200 dark:border-zinc-800 text-xs">
                   {[
                     { id: 'all', label: 'All' },
                     { id: 'online', label: 'Online' },
@@ -808,7 +814,7 @@ const MindSagaControlRoomPage = () => {
                     <button
                       key={f.id}
                       onClick={() => setProctorFilter(f.id)}
-                      className={`px-3 py-1 rounded-lg font-medium transition ${proctorFilter === f.id ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+                      className={`px-3 py-1 rounded-lg font-medium transition ${proctorFilter === f.id ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                         }`}
                     >
                       {f.label}
@@ -833,7 +839,7 @@ const MindSagaControlRoomPage = () => {
                     return (
                       <div
                         key={`${session.round_number || 1}-${session.session_id}`}
-                        className={`bg-zinc-950 border rounded-2xl overflow-hidden transition-all hover:border-indigo-500/50 flex flex-col group ${session.status === 'terminated'
+                        className={`bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden transition-all hover:border-indigo-500/50 flex flex-col group shadow-xs ${session.status === 'terminated'
                           ? 'border-red-600 bg-red-950/10 ring-1 ring-red-600/40'
                           : isHighRisk
                             ? 'border-red-500/60 ring-1 ring-red-500/30'
@@ -854,19 +860,22 @@ const MindSagaControlRoomPage = () => {
                               alt={session.full_name}
                               className="w-full h-full object-cover transform -scale-x-100 transition duration-300 group-hover/cam:scale-105"
                             />
-                          ) : session.camera_status === 'connected' ? (
+                          ) : (session.camera_status === 'disconnected' || session.camera_status === 'denied') ? (
+                            <div className="w-full h-full bg-red-950/20 flex flex-col items-center justify-center p-4 text-center">
+                              <ShieldAlert className="w-8 h-8 text-red-400 mb-1" />
+                              <span className="text-xs font-semibold text-red-300">Camera Disconnected</span>
+                              <span className="text-[10px] text-zinc-500">Signal lost</span>
+                            </div>
+                          ) : (
                             <div className="w-full h-full bg-gradient-to-tr from-slate-950 via-zinc-900 to-indigo-950/40 flex flex-col items-center justify-center p-4 text-center relative">
                               <div className="w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-sm mb-2 shadow-inner">
                                 {session.full_name?.slice(0, 2).toUpperCase() || 'P'}
                               </div>
                               <span className="text-xs font-semibold text-white truncate max-w-[90%]">{session.full_name}</span>
-                              <span className="text-[10px] text-zinc-500 font-mono">Camera Connecting...</span>
-                            </div>
-                          ) : (
-                            <div className="w-full h-full bg-red-950/20 flex flex-col items-center justify-center p-4 text-center">
-                              <ShieldAlert className="w-8 h-8 text-red-400 mb-1" />
-                              <span className="text-xs font-semibold text-red-300">Camera Disconnected</span>
-                              <span className="text-[10px] text-zinc-500">Signal lost</span>
+                              <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                Live Camera Active • Syncing Feed
+                              </span>
                             </div>
                           )}
 
@@ -938,7 +947,7 @@ const MindSagaControlRoomPage = () => {
                         <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between text-xs">
                           <div>
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-white text-xs truncate max-w-[170px]" title={session.full_name}>
+                              <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[170px]" title={session.full_name}>
                                 {session.full_name}
                               </span>
                               <span className="text-[10px] font-mono text-zinc-400">
@@ -948,7 +957,7 @@ const MindSagaControlRoomPage = () => {
 
                             <div className="flex items-center justify-between text-zinc-400 mt-2 text-[11px]">
                               <span>Remaining Time:</span>
-                              <span className="font-mono font-bold text-white">
+                              <span className="font-mono font-bold text-slate-900 dark:text-white">
                                 {Math.floor(session.remaining_seconds / 60)}m {session.remaining_seconds % 60}s
                               </span>
                             </div>
@@ -961,10 +970,10 @@ const MindSagaControlRoomPage = () => {
                             </div>
                           </div>
 
-                          <div className="pt-2.5 border-t border-zinc-900 flex items-center gap-2">
+                          <div className="pt-2.5 border-t border-slate-200 dark:border-zinc-900 flex items-center gap-2">
                             <button
                               onClick={() => setSelectedSessionDetail(session)}
-                              className="flex-1 py-1.5 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1 transition"
+                              className="flex-1 py-1.5 bg-slate-100 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-transparent rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1 transition"
                             >
                               <Eye className="w-3 h-3 text-indigo-400" /> Inspect Logs
                             </button>
@@ -1007,9 +1016,9 @@ const MindSagaControlRoomPage = () => {
         {activeTab === 'keys' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Action Bar */}
-            <div className="bg-zinc-900/50 p-4 sm:p-5 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="bg-white dark:bg-zinc-900/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                   <Key className="w-5 h-5 text-indigo-400" />
                   Candidate Access Keys & Email Dispatch
                 </h3>
@@ -1063,10 +1072,10 @@ const MindSagaControlRoomPage = () => {
             </div>
 
             {/* Participant Keys Table */}
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-zinc-300">
-                  <thead className="bg-zinc-950 text-zinc-400 uppercase text-[10px] tracking-wider border-b border-zinc-800">
+                  <thead className="bg-slate-100 dark:bg-zinc-950 text-slate-600 dark:text-zinc-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-zinc-800">
                     <tr>
                       <th className="p-3">Candidate</th>
                       <th className="p-3">Email Address</th>
@@ -1075,7 +1084,7 @@ const MindSagaControlRoomPage = () => {
                       <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-800/60">
+                  <tbody className="divide-y divide-slate-200 dark:divide-zinc-800/60">
                     {leaderboard.length === 0 ? (
                       <tr>
                         <td colSpan="5" className="text-center py-12 text-zinc-500">
@@ -1084,14 +1093,14 @@ const MindSagaControlRoomPage = () => {
                       </tr>
                     ) : (
                       leaderboard.map((cand) => (
-                        <tr key={cand.id} className="hover:bg-zinc-900/50 transition">
+                        <tr key={cand.id} className="hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition">
                           <td className="p-3">
-                            <div className="font-semibold text-white">{cand.full_name}</div>
+                            <div className="font-semibold text-slate-900 dark:text-white">{cand.full_name}</div>
                             <div className="text-[11px] text-zinc-500 font-mono">Reg ID #{cand.registration_id}</div>
                           </td>
                           <td className="p-3 font-mono text-zinc-300">{cand.email}</td>
                           <td className="p-3 text-center">
-                            <div className="inline-flex items-center gap-2 bg-zinc-950 px-3 py-1.5 rounded-xl border border-indigo-500/30">
+                            <div className="inline-flex items-center gap-2 bg-white dark:bg-zinc-950 px-3 py-1.5 rounded-xl border border-indigo-500/30 shadow-xs">
                               <span className="font-mono font-bold text-indigo-300 tracking-wider">
                                 {cand.access_key || 'GENERATING...'}
                               </span>
@@ -1145,9 +1154,9 @@ const MindSagaControlRoomPage = () => {
         {/* TAB 2: ROUND 1 APTITUDE TEST BUILDER & QUESTIONS */}
         {activeTab === 'aptitude' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900/50 p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs">
               <div>
-                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                   <BrainCircuit className="w-5 h-5 text-indigo-400" />
                   Round 1: Online Aptitude Test Management
                 </h3>
@@ -1205,11 +1214,11 @@ const MindSagaControlRoomPage = () => {
 
             {/* Active Test Card */}
             {activeTest?.test && (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-4">
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-5 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-800/80">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-white text-lg">{activeTest.test.title}</h4>
+                      <h4 className="font-bold text-slate-900 dark:text-white text-lg">{activeTest.test.title}</h4>
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${activeTest.test.is_published ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-400'
                         }`}>
                         {activeTest.test.is_published ? 'Published' : 'Draft'}
@@ -1423,13 +1432,13 @@ const MindSagaControlRoomPage = () => {
         {/* TAB 3: ROUND 2 GAMING ENGINE */}
         {activeTab === 'gaming' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-zinc-900/50 p-5 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="bg-white dark:bg-zinc-900/50 p-5 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="font-bold text-white text-base flex items-center gap-2">
-                  <Gamepad2 className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                  <Gamepad2 className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
                   Round 2: Sequential Multi-Game Pipeline Manager
                 </h3>
-                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                <p className="text-xs text-slate-600 dark:text-zinc-400 mt-1 leading-relaxed">
                   Configure the sequence of games, individual timers, and difficulty levels (Easy, Medium, Hard). Difficulty tiers are automatically hidden from participants during live gameplay.
                 </p>
               </div>
@@ -1455,14 +1464,14 @@ const MindSagaControlRoomPage = () => {
             </div>
 
             {/* Pipeline Order Summary Banner */}
-            <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="bg-indigo-50/80 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold font-mono">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center font-bold font-mono">
                   {games.length}
                 </div>
                 <div>
-                  <span className="font-semibold text-indigo-300">Active Game Sequence:</span>
-                  <p className="text-zinc-400 text-[11px] mt-0.5">
+                  <span className="font-semibold text-indigo-900 dark:text-indigo-300">Active Game Sequence:</span>
+                  <p className="text-slate-600 dark:text-zinc-400 text-[11px] mt-0.5">
                     {games.length === 0
                       ? 'No games configured yet. Add games to create the Round 2 tournament pipeline.'
                       : `Participants will play ${games.length} game(s) in sequence with individual timers and automated transition.`}
@@ -1471,7 +1480,7 @@ const MindSagaControlRoomPage = () => {
               </div>
 
               {games.length > 0 && (
-                <div className="flex items-center gap-4 text-[11px] font-mono font-medium text-zinc-300">
+                <div className="flex items-center gap-4 text-[11px] font-mono font-medium text-slate-700 dark:text-zinc-300">
                   <span>Total Duration: {Math.round(games.reduce((acc, g) => acc + (g.duration_seconds || 0), 0) / 60)} Mins</span>
                   <span>•</span>
                   <span>Total Max: {games.reduce((acc, g) => acc + (g.max_score || 0), 0)} Pts</span>
@@ -1482,55 +1491,55 @@ const MindSagaControlRoomPage = () => {
             {/* Configured Games Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {games.map((g, idx) => (
-                <div key={g.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-4 hover:border-zinc-700 transition">
+                <div key={g.id} className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5 space-y-4 hover:border-slate-300 dark:hover:border-zinc-700 transition">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center font-bold font-mono text-xs">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 flex items-center justify-center font-bold font-mono text-xs">
                         #{idx + 1}
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-base leading-tight">{g.title}</h4>
-                        <span className="text-[11px] text-zinc-400 font-mono">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">{g.title}</h4>
+                        <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
                           {g.game_key === 'deductive_logic' ? 'Deductive Symbol Grid' : 'Motion Challenge Matrix'}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${g.difficulty === 'easy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                        g.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                          'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${g.difficulty === 'easy' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' :
+                        g.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' :
+                          'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
                         }`}>
                         {g.difficulty}
                       </span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-zinc-300 leading-relaxed line-clamp-2">
+                  <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed line-clamp-2">
                     {g.rules_json?.objective || 'Sequential gameplay challenge verified authoritatively by server.'}
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-                      <span className="text-zinc-500 block text-[10px]">Timer</span>
-                      <span className="font-bold text-white font-mono">{g.duration_seconds}s ({Math.floor(g.duration_seconds / 60)}m {g.duration_seconds % 60}s)</span>
+                    <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
+                      <span className="text-slate-500 dark:text-zinc-500 block text-[10px]">Timer</span>
+                      <span className="font-bold text-slate-900 dark:text-white font-mono">{g.duration_seconds}s ({Math.floor(g.duration_seconds / 60)}m {g.duration_seconds % 60}s)</span>
                     </div>
-                    <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-                      <span className="text-zinc-500 block text-[10px]">Max Score</span>
-                      <span className="font-bold text-indigo-400 font-mono">{g.max_score} pts</span>
+                    <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
+                      <span className="text-slate-500 dark:text-zinc-500 block text-[10px]">Max Score</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400 font-mono">{g.max_score} pts</span>
                     </div>
-                    <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-                      <span className="text-zinc-500 block text-[10px]">Status</span>
-                      <span className={`font-bold text-[11px] ${g.is_active ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                    <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
+                      <span className="text-slate-500 dark:text-zinc-500 block text-[10px]">Status</span>
+                      <span className={`font-bold text-[11px] ${g.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-zinc-500'}`}>
                         {g.is_active ? 'Active' : 'Disabled'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-zinc-800/80">
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-zinc-800/80">
                     <button
                       onClick={() => handleToggleGameActive(g)}
-                      className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg ${g.is_active ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
+                      className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg border ${g.is_active ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white border-slate-200 dark:border-transparent' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20'
                         }`}
                     >
                       {g.is_active ? 'Deactivate' : 'Activate'}
@@ -1550,14 +1559,14 @@ const MindSagaControlRoomPage = () => {
                           });
                           setGameModalOpen(true);
                         }}
-                        className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition"
+                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
                         title="Edit Game"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteGame(g.id)}
-                        className="p-1.5 text-zinc-400 hover:text-red-400 rounded-lg hover:bg-zinc-800 transition"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-red-400 rounded-lg hover:bg-rose-50 dark:hover:bg-zinc-800 transition cursor-pointer"
                         title="Delete Game"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1573,9 +1582,9 @@ const MindSagaControlRoomPage = () => {
         {/* TAB 4: ROUND 3 INTERVIEW PANELS (Reusing existing Panel architecture) */}
         {activeTab === 'interview' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white dark:bg-zinc-900/50 p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                   <Users className="w-5 h-5 text-indigo-400" />
                   Round 3: Personal Interview Panels
                 </h3>
@@ -1595,9 +1604,9 @@ const MindSagaControlRoomPage = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {overviewData?.panels?.map((panel) => (
-                <div key={panel.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 space-y-3">
+                <div key={panel.id} className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-white text-sm">{panel.name}</h4>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">{panel.name}</h4>
                     <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-800 text-zinc-300">
                       {panel.venue || 'CSBS Dept'}
                     </span>
@@ -1616,9 +1625,9 @@ const MindSagaControlRoomPage = () => {
         {/* TAB 5: FINAL SCORES & QUALIFICATION */}
         {activeTab === 'scores' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white dark:bg-zinc-900/50 p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                   <Award className="w-5 h-5 text-indigo-400" />
                   Mind Saga Multi-Round Master Leaderboard
                 </h3>
@@ -1639,10 +1648,10 @@ const MindSagaControlRoomPage = () => {
             </div>
 
             {/* Leaderboard Table */}
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-zinc-300">
-                  <thead className="bg-zinc-950 text-zinc-400 uppercase text-[10px] tracking-wider border-b border-zinc-800">
+                  <thead className="bg-slate-100 dark:bg-zinc-950 text-slate-600 dark:text-zinc-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-zinc-800">
                     <tr>
                       <th className="p-3">
                         <input
@@ -1664,7 +1673,7 @@ const MindSagaControlRoomPage = () => {
                       <th className="p-3 text-center">Qualification Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-800/60">
+                  <tbody className="divide-y divide-slate-200 dark:divide-zinc-800/60">
                     {leaderboard.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="text-center py-10 text-zinc-500">
@@ -1675,7 +1684,7 @@ const MindSagaControlRoomPage = () => {
                       leaderboard.map((item, idx) => {
                         const isSelected = selectedRegIds.includes(item.registration_id);
                         return (
-                          <tr key={item.id} className={`hover:bg-zinc-900/50 transition ${isSelected ? 'bg-indigo-950/20' : ''}`}>
+                          <tr key={item.id} className={`hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition ${isSelected ? 'bg-indigo-950/20' : ''}`}>
                             <td className="p-3">
                               <input
                                 type="checkbox"
@@ -1689,7 +1698,7 @@ const MindSagaControlRoomPage = () => {
                             </td>
                             <td className="p-3 font-bold text-white">#{idx + 1}</td>
                             <td className="p-3">
-                              <div className="font-semibold text-white">{item.full_name}</div>
+                              <div className="font-semibold text-slate-900 dark:text-white">{item.full_name}</div>
                               <div className="text-[11px] text-zinc-500 font-mono">{item.email}</div>
                             </td>
                             <td className="p-3 text-center font-mono">
@@ -1729,9 +1738,9 @@ const MindSagaControlRoomPage = () => {
 
         {/* TAB 6: WEIGHTS & SFU CONFIG */}
         {activeTab === 'config' && (
-          <div className="max-w-2xl bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-6 animate-in fade-in duration-200">
+          <div className="max-w-2xl bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-6 space-y-6 animate-in fade-in duration-200">
             <div>
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
+              <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-indigo-400" />
                 Configurable Weightings & SFU Infrastructure
               </h3>
@@ -1905,7 +1914,7 @@ const MindSagaControlRoomPage = () => {
                   <Settings className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-base">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
                     {editingTestId ? 'Edit Aptitude Test Settings' : 'Create New Aptitude Test'}
                   </h3>
                   <p className="text-[11px] text-zinc-400">Configure timer duration, marks, question pool, and negative marking.</p>
@@ -2114,7 +2123,7 @@ const MindSagaControlRoomPage = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <h3 className="font-bold text-white text-base">
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">
                 {editingQuestion ? 'Edit Question' : 'Add New Aptitude Question'}
               </h3>
               <button onClick={() => setQuestionModalOpen(false)} className="text-zinc-400 hover:text-white">
@@ -2300,7 +2309,7 @@ const MindSagaControlRoomPage = () => {
       {promoteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <h3 className="font-bold text-white text-base">Promote {selectedRegIds.length} Participants</h3>
+            <h3 className="font-bold text-slate-900 dark:text-white text-base">Promote {selectedRegIds.length} Participants</h3>
             <p className="text-xs text-zinc-400">
               Select the next round or qualification stage for the chosen participants.
             </p>
@@ -2343,7 +2352,7 @@ const MindSagaControlRoomPage = () => {
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div>
-                <h3 className="font-bold text-white text-base">{selectedSessionDetail.full_name}</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">{selectedSessionDetail.full_name}</h3>
                 <p className="text-xs text-zinc-400 font-mono">{selectedSessionDetail.email}</p>
               </div>
               <button onClick={() => setSelectedSessionDetail(null)} className="text-zinc-400 hover:text-white">
@@ -2399,24 +2408,24 @@ const MindSagaControlRoomPage = () => {
       {/* GAME CHALLENGE CONFIGURATION MODAL */}
       {gameModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-zinc-800">
               <div>
-                <h3 className="font-bold text-white text-base">
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
                   {editingGame ? 'Edit Game Challenge' : 'Add Game Challenge to Pipeline'}
                 </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
                   Configure game type, difficulty level, and individual game timer.
                 </p>
               </div>
-              <button onClick={() => setGameModalOpen(false)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setGameModalOpen(false)} className="text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveGame} className="space-y-4 text-xs">
               <div>
-                <label className="text-zinc-300 font-semibold block mb-1">Game Challenge Type</label>
+                <label className="text-slate-700 dark:text-zinc-300 font-semibold block mb-1">Game Challenge Type</label>
                 <div className="grid grid-cols-2 gap-3">
                   <div
                     onClick={() => {
@@ -2427,14 +2436,14 @@ const MindSagaControlRoomPage = () => {
                       });
                     }}
                     className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${gameForm.game_key === 'deductive_logic'
-                      ? 'bg-purple-950/30 border-purple-500 text-white ring-1 ring-purple-500'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-500 text-purple-950 dark:text-white ring-1 ring-purple-500'
+                      : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-700'
                       }`}
                   >
-                    <BrainCircuit className="w-5 h-5 text-purple-400 shrink-0" />
+                    <BrainCircuit className="w-5 h-5 text-purple-500 dark:text-purple-400 shrink-0" />
                     <div>
                       <span className="font-bold block text-xs">Deductive Symbol Grid</span>
-                      <span className="text-[10px] text-zinc-400">4x4 Latin Square Logic</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">4x4 Latin Square Logic</span>
                     </div>
                   </div>
 
@@ -2447,36 +2456,36 @@ const MindSagaControlRoomPage = () => {
                       });
                     }}
                     className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${gameForm.game_key === 'motion_challenge'
-                      ? 'bg-indigo-950/30 border-indigo-500 text-white ring-1 ring-indigo-500'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-500 text-indigo-950 dark:text-white ring-1 ring-indigo-500'
+                      : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-700'
                       }`}
                   >
-                    <Target className="w-5 h-5 text-indigo-400 shrink-0" />
+                    <Target className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0" />
                     <div>
                       <span className="font-bold block text-xs">Motion Challenge</span>
-                      <span className="text-[10px] text-zinc-400">Precision Reflex Matrix</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">Precision Reflex Matrix</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="text-zinc-300 font-semibold block mb-1">Challenge Title / Display Name</label>
+                <label className="text-slate-700 dark:text-zinc-300 font-semibold block mb-1">Challenge Title / Display Name</label>
                 <input
                   type="text"
                   required
                   value={gameForm.title}
                   onChange={(e) => setGameForm({ ...gameForm, title: e.target.value })}
                   placeholder="e.g. Deductive Symbol Matrix Deduction"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-white dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               {/* Difficulty Selection */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-zinc-300 font-semibold block">Difficulty Level (Configured by Admin)</label>
-                  <span className="text-[10px] text-amber-400 font-medium">Hidden from candidate view</span>
+                  <label className="text-slate-700 dark:text-zinc-300 font-semibold block">Difficulty Level (Configured by Admin)</label>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Hidden from candidate view</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {[
@@ -2488,9 +2497,9 @@ const MindSagaControlRoomPage = () => {
                       type="button"
                       key={lvl.id}
                       onClick={() => setGameForm({ ...gameForm, difficulty: lvl.id })}
-                      className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${gameForm.difficulty === lvl.id
+                      className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${gameForm.difficulty === lvl.id
                         ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                        : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:text-white'
                         }`}
                     >
                       <span className="font-bold uppercase text-xs">{lvl.label}</span>
@@ -2503,7 +2512,7 @@ const MindSagaControlRoomPage = () => {
               {/* Timer and Max Score */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-zinc-300 font-semibold block mb-1">
+                  <label className="text-slate-700 dark:text-zinc-300 font-semibold block mb-1">
                     Game Timer (Seconds)
                   </label>
                   <input
@@ -2514,15 +2523,15 @@ const MindSagaControlRoomPage = () => {
                     required
                     value={gameForm.duration_seconds}
                     onChange={(e) => setGameForm({ ...gameForm, duration_seconds: parseInt(e.target.value) || 180 })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-white dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
                   />
-                  <span className="text-[10px] text-zinc-500 block mt-1">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-500 block mt-1">
                     = {Math.floor(gameForm.duration_seconds / 60)}m {gameForm.duration_seconds % 60}s
                   </span>
                 </div>
 
                 <div>
-                  <label className="text-zinc-300 font-semibold block mb-1">
+                  <label className="text-slate-700 dark:text-zinc-300 font-semibold block mb-1">
                     Max Score (Points)
                   </label>
                   <input
@@ -2532,25 +2541,25 @@ const MindSagaControlRoomPage = () => {
                     required
                     value={gameForm.max_score}
                     onChange={(e) => setGameForm({ ...gameForm, max_score: parseInt(e.target.value) || 100 })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-white dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
                   />
-                  <span className="text-[10px] text-zinc-500 block mt-1">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-500 block mt-1">
                     Cumulative Round 2 score
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setGameModalOpen(false)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl font-medium text-xs"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 rounded-xl font-medium text-xs border border-slate-200 dark:border-transparent cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-semibold text-xs shadow-md"
+                  className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-semibold text-xs shadow-md cursor-pointer"
                 >
                   {editingGame ? 'Update Game' : 'Add Game to Sequence'}
                 </button>
@@ -2572,7 +2581,7 @@ const MindSagaControlRoomPage = () => {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-white text-base">{maximizedSession.full_name}</h3>
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base">{maximizedSession.full_name}</h3>
                     <span className="bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold">
                       {maximizedSession.round_name || (maximizedSession.round_number === 2 ? 'Round 2: Gaming' : 'Round 1: Aptitude')}
                     </span>
@@ -2604,19 +2613,22 @@ const MindSagaControlRoomPage = () => {
                     alt={maximizedSession.full_name}
                     className="w-full h-full object-contain transform -scale-x-100"
                   />
-                ) : maximizedSession.camera_status === 'connected' ? (
+                ) : (maximizedSession.camera_status === 'disconnected' || maximizedSession.camera_status === 'denied') ? (
+                  <div className="flex flex-col items-center justify-center text-center p-6 space-y-2 text-red-400">
+                    <ShieldAlert className="w-12 h-12" />
+                    <span className="text-sm font-bold">Camera Feed Offline</span>
+                    <span className="text-xs text-zinc-500">Candidate webcam disconnected or denied</span>
+                  </div>
+                ) : (
                   <div className="flex flex-col items-center justify-center text-center p-6 space-y-2">
                     <div className="w-16 h-16 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center text-xl font-bold">
                       {maximizedSession.full_name?.slice(0, 2).toUpperCase()}
                     </div>
                     <span className="text-sm font-semibold text-white">Live Camera Active</span>
-                    <span className="text-xs text-zinc-500 font-mono">Receiving live stream frames...</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center p-6 space-y-2 text-red-400">
-                    <ShieldAlert className="w-12 h-12" />
-                    <span className="text-sm font-bold">Camera Feed Offline</span>
-                    <span className="text-xs text-zinc-500">Candidate webcam disconnected or denied</span>
+                    <span className="text-xs text-emerald-400 font-mono flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      Receiving realtime telemetry...
+                    </span>
                   </div>
                 )}
 
@@ -2752,7 +2764,7 @@ const MindSagaControlRoomPage = () => {
                 <Ban className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-white text-base">Block Candidate &amp; Auto-Submit Round</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Block Candidate &amp; Auto-Submit Round</h3>
                 <p className="text-xs text-zinc-400">
                   Instantly terminate {blockModal.session.full_name}'s session with an authoritative warning.
                 </p>
