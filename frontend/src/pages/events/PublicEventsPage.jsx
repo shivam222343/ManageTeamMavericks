@@ -29,7 +29,7 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import ElectricBorder from '../../components/ui/ElectricBorder';
-import MapCursorBackground from '../../components/ui/MapCursorBackground';
+import InteractiveBackground from '../../components/ui/InteractiveBackground';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
@@ -210,9 +210,10 @@ const PublicEventsPage = () => {
   );
 
   return (
-    <div className="min-h-screen font-sans transition-colors duration-300 relative selection:bg-primary-blue selection:text-white flex flex-col justify-between overflow-x-hidden bg-transparent text-slate-100">
-      {/* Map & Cursor Effect from specification */}
-      <MapCursorBackground />
+    <div className={`min-h-screen font-sans transition-colors duration-300 relative selection:bg-primary-blue selection:text-white flex flex-col justify-between overflow-x-hidden ${isDark ? 'bg-[#07111f] text-slate-100' : 'bg-[#FAFAF9] text-slate-900'
+      }`}>
+      {/* Interactive Background & Cursor Effects (preview (1).html) */}
+      <InteractiveBackground />
 
       <div className="relative z-10">
         {/* Navigation Bar */}
@@ -306,41 +307,22 @@ const PublicEventsPage = () => {
               </div>
             </div>
 
-            {/* Right Column - Official Team Mavericks Logo with Glowing Aura, Light Trails & Particles */}
-            <div className="lg:col-span-6 flex flex-col justify-center items-center relative w-full select-none py-4 sm:py-6">
-              {/* Radial Blue & Cyan Ambient Glow */}
-              <div className="absolute w-72 h-72 sm:w-96 sm:h-96 md:w-[480px] md:h-[480px] rounded-full bg-blue-600/25 blur-3xl pointer-events-none" />
-              <div className="absolute w-48 h-48 sm:w-72 sm:h-72 rounded-full bg-cyan-400/20 blur-2xl pointer-events-none" />
+            {/* Right Column - Official Team Mavericks Logo (Static) */}
+            <div className="lg:col-span-6 flex flex-col justify-center items-center relative w-full select-none py-2 sm:py-4">
+              <div className={`absolute -inset-4 rounded-full blur-3xl pointer-events-none ${isDark ? 'bg-indigo-600/25' : 'bg-blue-100/30'
+                }`} />
 
-              {/* Circular Light Trails & Orbital Rings */}
-              <div className="absolute w-[320px] h-[320px] sm:w-[420px] sm:h-[420px] md:w-[500px] md:h-[500px] rounded-full border border-blue-500/20 pointer-events-none animate-[spin_40s_linear_infinite]">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_12px_#38bdf8]" />
-                <div className="absolute bottom-1/4 right-0 w-1.5 h-1.5 rounded-full bg-blue-300 shadow-[0_0_10px_#60a5fa]" />
-              </div>
-
-              <div className="absolute w-[260px] h-[260px] sm:w-[340px] sm:h-[340px] md:w-[420px] md:h-[420px] rounded-full border border-dashed border-cyan-400/25 pointer-events-none animate-[spin_25s_linear_infinite_reverse]">
-                <div className="absolute bottom-0 left-1/3 w-2 h-2 rounded-full bg-sky-300 shadow-[0_0_14px_#38bdf8]" />
-              </div>
-
-              {/* Ambient Glowing Particles around Logo */}
-              <div className="absolute top-12 left-10 w-2 h-2 rounded-full bg-cyan-300/80 shadow-[0_0_12px_#38bdf8] animate-pulse pointer-events-none" />
-              <div className="absolute bottom-16 right-12 w-2.5 h-2.5 rounded-full bg-blue-400/80 shadow-[0_0_14px_#60a5fa] animate-pulse pointer-events-none" style={{ animationDelay: '1s' }} />
-              <div className="absolute top-1/3 right-6 w-1.5 h-1.5 rounded-full bg-sky-200/90 shadow-[0_0_10px_#38bdf8] pointer-events-none" />
-              <div className="absolute bottom-1/3 left-6 w-2 h-2 rounded-full bg-indigo-300/80 shadow-[0_0_12px_#818cf8] pointer-events-none" />
-
-              {/* Official Team Mavericks Logo */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-10 flex items-center justify-center p-2 sm:p-4"
-              >
+              <div className="relative z-10 flex items-center justify-center p-2 sm:p-4">
                 <img
                   src="/Logos/Mavericks_Logo.png"
                   alt="Team Mavericks Official Logo"
-                  className="w-full max-w-[280px] sm:max-w-[360px] md:max-w-[420px] lg:max-w-[480px] h-auto object-contain drop-shadow-[0_0_35px_rgba(56,189,248,0.45)] drop-shadow-[0_15px_45px_rgba(30,58,138,0.65)] hover:scale-105 transition-transform duration-500"
+                  className="w-full max-w-[320px] sm:max-w-[380px] md:max-w-[440px] lg:max-w-[460px] h-auto object-contain transition-transform duration-500 hover:scale-[1.02]"
+                  style={{
+                    filter: 'drop-shadow(0 0 35px rgba(37, 99, 235, 0.45)) drop-shadow(0 0 12px rgba(56, 189, 248, 0.3))'
+                  }}
+                  draggable="false"
                 />
-              </motion.div>
+              </div>
 
               {/* Mobile Search & Mode Filters (below idol) */}
               <div className="block lg:hidden w-full pt-4">

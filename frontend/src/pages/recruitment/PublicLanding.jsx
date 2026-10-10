@@ -31,9 +31,8 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
-import DitherVeil from '../../components/ui/DitherVeil';
 import ParticleText from '../../components/ui/ParticleText';
-import MapCursorBackground from '../../components/ui/MapCursorBackground';
+import InteractiveBackground from '../../components/ui/InteractiveBackground';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -68,14 +67,58 @@ const DEFAULT_FAQS = [
   }
 ];
 
+const DEFAULT_DOMAINS = [
+  {
+    id: 'tech',
+    name: 'Technical',
+    description: 'Full-stack web & app development, AI/ML, cloud systems, competitive programming, and technical problem solving.',
+    max_intake: '15-20'
+  },
+  {
+    id: 'design',
+    name: 'Design & Editing',
+    description: 'UI/UX design, visual branding, motion graphics, video editing, 3D assets, and creative design systems.',
+    max_intake: '10-12'
+  },
+  {
+    id: 'events',
+    name: 'Event Management',
+    description: 'End-to-end planning, stage logistics, crowd engagement, venue coordination, and hosting flagship college events.',
+    max_intake: '15-18'
+  },
+  {
+    id: 'pr',
+    name: 'Public Relations & Marketing',
+    description: 'Sponsorship outreach, cross-college partnerships, campus marketing campaigns, and brand communication.',
+    max_intake: '10-15'
+  },
+  {
+    id: 'social',
+    name: 'Social Media & Content',
+    description: 'Digital storytelling, copywriting, viral campaigns, reel production, and community engagement across channels.',
+    max_intake: '8-10'
+  }
+];
+
+const DEFAULT_CAMPAIGN = {
+  id: 'recruitment-2026',
+  name: 'Team Mavericks Recruitment 2026',
+  slug: 'recruitment-2026',
+  status: 'closed',
+  closed_message: 'The application window for this recruitment drive has concluded. Thank you for your interest!',
+  description: 'Join Team Mavericks, the premier student organization of KIT College of Engineering, Kolhapur! Multiple domains open across Technical, Design, Event Management, PR & Marketing, and Content.',
+  batch: '2026-2027',
+  deadline: null
+};
+
 const PublicLanding = () => {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
   const { slug } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [campaign, setCampaign] = useState(null);
-  const [domains, setDomains] = useState([]);
+  const [campaign, setCampaign] = useState(DEFAULT_CAMPAIGN);
+  const [domains, setDomains] = useState(DEFAULT_DOMAINS);
   const [formStructure, setFormStructure] = useState([]);
   const [activeStep, setActiveStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -95,7 +138,7 @@ const PublicLanding = () => {
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
 
   // FAQ state
-  const [faqs, setFaqs] = useState([]);
+  const [faqs, setFaqs] = useState(DEFAULT_FAQS);
   const [openFaq, setOpenFaq] = useState(0);
 
   // Event popup state
@@ -127,35 +170,48 @@ const PublicLanding = () => {
     const fetchCampaign = async () => {
       try {
         const res = await axios.get(`/campaigns/public/${slug}`);
-        setCampaign(res.data.campaign);
-        setDomains(res.data.domains || []);
-        setFormStructure(res.data.formStructure || []);
-        setOtpRequired(res.data.otp_required === 'true' || res.data.otp_required === true);
+        if (res.data?.campaign) {
+          setCampaign(res.data.campaign);
+        }
+        if (res.data?.domains && res.data.domains.length > 0) {
+          setDomains(res.data.domains);
+        } else {
+          setDomains(DEFAULT_DOMAINS);
+        }
+        setFormStructure(res.data?.formStructure || []);
+        setOtpRequired(res.data?.otp_required === 'true' || res.data?.otp_required === true);
 
         // Fetch FAQs
-        try {
-          const faqRes = await axios.get(`/campaigns/${res.data.campaign.id}/faqs`);
-          if (Array.isArray(faqRes.data) && faqRes.data.length > 0) {
-            setFaqs(faqRes.data);
-          } else {
+        if (res.data?.campaign?.id) {
+          try {
+            const faqRes = await axios.get(`/campaigns/${res.data.campaign.id}/faqs`);
+            if (Array.isArray(faqRes.data) && faqRes.data.length > 0) {
+              setFaqs(faqRes.data);
+            } else {
+              setFaqs(DEFAULT_FAQS);
+            }
+          } catch (faqErr) {
             setFaqs(DEFAULT_FAQS);
           }
-        } catch (faqErr) {
-          setFaqs(DEFAULT_FAQS);
         }
 
         // Load auto-saved draft
-        const draft = localStorage.getItem(`draft_form_${res.data.campaign.id}`);
-        if (draft) {
-          try {
-            const parsed = JSON.parse(draft);
-            Object.keys(parsed).forEach(k => setValue(k, parsed[k]));
-          } catch (e) {
-            // invalid json
+        if (res.data?.campaign?.id) {
+          const draft = localStorage.getItem(`draft_form_${res.data.campaign.id}`);
+          if (draft) {
+            try {
+              const parsed = JSON.parse(draft);
+              Object.keys(parsed).forEach(k => setValue(k, parsed[k]));
+            } catch (e) {
+              // invalid json
+            }
           }
         }
       } catch (err) {
-        console.error('Failed to load campaign structure:', err);
+        console.warn('Failed to load live campaign structure, serving fallback defaults:', err);
+        setCampaign(DEFAULT_CAMPAIGN);
+        setDomains(DEFAULT_DOMAINS);
+        setFaqs(DEFAULT_FAQS);
       } finally {
         setLoading(false);
       }
@@ -514,26 +570,20 @@ const PublicLanding = () => {
     );
   }
 
-  if (!campaign) {
-    return (
-      <div className="min-h-screen bg-[#070C18] text-white flex items-center justify-center p-6 text-center">
-        <div className="max-w-md p-8 bg-[#0C152B] border border-blue-900/50 rounded-none shadow-2xl space-y-4">
-          <AlertCircle className="mx-auto text-blue-400" size={36} />
-          <h2 className="text-2xl font-black uppercase font-['Syne',sans-serif]">Campaign Inactive</h2>
-          <p className="text-xs text-slate-400">This recruitment drive is either closed or does not exist.</p>
-        </div>
-      </div>
-    );
-  }
+  const activeCampaign = campaign || DEFAULT_CAMPAIGN;
 
   return (
-    <div className={`min-h-screen w-full transition-colors duration-300 font-sans relative selection:bg-blue-600 selection:text-white ${isDark ? 'bg-transparent text-[#F8FAFC]' : 'bg-[#F8FAFC]/90 text-[#0A1128]'
+    <div className={`min-h-screen w-full transition-colors duration-300 font-sans selection:bg-blue-600 selection:text-white relative ${isDark ? 'bg-[#07111f] text-[#F8FAFC]' : 'bg-[#F8FAFC] text-[#0A1128]'
       }`}>
-      {/* Animated Map-style background and glowing cursor trail */}
-      <MapCursorBackground />
 
-      {/* Custom Styles */}
-      <style>{`
+      {/* Interactive Background & Cursor Effects (preview (1).html) */}
+      <InteractiveBackground />
+
+      {/* Elevated Content Layer so all sections, cards, text, and modals stay above the background */}
+      <div className="relative z-10 flex flex-col justify-between min-h-screen">
+
+        {/* Custom Styles */}
+        <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Barlow:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
 
         .font-display-heavy {
@@ -803,50 +853,22 @@ const PublicLanding = () => {
             )}
           </div>
 
-          {/* Right Column - DitherVeil Seamlessly Blended Graphic */}
-          <div className="lg:col-span-6 flex justify-center items-center relative w-full select-none">
+          {/* Right Column - Official Team Mavericks Logo (Static) */}
+          <div className="lg:col-span-6 flex justify-center items-center relative w-full select-none py-2 sm:py-4">
             {/* Ambient Background Glow matching theme */}
-            <div className={`absolute -inset-4 rounded-full blur-3xl opacity-20 pointer-events-none ${isDark ? 'bg-blue-600/40' : 'bg-blue-100/30'
+            <div className={`absolute -inset-4 rounded-full blur-3xl pointer-events-none ${isDark ? 'bg-blue-600/30' : 'bg-blue-100/30'
               }`} />
 
-            <div
-              className="w-full h-[460px] sm:h-[520px] md:h-[580px] relative overflow-hidden"
-              style={{
-                // Smoothly feather-blend all edges and corners into the page background
-                WebkitMaskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-                maskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-              }}
-            >
-              <DitherVeil
-                src="/backgrounds/dekstop_view.png"
-                pattern="floyd"
-                pixelSize={1.5}
-                inkColor={isDark ? "#070C18" : "#FFFFFF"}
-                paperColor={isDark ? "#3B82F6" : "#000000"}
-                revealRadius={280}
-                softness={0.7}
-                linger={1.5}
-                fit="cover"
-                rimColor={isDark ? "#60A5FA" : "#3B82F6"}
-                palette="duotone"
-                levels={2}
-                contrast={1.05}
-                brightness={0.20}
-                rim={0.2}
-                reverse={false}
-                wander={true}
-                clickBurst
+            <div className="relative z-10 flex items-center justify-center p-2 sm:p-4">
+              <img
+                src="/Logos/Mavericks_Logo.png"
+                alt="Team Mavericks Official Logo"
+                className="w-full max-w-[340px] sm:max-w-[400px] md:max-w-[460px] lg:max-w-[480px] h-auto object-contain transition-transform duration-500 hover:scale-[1.02]"
+                style={{
+                  filter: 'drop-shadow(0 0 35px rgba(37, 99, 235, 0.45)) drop-shadow(0 0 12px rgba(56, 189, 248, 0.3))'
+                }}
+                draggable="false"
               />
-
-              {/* Edge Gradient Overlays for extra smooth fade into background */}
-              <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
-                ? 'bg-gradient-to-t from-[#070C18] via-transparent to-[#070C18]/60'
-                : 'bg-gradient-to-t from-[#F8FAFC] via-transparent to-transparent'
-                }`} />
-              <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
-                ? 'bg-gradient-to-r from-[#070C18]/80 via-transparent to-[#070C18]/80'
-                : 'bg-gradient-to-r from-[#F8FAFC]/40 via-transparent to-[#F8FAFC]/40'
-                }`} />
             </div>
           </div>
 
@@ -1000,18 +1022,19 @@ const PublicLanding = () => {
 
         <div className="max-w-7xl mx-auto">
           {/* Section Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-            <div>
-              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">
-                WHAT WE BUILD
-              </p>
-              <h2 className="font-display-heavy text-4xl sm:text-5xl md:text-6xl uppercase tracking-tight">
-                FLAGSHIP <br />
-                EVENTS.
-              </h2>
-            </div>
-            <p className={`max-w-sm text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'
-              }`}>
+          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-14 md:mb-16 flex flex-col items-center">
+            <p className="font-mono-tag text-xs sm:text-sm font-bold uppercase tracking-[0.2em] sm:tracking-[0.25em] text-blue-500 mb-3 sm:mb-4">
+              WHAT WE BUILD
+            </p>
+            <h2 className={`font-display-heavy text-4xl sm:text-6xl md:text-7xl lg:text-[76px] uppercase tracking-tight leading-[0.92] text-center mb-4 sm:mb-5 ${
+              isDark ? 'text-white' : 'text-zinc-900'
+            }`}>
+              FLAGSHIP <br />
+              EVENTS.
+            </h2>
+            <p className={`max-w-[600px] mx-auto text-xs sm:text-sm md:text-base leading-relaxed text-center ${
+              isDark ? 'text-slate-400' : 'text-slate-600'
+            }`}>
               From national-level hackathons to inter-college sports fests — Team Mavericks runs it all.
             </p>
           </div>
@@ -1936,13 +1959,22 @@ const PublicLanding = () => {
       )}
 
       {/* --- BIG BOTTOM DISPLAY BRANDING --- */}
-      <section className={`border-t py-16 px-2.5 sm:px-8 md:px-14 select-none overflow-hidden ${isDark ? 'border-[#1E293B] bg-[#070C18]' : 'border-slate-200 bg-[#F8FAFC]'
-        }`}>
+      <section className={`border-t py-16 px-5 sm:px-8 md:px-14 select-none overflow-hidden ${
+        isDark ? 'border-[#1E293B] bg-[#070C18]/60' : 'border-slate-200 bg-[#F8FAFC]'
+      }`}>
+        <div className="max-w-7xl mx-auto">
+          <h1 className={`font-display-heavy text-6xl sm:text-8xl md:text-9xl lg:text-[140px] uppercase tracking-tighter leading-none whitespace-nowrap opacity-90 ${
+            isDark ? 'text-[#2563EB]' : 'text-[#0A1128]'
+          }`}>
+            TEAM MAVERICKS.
+          </h1>
+        </div>
       </section>
 
       {/* --- FOOTER (KEPT AS IS) --- */}
       <Footer />
 
+      </div>
     </div>
   );
 };

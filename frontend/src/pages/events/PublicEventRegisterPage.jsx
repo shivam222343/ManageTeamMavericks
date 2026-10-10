@@ -45,6 +45,7 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import ElectricBorder from '../../components/ui/ElectricBorder';
+import InteractiveBackground from '../../components/ui/InteractiveBackground';
 import { FLAGSHIP_EVENTS_DATA } from './PublicEventsPage';
 
 const DEFAULT_EVENT_INFO = {
@@ -714,13 +715,10 @@ const PublicEventRegisterPage = () => {
       event.send_confirmation_email !== '0';
 
     return (
-      <div className={`min-h-screen font-sans flex flex-col justify-between pt-10 pb-16 px-2.5 sm:px-6 transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-[#070C18] text-white' : 'bg-[#FAFAF9] text-slate-900'
+      <div className={`min-h-screen font-sans flex flex-col justify-between pt-10 pb-16 px-2.5 sm:px-6 transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-[#07111f] text-white' : 'bg-[#FAFAF9] text-slate-900'
         }`}>
-        {/* Background ambient glow */}
-        <div className="fixed inset-0 pointer-events-none z-0">
-          <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-600/15 rounded-full blur-3xl" />
-        </div>
+        {/* Interactive Background & Cursor Effects (preview (1).html) */}
+        <InteractiveBackground />
 
         <div className="max-w-2xl mx-auto w-full relative z-10 space-y-6 mb-16 sm:mb-24">
 
@@ -974,13 +972,10 @@ const PublicEventRegisterPage = () => {
   }
 
   return (
-    <div className={`min-h-screen font-sans transition-colors duration-300 relative selection:bg-primary-blue selection:text-white flex flex-col justify-between overflow-x-hidden ${isDark ? 'bg-[#070C18] text-slate-100' : 'bg-[#FAFAF9] text-slate-900'
+    <div className={`min-h-screen font-sans transition-colors duration-300 relative selection:bg-primary-blue selection:text-white flex flex-col justify-between overflow-x-hidden ${isDark ? 'bg-[#07111f] text-slate-100' : 'bg-[#FAFAF9] text-slate-900'
       }`}>
-      {/* Background Ambient Glows */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
-      </div>
+      {/* Interactive Background & Cursor Effects (preview (1).html) */}
+      <InteractiveBackground />
 
       <div className="relative z-10">
         {/* Navigation Bar */}
