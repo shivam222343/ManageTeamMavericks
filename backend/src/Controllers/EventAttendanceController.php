@@ -119,7 +119,12 @@ class EventAttendanceController {
             return;
         }
 
-        $checkStmt = $db->prepare("SELECT id, full_name, email FROM event_registrations WHERE id = ? AND event_id = ?");
+        $checkStmt = $db->prepare("
+            SELECT er.id, er.user_id, er.full_name, er.email, e.name as event_name 
+            FROM event_registrations er 
+            JOIN events e ON er.event_id = e.id 
+            WHERE er.id = ? AND er.event_id = ?
+        ");
         $checkStmt->execute([$registrationId, $eventId]);
         $reg = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -139,30 +144,29 @@ class EventAttendanceController {
                     WHERE id = ?
                 ");
                 $upd->execute([$userId, $registrationId]);
-
-                $updSub = $db->prepare("
-                    UPDATE event_registration_sub_events 
-                    SET attendance = 1, attendance_marked_at = NOW(), attendance_marked_by = ? 
-                    WHERE registration_id = ?
-                ");
-                $updSub->execute([$userId, $registrationId]);
+                // NOTE: Sub-event attendance is tracked separately and NOT auto-marked here.
             } else {
-                // If marked absent in main event, also reset sub-event attendance to absent
+                // Mark absent in main event only. Sub-event attendance is independent.
                 $upd = $db->prepare("
                     UPDATE event_registrations 
                     SET attendance = 0, attendance_marked_at = NULL, attendance_marked_by = ? 
                     WHERE id = ?
                 ");
                 $upd->execute([$userId, $registrationId]);
-
-                $updSub = $db->prepare("
-                    UPDATE event_registration_sub_events 
-                    SET attendance = 0, attendance_marked_at = NULL, attendance_marked_by = ? 
-                    WHERE registration_id = ?
-                ");
-                $updSub->execute([$userId, $registrationId]);
+                // NOTE: Sub-event attendance is NOT cleared here — tracked independently.
             }
             $db->commit();
+
+            // Push targeted user notification when marked present
+            if ($attendance === 1) {
+                NotificationController::notifyAttendanceMarked(
+                    !empty($reg['user_id']) ? (int)$reg['user_id'] : null,
+                    $reg['email'],
+                    $reg['full_name'],
+                    $reg['event_name'],
+                    false
+                );
+            }
 
             Router::sendJson([
                 'message' => $attendance === 1 ? "Attendance marked PRESENT for {$reg['full_name']}" : "Attendance marked ABSENT for {$reg['full_name']}",
@@ -206,13 +210,7 @@ class EventAttendanceController {
                     WHERE event_id = ? AND id IN ($inPlaceholders)
                 ");
                 $stmt->execute(array_merge([$userId, $eventId], $registrationIds));
-
-                $subStmt = $db->prepare("
-                    UPDATE event_registration_sub_events 
-                    SET attendance = 1, attendance_marked_at = NOW(), attendance_marked_by = ? 
-                    WHERE registration_id IN ($inPlaceholders)
-                ");
-                $subStmt->execute(array_merge([$userId], $registrationIds));
+                // NOTE: Sub-event attendance is tracked separately — NOT auto-marked in bulk.
             } else {
                 $stmt = $db->prepare("
                     UPDATE event_registrations 
@@ -220,15 +218,30 @@ class EventAttendanceController {
                     WHERE event_id = ? AND id IN ($inPlaceholders)
                 ");
                 $stmt->execute(array_merge([$userId, $eventId], $registrationIds));
-
-                $subStmt = $db->prepare("
-                    UPDATE event_registration_sub_events 
-                    SET attendance = 0, attendance_marked_at = NULL, attendance_marked_by = ? 
-                    WHERE registration_id IN ($inPlaceholders)
-                ");
-                $subStmt->execute(array_merge([$userId], $registrationIds));
+                // NOTE: Sub-event attendance is NOT cleared in bulk — tracked independently.
             }
             $db->commit();
+
+            // Notify participants if marked present
+            if ($attendance === 1) {
+                $pStmt = $db->prepare("
+                    SELECT er.user_id, er.email, er.full_name, e.name as event_name 
+                    FROM event_registrations er 
+                    JOIN events e ON er.event_id = e.id 
+                    WHERE er.id IN ($inPlaceholders)
+                ");
+                $pStmt->execute($registrationIds);
+                $pList = $pStmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($pList as $pItem) {
+                    NotificationController::notifyAttendanceMarked(
+                        !empty($pItem['user_id']) ? (int)$pItem['user_id'] : null,
+                        $pItem['email'],
+                        $pItem['full_name'],
+                        $pItem['event_name'],
+                        false
+                    );
+                }
+            }
 
             Router::sendJson([
                 'message' => "Updated attendance for " . count($registrationIds) . " participants",
@@ -330,12 +343,13 @@ class EventAttendanceController {
             return;
         }
 
-        // Check registration and main event attendance
+        // Check registration exists for this sub-event
         $checkStmt = $db->prepare("
-            SELECT er.id, er.full_name, er.attendance as main_attendance, es.name as sub_name
+            SELECT er.id, er.user_id, er.full_name, er.email, es.name as sub_name, e.name as event_name
             FROM event_registrations er
             JOIN event_registration_sub_events ers ON ers.registration_id = er.id
             JOIN event_sub_events es ON ers.sub_event_id = es.id
+            JOIN events e ON er.event_id = e.id
             WHERE er.id = ? AND er.event_id = ? AND ers.sub_event_id = ?
         ");
         $checkStmt->execute([$registrationId, $eventId, $subEventId]);
@@ -346,14 +360,8 @@ class EventAttendanceController {
             return;
         }
 
-        // CRUCIAL GATING RULE:
-        // Must be marked present in main event attendance before marking present in sub-event!
-        if ($attendance === 1 && (int)$record['main_attendance'] !== 1) {
-            Router::sendJson([
-                'error' => "Cannot mark present in '{$record['sub_name']}': Participant must first be marked PRESENT in the main event attendance."
-            ], 400);
-            return;
-        }
+        // Sub-event attendance is independent from main event attendance.
+        // No gating check needed — mark present/absent freely per sub-event.
 
         $userId = $authUser['userId'] ?? $authUser['sub'] ?? null;
 
@@ -365,6 +373,18 @@ class EventAttendanceController {
             WHERE registration_id = ? AND sub_event_id = ?
         ");
         $upd->execute([$attendance, $attendance, $userId, $registrationId, $subEventId]);
+
+        // Push user-specific notification when marked present in sub-event
+        if ($attendance === 1) {
+            NotificationController::notifyAttendanceMarked(
+                !empty($record['user_id']) ? (int)$record['user_id'] : null,
+                $record['email'],
+                $record['full_name'],
+                $record['event_name'],
+                true,
+                $record['sub_name']
+            );
+        }
 
         Router::sendJson([
             'message' => $attendance === 1 
@@ -539,6 +559,15 @@ class EventAttendanceController {
                 WHERE id = ?
             ")->execute([$userId, $registration['id']]);
 
+            // Notify user
+            NotificationController::notifyAttendanceMarked(
+                !empty($registration['user_id']) ? (int)$registration['user_id'] : null,
+                $registration['email'],
+                $registration['full_name'],
+                $qrToken['event_name'],
+                false
+            );
+
             Router::sendJson([
                 'success' => true,
                 'message' => "Attendance marked PRESENT for {$qrToken['event_name']}!",
@@ -591,6 +620,16 @@ class EventAttendanceController {
             SET attendance = 1, attendance_marked_at = NOW(), attendance_marked_by = ? 
             WHERE id = ?
         ")->execute([$userId, $subReg['id']]);
+
+        // Notify user
+        NotificationController::notifyAttendanceMarked(
+            !empty($registration['user_id']) ? (int)$registration['user_id'] : null,
+            $registration['email'],
+            $registration['full_name'],
+            $qrToken['event_name'],
+            true,
+            $qrToken['sub_event_name']
+        );
 
         Router::sendJson([
             'success' => true,

@@ -465,7 +465,7 @@ class MemberController {
         AuthMiddleware::authenticate(['coordinator']);
         $db = Database::getConnection();
 
-        $stmt = $db->query("SELECT id, name, email, role, permissions FROM users ORDER BY id ASC");
+        $stmt = $db->query("SELECT id, name, email, role, permissions FROM users WHERE role != 'participant' ORDER BY id ASC");
         $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($members as &$m) {
