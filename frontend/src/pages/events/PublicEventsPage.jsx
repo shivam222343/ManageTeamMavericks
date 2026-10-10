@@ -32,6 +32,7 @@ import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
 import TechText from '../../components/ui/TechText';
 import SpecularButton from '../../components/ui/SpecularButton';
+import StrokeText from '../../components/ui/StrokeText';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
