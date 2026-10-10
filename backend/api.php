@@ -239,6 +239,7 @@ $router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/games/{ga
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/start',                [MindSagaController::class, 'startGameSession']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/submit',               [MindSagaController::class, 'submitGameScore']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/exit',                 [MindSagaController::class, 'exitGameSession']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/reorder',              [MindSagaController::class, 'reorderGames']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/proctor-event',        [MindSagaController::class, 'logGameProctorEvent']);
 
 // Mind Saga Proctoring CCTV & Live Monitoring

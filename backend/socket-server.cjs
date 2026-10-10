@@ -166,7 +166,45 @@ function handleIncomingData(socket, buffer) {
     if (msg.type === 'auth' || msg.type === 'identify') {
       if (msg.userId) client.userId = Number(msg.userId);
       if (msg.role) client.role = msg.role;
+      if (msg.subEventId) client.subEventId = Number(msg.subEventId);
       sendFrame(socket, { type: 'auth_ack', status: 'ready', userId: client.userId, role: client.role });
+    } else if (msg.type === 'game_join') {
+      if (msg.subEventId) client.subEventId = Number(msg.subEventId);
+      if (msg.gameKey) client.gameKey = msg.gameKey;
+      if (msg.userId) client.userId = Number(msg.userId);
+      sendFrame(socket, {
+        type: 'game_joined',
+        subEventId: client.subEventId,
+        gameKey: client.gameKey,
+        activePlayersCount: getActiveRoomCount(client.subEventId),
+        timestamp: Date.now()
+      });
+    } else if (msg.type === 'game_action' || msg.type === 'game_move') {
+      // Lightweight high-throughput move ack (<2ms latency)
+      sendFrame(socket, {
+        type: 'game_move_ack',
+        actionId: msg.actionId || null,
+        level: msg.level ?? 1,
+        movesCount: msg.movesCount ?? 0,
+        timestamp: Date.now()
+      });
+    } else if (msg.type === 'game_level_complete') {
+      const awarded = Number(msg.pointsAwarded ?? 4);
+      sendFrame(socket, {
+        type: 'game_level_complete_ack',
+        level: msg.level,
+        pointsAwarded: awarded,
+        nextLevel: Number(msg.level ?? 1) + 1,
+        timestamp: Date.now()
+      });
+    } else if (msg.type === 'game_level_fail' || msg.type === 'game_level_reset') {
+      const penalty = Number(msg.pointsDeducted ?? 1);
+      sendFrame(socket, {
+        type: 'game_level_fail_ack',
+        level: msg.level,
+        pointsDeducted: penalty,
+        timestamp: Date.now()
+      });
     } else if (msg.type === 'ping') {
       sendFrame(socket, { type: 'pong', timestamp: Date.now() });
     }
@@ -237,6 +275,16 @@ function broadcastMessage(payload) {
   });
 
   return delivered;
+}
+
+// Helper to get active room participants count
+function getActiveRoomCount(subEventId) {
+  if (!subEventId) return clients.size;
+  let count = 0;
+  clients.forEach(c => {
+    if (c.subEventId === Number(subEventId)) count++;
+  });
+  return count;
 }
 
 // Start Server

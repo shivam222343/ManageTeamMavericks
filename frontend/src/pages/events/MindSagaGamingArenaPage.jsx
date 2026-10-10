@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
+import MotionChallengeGame from './components/MotionChallengeGame';
 import './MindSagaTheme.css';
 
 const MindSagaGamingArenaPage = () => {
@@ -58,8 +59,12 @@ const MindSagaGamingArenaPage = () => {
   const [sessionToken, setSessionToken] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(180);
   const [currentGameTitle, setCurrentGameTitle] = useState('');
-  const [currentGameKey, setCurrentGameKey] = useState('deductive_logic');
+  const [currentGameKey, setCurrentGameKey] = useState('motion_challenge');
   const [score, setScore] = useState(0);
+  const [motionGameData, setMotionGameData] = useState(null);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [nextGameModal, setNextGameModal] = useState({ isOpen: false, completedTitle: '', nextGame: null, nextIndex: 0 });
+  const socketRef = useRef(null);
 
   // Proctoring Hardware & Security State
   const [cameraStream, setCameraStream] = useState(null);
@@ -536,6 +541,9 @@ const MindSagaGamingArenaPage = () => {
       setIsTransitioning(false);
       setGameResult(null);
 
+      const isMotion = (data.game_key === 'motion_challenge' || gameConfig?.game_key === 'motion_challenge');
+      setIsTimerRunning(!isMotion); // Motion Challenge timer starts only when candidate clicks Play!
+
       if (data.game_key === 'deductive_logic' || gameConfig?.game_key === 'deductive_logic') {
         const pList = data.puzzle_data || [];
         setPuzzles(pList);
@@ -544,10 +552,20 @@ const MindSagaGamingArenaPage = () => {
           setUserGrid(JSON.parse(JSON.stringify(pList[0].clues_grid)));
         }
       } else if (data.game_key === 'motion_challenge' || gameConfig?.game_key === 'motion_challenge') {
-        setMotionTargets(data.puzzle_data?.targets || []);
-        setActiveTargets([]);
-        setCombo(0);
+        setMotionGameData(data.puzzle_data);
       }
+
+      // Send realtime game_join over WebSocket
+      try {
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+          socketRef.current.send(JSON.stringify({
+            type: 'game_join',
+            subEventId: Number(subEventId),
+            gameKey: data.game_key || gameConfig?.game_key,
+            userId: Number(sessionStorage.getItem('mind_saga_sub_id') || 0)
+          }));
+        }
+      } catch (e) {}
     } catch (err) {
       console.error('Failed to start game challenge:', err);
       toast.error(err.response?.data?.error || 'Failed to start game session');
@@ -576,8 +594,8 @@ const MindSagaGamingArenaPage = () => {
     }
 
     if (pipelineGames.length === 0) {
-      // Fallback default
-      await startSpecificGame({ id: null, game_key: 'deductive_logic', title: 'Deductive Symbol Matrix Deduction', duration_seconds: 180 }, 0);
+      // Fallback default: Motion Challenge first
+      await startSpecificGame({ id: null, game_key: 'motion_challenge', title: 'MOTION CHALLENGE: Spatial Path Creation & Block Shifting', duration_seconds: 240 }, 0);
     } else {
       await startSpecificGame(pipelineGames[0], 0);
     }
@@ -601,20 +619,14 @@ const MindSagaGamingArenaPage = () => {
 
     const nextIdx = currentGameIndex + 1;
     if (nextIdx < pipelineGames.length) {
-      // Show automated 3s interstitial transition
+      // Pause active gameplay and show interactive "Start Next Game" pipeline popup
       setIsPlaying(false);
-      setIsTransitioning(true);
-      setTransitionCountdown(3);
-
-      let count = 3;
-      const tInterval = setInterval(() => {
-        count -= 1;
-        setTransitionCountdown(count);
-        if (count <= 0) {
-          clearInterval(tInterval);
-          startSpecificGame(pipelineGames[nextIdx], nextIdx);
-        }
-      }, 1000);
+      setNextGameModal({
+        isOpen: true,
+        completedTitle: currentGameTitle,
+        nextGame: pipelineGames[nextIdx],
+        nextIndex: nextIdx
+      });
     } else {
       // All games in pipeline complete!
       setIsPlaying(false);
@@ -642,9 +654,9 @@ const MindSagaGamingArenaPage = () => {
     }
   };
 
-  // Game countdown timer for the active game
+  // Game countdown timer for the active game (only ticks when active gameplay starts)
   useEffect(() => {
-    if (!isPlaying || gameResult || isTransitioning) return;
+    if (!isPlaying || !isTimerRunning || gameResult || isTransitioning) return;
 
     const timer = setInterval(() => {
       setRemainingSeconds((prev) => {
@@ -658,7 +670,7 @@ const MindSagaGamingArenaPage = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isPlaying, gameResult, isTransitioning, currentGameIndex, pipelineGames, score, movesLog]);
+  }, [isPlaying, isTimerRunning, gameResult, isTransitioning, currentGameIndex, pipelineGames, score, movesLog]);
 
   // Deductive Logic: Place symbol into grid cell
   const handlePlaceSymbol = (symbolKey) => {
@@ -1256,45 +1268,33 @@ const MindSagaGamingArenaPage = () => {
           </div>
         )}
 
-        {/* ACTIVE GAME 2: MOTION CHALLENGE */}
+        {/* ACTIVE GAME 2: MOTION CHALLENGE (Path Creation & Block Sliding) */}
         {isPlaying && currentGameKey === 'motion_challenge' && (
-          <div className="mindsaga-card p-5 sm:p-7 space-y-4 rounded-none">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
-              <div>
-                <h3 className="text-base font-bold font-mono uppercase text-slate-900 dark:text-white">
-                  Motion Reflex Challenge
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Click target beacons before they expire.
-                </p>
-              </div>
-              <div className="mindsaga-hud-badge border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                Combo: x{combo}
-              </div>
-            </div>
-
-            {/* Spatial Matrix Arena */}
-            <div className={`relative w-full h-80 rounded-none overflow-hidden shadow-inner cursor-crosshair border-2 ${
-              isDark ? 'bg-zinc-950 border-white/15' : 'bg-slate-900 border-slate-800'
-            }`}>
-              {activeTargets.map((target) => (
-                <button
-                  key={target.id}
-                  onClick={() => handleHitTarget(target.id)}
-                  style={{ left: `${target.x}%`, top: `${target.y}%` }}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-none bg-gradient-to-tr from-indigo-600 to-pink-500 border-2 border-white shadow-xl shadow-pink-500/40 flex items-center justify-center animate-ping transition hover:scale-125 cursor-pointer"
-                >
-                  <Target className="w-5 h-5 text-white" />
-                </button>
-              ))}
-
-              {activeTargets.length === 0 && (
-                <div className="w-full h-full flex items-center justify-center text-xs text-zinc-500 font-mono">
-                  Targets spawning in trajectory...
-                </div>
-              )}
-            </div>
-          </div>
+          <MotionChallengeGame
+            gameData={motionGameData}
+            isDark={isDark}
+            sessionToken={sessionToken}
+            subEventId={subEventId}
+            initialScore={score}
+            onStartTimer={() => setIsTimerRunning(true)}
+            onScoreUpdate={(newScore) => setScore(newScore)}
+            onMoveAction={(moveData) => {
+              setMovesLog((prev) => [...prev, moveData]);
+              try {
+                if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                  socketRef.current.send(JSON.stringify({
+                    type: 'game_move',
+                    subEventId: Number(subEventId),
+                    gameKey: 'motion_challenge',
+                    move: moveData
+                  }));
+                }
+              } catch (e) {}
+            }}
+            onGameComplete={() => {
+              handleCompleteCurrentGame();
+            }}
+          />
         )}
       </div>
 
@@ -1451,6 +1451,73 @@ const MindSagaGamingArenaPage = () => {
           </div>
         </div>
       )}
+
+      {/* PIPELINE ADVANCEMENT MODAL: "START NEXT GAME" POPUP */}
+      <AnimatePresence>
+        {nextGameModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="mindsaga-card border-2 border-emerald-500/50 rounded-none max-w-lg w-full p-6 sm:p-8 text-center space-y-5 shadow-2xl relative"
+            >
+              <div className="w-14 h-14 rounded-none bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+                <Sparkles className="w-7 h-7 animate-pulse" />
+              </div>
+
+              <div>
+                <span className="mindsaga-hud-badge border-emerald-500/40 text-emerald-400">
+                  Challenge Time Expired
+                </span>
+                <h3 className="text-xl font-bold font-mono uppercase text-slate-900 dark:text-white mt-2">
+                  Ready for Next Challenge?
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed">
+                  You have concluded <span className="font-semibold text-slate-900 dark:text-white">"{nextGameModal.completedTitle}"</span>. The next stage in the Mind Saga championship pipeline is ready.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-none border border-slate-200 dark:border-white/10 bg-slate-100/60 dark:bg-zinc-950 text-left space-y-2 text-xs font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Next Stage:</span>
+                  <span className="font-bold text-indigo-500 dark:text-indigo-400">
+                    Game #{nextGameModal.nextIndex + 1}: {nextGameModal.nextGame?.title || 'Next Game'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Time Limit:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {Math.round((nextGameModal.nextGame?.duration_seconds || 180) / 60)} minutes ({nextGameModal.nextGame?.duration_seconds || 180}s)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Pipeline Queue:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {nextGameModal.nextIndex + 1} of {pipelineGames.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextG = nextGameModal.nextGame;
+                    const nextIdx = nextGameModal.nextIndex;
+                    setNextGameModal({ isOpen: false, completedTitle: '', nextGame: null, nextIndex: 0 });
+                    startSpecificGame(nextG, nextIdx);
+                  }}
+                  className="mindsaga-btn-space w-full py-3.5 text-xs font-mono uppercase tracking-wider rounded-none cursor-pointer flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                >
+                  <span>Start Next Game</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* MANDATORY WEBCAM SURVEILLANCE MODAL */}
       {!cameraActive && isPlaying && !gameResult && (

@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   BrainCircuit,
   Layers,
   Gamepad2,
@@ -51,6 +53,7 @@ import {
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import DrawingCanvasModal from '../../components/ui/DrawingCanvasModal';
+import MotionChallengeGame from './components/MotionChallengeGame';
 
 const MindSagaControlRoomPage = () => {
   const { id: eventId, subId: subEventId } = useParams();
@@ -126,11 +129,12 @@ const MindSagaControlRoomPage = () => {
   // Gaming Pipeline State & Modal
   const [gameModalOpen, setGameModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState(null);
+  const [testPlayGame, setTestPlayGame] = useState(null);
   const [gameForm, setGameForm] = useState({
-    title: 'Deductive Symbol Matrix Deduction',
-    game_key: 'deductive_logic',
+    title: 'MOTION CHALLENGE: Spatial Path Creation & Block Shifting',
+    game_key: 'motion_challenge',
     difficulty: 'medium',
-    duration_seconds: 180,
+    duration_seconds: 240,
     max_score: 100,
     is_active: 1
   });
@@ -409,6 +413,24 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
+  const handleMoveGame = async (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= games.length) return;
+    const newGames = [...games];
+    const [moved] = newGames.splice(index, 1);
+    newGames.splice(targetIndex, 0, moved);
+
+    const gameIds = newGames.map((g) => g.id);
+    try {
+      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/reorder`, { game_ids: gameIds });
+      toast.success('Game sequence order updated!');
+      fetchOverview(true);
+    } catch (err) {
+      console.error('Reorder error:', err);
+      toast.error('Failed to reorder games');
+    }
+  };
+
   // Handle Save Config
   const handleSaveConfig = async (e) => {
     e.preventDefault();
@@ -503,30 +525,46 @@ const MindSagaControlRoomPage = () => {
   const [regeneratingKeys, setRegeneratingKeys] = useState(false);
   const [platformStatus, setPlatformStatus] = useState('locked');
 
-  // Handle Active Round Progression Stage
+  // Handle Active Round Progression Stage (Instant Smooth Optimistic Update)
   const handleSetActiveRound = async (roundNum) => {
+    // Instant optimistic state change
+    setOverviewData((prev) => prev ? {
+      ...prev,
+      config: { ...prev.config, active_round: roundNum }
+    } : prev);
+    setConfigForm((prev) => ({ ...prev, active_round: roundNum }));
+
     try {
       const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/active-round`, {
         active_round: roundNum
       });
       toast.success(res.data.message || `Round ${roundNum} is now active!`, { icon: '🎯' });
-      fetchOverview(true);
     } catch (err) {
       toast.error('Failed to change active round stage');
+      fetchOverview(true);
     }
   };
 
-  // Handle Platform Status Toggle (Live, Locked, Paused)
+  // Handle Platform Status Toggle (Live, Locked, Paused) (Instant Smooth Optimistic Update)
   const handleTogglePlatformStatus = async (newStatus) => {
+    // Instant optimistic state change
+    setPlatformStatus(newStatus);
+    setOverviewData((prev) => prev ? {
+      ...prev,
+      config: { ...prev.config, platform_status: newStatus }
+    } : prev);
+
     try {
       const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/platform-status`, {
         status: newStatus
       });
-      setPlatformStatus(res.data.platform_status);
-      toast.success(res.data.message, { icon: newStatus === 'live' ? '🚀' : '🔒' });
-      fetchOverview(true);
+      if (res.data.platform_status) {
+        setPlatformStatus(res.data.platform_status);
+      }
+      toast.success(res.data.message || `Platform is now ${newStatus.toUpperCase()}`, { icon: newStatus === 'live' ? '🚀' : '🔒' });
     } catch (err) {
       toast.error('Failed to change platform status');
+      fetchOverview(true);
     }
   };
 
@@ -1537,15 +1575,48 @@ const MindSagaControlRoomPage = () => {
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-zinc-800/80">
-                    <button
-                      onClick={() => handleToggleGameActive(g)}
-                      className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg border ${g.is_active ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white border-slate-200 dark:border-transparent' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20'
-                        }`}
-                    >
-                      {g.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleToggleGameActive(g)}
+                        className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg border cursor-pointer ${g.is_active ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white border-slate-200 dark:border-transparent' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20'
+                          }`}
+                      >
+                        {g.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
 
-                    <div className="flex items-center gap-1">
+                      {/* Reorder Buttons */}
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveGame(idx, -1)}
+                        className="p-1 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        title="Move Up in Sequence"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === games.length - 1}
+                        onClick={() => handleMoveGame(idx, 1)}
+                        className="p-1 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                        title="Move Down in Sequence"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {/* Test Play Button */}
+                      <button
+                        type="button"
+                        onClick={() => setTestPlayGame(g)}
+                        className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer"
+                        title="Test Play Challenge"
+                      >
+                        <Play className="w-3 h-3 text-indigo-500" />
+                        <span>Test Play</span>
+                      </button>
+
                       <button
                         onClick={() => {
                           setEditingGame(g);
@@ -1553,7 +1624,7 @@ const MindSagaControlRoomPage = () => {
                             title: g.title,
                             game_key: g.game_key,
                             difficulty: g.difficulty || 'medium',
-                            duration_seconds: g.duration_seconds || 180,
+                            duration_seconds: g.duration_seconds || (g.game_key === 'motion_challenge' ? 240 : 180),
                             max_score: g.max_score || 100,
                             is_active: g.is_active ?? 1
                           });
@@ -2452,7 +2523,8 @@ const MindSagaControlRoomPage = () => {
                       setGameForm({
                         ...gameForm,
                         game_key: 'motion_challenge',
-                        title: editingGame ? gameForm.title : 'Motion Matrix Reflex Challenge'
+                        title: editingGame ? gameForm.title : 'MOTION CHALLENGE: Spatial Path Creation & Block Shifting',
+                        duration_seconds: editingGame ? gameForm.duration_seconds : 240
                       });
                     }}
                     className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${gameForm.game_key === 'motion_challenge'
@@ -2463,7 +2535,7 @@ const MindSagaControlRoomPage = () => {
                     <Target className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0" />
                     <div>
                       <span className="font-bold block text-xs">Motion Challenge</span>
-                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">Precision Reflex Matrix</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">Path Creation & Block Sliding (+4/-1)</span>
                     </div>
                   </div>
                 </div>
@@ -2476,7 +2548,7 @@ const MindSagaControlRoomPage = () => {
                   required
                   value={gameForm.title}
                   onChange={(e) => setGameForm({ ...gameForm, title: e.target.value })}
-                  placeholder="e.g. Deductive Symbol Matrix Deduction"
+                  placeholder="e.g. MOTION CHALLENGE: Spatial Path Creation"
                   className="w-full bg-white dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -2489,9 +2561,9 @@ const MindSagaControlRoomPage = () => {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'easy', label: 'Easy', desc: '10 Clues / 1200ms targets' },
-                    { id: 'medium', label: 'Medium', desc: '8 Clues / 850ms targets' },
-                    { id: 'hard', label: 'Hard', desc: '6 Clues / 600ms targets' }
+                    { id: 'easy', label: 'Easy', desc: '10 Clues / 3x3 to 4x4 Grids' },
+                    { id: 'medium', label: 'Medium', desc: '8 Clues / 4x4 to 5x5 Grids' },
+                    { id: 'hard', label: 'Hard', desc: '6 Clues / Complex Obstacles' }
                   ].map((lvl) => (
                     <button
                       type="button"
@@ -2565,6 +2637,60 @@ const MindSagaControlRoomPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN TEST PLAY PREVIEW MODAL */}
+      {testPlayGame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-xl animate-in fade-in overflow-y-auto">
+          <div className="bg-slate-900 text-white border border-indigo-500/40 rounded-none w-full max-w-4xl p-5 sm:p-7 space-y-4 shadow-2xl relative my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-none bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
+                  <Play className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-base font-mono uppercase">
+                      Admin Test Play Sandbox: {testPlayGame.title}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-none text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                      Sandbox Mode
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    Test and verify game mechanics, sliding rules, and scoring logic without affecting participant scores.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setTestPlayGame(null)}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-none hover:bg-zinc-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-2">
+              {testPlayGame.game_key === 'motion_challenge' ? (
+                <MotionChallengeGame
+                  gameData={null}
+                  isDark={true}
+                  initialScore={0}
+                  onScoreUpdate={() => {}}
+                  onMoveAction={() => {}}
+                  onGameComplete={() => {
+                    toast.success('Admin Test Run Complete!');
+                    setTestPlayGame(null);
+                  }}
+                />
+              ) : (
+                <div className="p-8 text-center text-xs font-mono text-zinc-400 border border-white/10">
+                  Deductive Latin Square test module ready.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

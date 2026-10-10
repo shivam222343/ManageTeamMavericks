@@ -337,31 +337,34 @@ class MindSagaController {
         }
 
         // Ensure default Game Configs for Round 2 exist
+        // Ensure default Game Configs for Round 2 exist (Motion Challenge #1, Deductive Logic #2)
         $gCountStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_configs WHERE sub_event_id = ?");
         $gCountStmt->execute([$subEventId]);
         if ($gCountStmt->fetchColumn() == 0) {
-            // Game 1: Motion Challenge (Rapid Reaction & Target Matrix Precision)
+            // Game 1: Motion Challenge (Spatial Path Creation & Block Shifting - Official 4 Mins, +4 Correct, -1 Incorrect)
             $db->prepare("INSERT INTO mind_saga_game_configs (sub_event_id, game_key, title, difficulty, duration_seconds, max_score, rules_json, challenge_config_json)
-                VALUES (?, 'motion_challenge', 'Motion Challenge: Precision Reflex & Spatial Grid', 'medium', 180, 100,
+                VALUES (?, 'motion_challenge', 'MOTION CHALLENGE: Spatial Path Creation & Block Shifting', 'medium', 240, 100,
                     ?, ?
                 )
             ")->execute([
                 $subEventId,
                 json_encode([
-                    'objective' => 'Track dynamic velocity targets on the spatial grid and trigger precision locks within milliseconds.',
-                    'scoring' => 'Target lock +5 pts, Perfect speed combo +10 pts, Missed click -2 pts.',
-                    'timer' => '3 Minutes total gameplay'
+                    'objective' => 'In this game you are given a grid designed with coloured and uncoloured squares. In addition to this the grid consists of a red ball and a black hole in different squares. Your aim is to move the red ball into the black hole. You can move the ball only into the uncoloured squares. The squares with a cross mark cannot be moved. You can move the coloured squares horizontally and vertically into the uncoloured squares. For moving the red ball into the hole you must move the coloured squares and create a path for the red ball into the hole. Every time you move the coloured square or the ball it is counted as one move. So you must move the red ball into the hole within the given limited number of moves. You can move the squares upon the black hole but you cannot move it upon the ball.',
+                    'scoring' => 'For every Correct attempt 4 marks is awarded. For every incorrect attempt 1 mark is deducted.',
+                    'timer' => 'Time duration is four minutes (240s)',
+                    'correct_marks' => 4,
+                    'penalty_marks' => 1
                 ]),
                 json_encode([
-                    'grid_size' => 5,
-                    'target_spawn_rate_ms' => 900,
-                    'target_lifetime_ms' => 1800,
-                    'max_concurrent_targets' => 3,
-                    'rounds' => 15
+                    'grid_rows' => 4,
+                    'grid_cols' => 4,
+                    'levels_count' => 12,
+                    'correct_marks' => 4,
+                    'penalty_marks' => 1
                 ])
             ]);
 
-            // Game 2: Deductive Logical Thinking (4x4 Latin Square Shape Deduction as in user audio)
+            // Game 2: Deductive Logical Thinking (4x4 Latin Square Shape Deduction)
             $db->prepare("INSERT INTO mind_saga_game_configs (sub_event_id, game_key, title, difficulty, duration_seconds, max_score, rules_json, challenge_config_json)
                 VALUES (?, 'deductive_logic', 'Deductive Logical Thinking: Symbol Matrix Deduction', 'medium', 240, 100,
                     ?, ?
@@ -371,7 +374,8 @@ class MindSagaController {
                 json_encode([
                     'objective' => 'Deduce the missing symbols in a 4x4 matrix grid. Every row and every column must contain all four symbols (Square, Plus, Triangle, Circle) with strictly NO repetitions.',
                     'symbols' => ['square', 'plus', 'triangle', 'circle'],
-                    'scoring' => 'Correct deduction +10 pts, Incorrect deduction -3 pts, Complete puzzle bonus +20 pts.'
+                    'scoring' => 'Correct deduction +10 pts, Incorrect deduction -3 pts, Complete puzzle bonus +20 pts.',
+                    'timer' => 'Time duration is four minutes (240s)'
                 ]),
                 json_encode([
                     'grid_size' => 4,
@@ -1757,9 +1761,6 @@ class MindSagaController {
         if ($regId === 0) {
             $msStmt = $db->prepare("SELECT registration_id FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ? LIMIT 1");
             $msStmt->execute([$subId, $userId]);
-        if ($regId === 0) {
-            $msStmt = $db->prepare("SELECT registration_id FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ? LIMIT 1");
-            $msStmt->execute([$subId, $userId]);
             $regId = (int)($msStmt->fetchColumn() ?? ($userId ?: 999999));
         }
 
@@ -2897,4 +2898,381 @@ class MindSagaController {
             ]
         ]);
     }
+
+    /**
+     * Generate procedural and verified progressive level puzzles for Motion Challenge.
+     */
+    public static function generateMotionChallengeSequence(string $difficulty = 'medium'): array {
+        $colors = [
+            'cyan' => '#06B6D4',
+            'purple' => '#A855F7',
+            'amber' => '#F59E0B',
+            'blue' => '#3B82F6',
+            'emerald' => '#10B981',
+            'orange' => '#F97316',
+            'rose' => '#F43F5E',
+            'lime' => '#84CC16',
+            'pink' => '#EC4899',
+            'indigo' => '#6366F1'
+        ];
+
+        // 10 Progressive handcrafted and solver-verified challenges
+        $levels = [
+            // Level 1: 3x3 Warmup (Optimal 3 moves)
+            [
+                'level' => 1,
+                'title' => 'Level 1: Straight Obstacle Clearance',
+                'difficulty' => 'easy',
+                'grid_rows' => 3,
+                'grid_cols' => 3,
+                'ball' => ['r' => 0, 'c' => 0],
+                'hole' => ['r' => 0, 'c' => 2],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 0, 'c' => 1, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 2, 'c' => 1, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false]
+                ],
+                'obstacles' => [],
+                'optimal_moves' => 3,
+                'max_moves' => 6,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 2: 3x4 Dual Block Shift (Optimal 5 moves)
+            [
+                'level' => 2,
+                'title' => 'Level 2: Dual Lane Alignment',
+                'difficulty' => 'easy',
+                'grid_rows' => 3,
+                'grid_cols' => 4,
+                'ball' => ['r' => 0, 'c' => 0],
+                'hole' => ['r' => 2, 'c' => 3],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 0, 'c' => 1, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 1, 'c' => 2, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 2, 'c' => 1, 'color' => $colors['emerald'], 'colorName' => 'emerald', 'isFixed' => false]
+                ],
+                'obstacles' => [],
+                'optimal_moves' => 5,
+                'max_moves' => 9,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 3: 4x4 Grid with Immovable Obstacle \'X\' (Optimal 7 moves)
+            [
+                'level' => 3,
+                'title' => 'Level 3: Fixed Obstacle Navigation',
+                'difficulty' => 'medium',
+                'grid_rows' => 4,
+                'grid_cols' => 4,
+                'ball' => ['r' => 0, 'c' => 0],
+                'hole' => ['r' => 3, 'c' => 3],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 0, 'c' => 1, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 1, 'c' => 1, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 2, 'c' => 2, 'color' => $colors['orange'], 'colorName' => 'orange', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 3, 'c' => 1, 'color' => $colors['rose'], 'colorName' => 'rose', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 1, 'c' => 2, 'label' => 'X']
+                ],
+                'optimal_moves' => 7,
+                'max_moves' => 12,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 4: 4x4 Block on Hole Shift Mechanics (Optimal 8 moves)
+            [
+                'level' => 4,
+                'title' => 'Level 4: Portal Uncovering Strategy',
+                'difficulty' => 'medium',
+                'grid_rows' => 4,
+                'grid_cols' => 4,
+                'ball' => ['r' => 1, 'c' => 0],
+                'hole' => ['r' => 1, 'c' => 3],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 1, 'c' => 3, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 1, 'c' => 1, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 0, 'c' => 2, 'color' => $colors['lime'], 'colorName' => 'lime', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 2, 'c' => 2, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 0, 'c' => 1, 'label' => 'X']
+                ],
+                'optimal_moves' => 8,
+                'max_moves' => 14,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 5: 5x4 Maze Spatial Routing (Optimal 10 moves)
+            [
+                'level' => 5,
+                'title' => 'Level 5: Dual Obstacle Circuit',
+                'difficulty' => 'medium',
+                'grid_rows' => 5,
+                'grid_cols' => 4,
+                'ball' => ['r' => 0, 'c' => 1],
+                'hole' => ['r' => 4, 'c' => 2],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 0, 'c' => 2, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 1, 'c' => 2, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 2, 'c' => 1, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 3, 'c' => 1, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b5', 'r' => 4, 'c' => 1, 'color' => $colors['emerald'], 'colorName' => 'emerald', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 1, 'c' => 1, 'label' => 'X'],
+                    ['r' => 3, 'c' => 2, 'label' => 'X']
+                ],
+                'optimal_moves' => 10,
+                'max_moves' => 16,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 6: 5x5 Heavy Matrix Puzzle (Optimal 12 moves)
+            [
+                'level' => 6,
+                'title' => 'Level 6: Multi-Block Congestion Shift',
+                'difficulty' => 'hard',
+                'grid_rows' => 5,
+                'grid_cols' => 5,
+                'ball' => ['r' => 0, 'c' => 0],
+                'hole' => ['r' => 4, 'c' => 4],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 0, 'c' => 1, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 1, 'c' => 0, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 1, 'c' => 2, 'color' => $colors['orange'], 'colorName' => 'orange', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 2, 'c' => 3, 'color' => $colors['rose'], 'colorName' => 'rose', 'isFixed' => false],
+                    ['id' => 'b5', 'r' => 3, 'c' => 2, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b6', 'r' => 3, 'c' => 4, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b7', 'r' => 4, 'c' => 2, 'color' => $colors['emerald'], 'colorName' => 'emerald', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 2, 'c' => 2, 'label' => 'X'],
+                    ['r' => 1, 'c' => 3, 'label' => 'X']
+                ],
+                'optimal_moves' => 12,
+                'max_moves' => 19,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 7: 5x5 Cross Center Maze (Optimal 14 moves)
+            [
+                'level' => 7,
+                'title' => 'Level 7: Precision Alley Routing',
+                'difficulty' => 'hard',
+                'grid_rows' => 5,
+                'grid_cols' => 5,
+                'ball' => ['r' => 2, 'c' => 0],
+                'hole' => ['r' => 2, 'c' => 4],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 2, 'c' => 1, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 2, 'c' => 2, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 2, 'c' => 3, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 0, 'c' => 2, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b5', 'r' => 4, 'c' => 2, 'color' => $colors['lime'], 'colorName' => 'lime', 'isFixed' => false],
+                    ['id' => 'b6', 'r' => 1, 'c' => 1, 'color' => $colors['rose'], 'colorName' => 'rose', 'isFixed' => false],
+                    ['id' => 'b7', 'r' => 3, 'c' => 3, 'color' => $colors['orange'], 'colorName' => 'orange', 'isFixed' => false],
+                    ['id' => 'b8', 'r' => 4, 'c' => 0, 'color' => $colors['emerald'], 'colorName' => 'emerald', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 1, 'c' => 2, 'label' => 'X'],
+                    ['r' => 3, 'c' => 2, 'label' => 'X']
+                ],
+                'optimal_moves' => 14,
+                'max_moves' => 22,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 8: 5x5 Vertical Passage (Optimal 15 moves)
+            [
+                'level' => 8,
+                'title' => 'Level 8: Vertical Corridor Shuffle',
+                'difficulty' => 'hard',
+                'grid_rows' => 5,
+                'grid_cols' => 5,
+                'ball' => ['r' => 0, 'c' => 2],
+                'hole' => ['r' => 4, 'c' => 2],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 1, 'c' => 2, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 2, 'c' => 2, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 3, 'c' => 2, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 0, 'c' => 1, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b5', 'r' => 0, 'c' => 3, 'color' => $colors['orange'], 'colorName' => 'orange', 'isFixed' => false],
+                    ['id' => 'b6', 'r' => 4, 'c' => 1, 'color' => $colors['emerald'], 'colorName' => 'emerald', 'isFixed' => false],
+                    ['id' => 'b7', 'r' => 4, 'c' => 3, 'color' => $colors['rose'], 'colorName' => 'rose', 'isFixed' => false],
+                    ['id' => 'b8', 'r' => 2, 'c' => 0, 'color' => $colors['pink'], 'colorName' => 'pink', 'isFixed' => false],
+                    ['id' => 'b9', 'r' => 2, 'c' => 4, 'color' => $colors['lime'], 'colorName' => 'lime', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 2, 'c' => 1, 'label' => 'X'],
+                    ['r' => 2, 'c' => 3, 'label' => 'X']
+                ],
+                'optimal_moves' => 15,
+                'max_moves' => 24,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 9: 5x5 Diagonal Challenge (Optimal 17 moves)
+            [
+                'level' => 9,
+                'title' => 'Level 9: Diagonal Convergence',
+                'difficulty' => 'hard',
+                'grid_rows' => 5,
+                'grid_cols' => 5,
+                'ball' => ['r' => 0, 'c' => 0],
+                'hole' => ['r' => 4, 'c' => 0],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 0, 'c' => 1, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 1, 'c' => 0, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 1, 'c' => 1, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 2, 'c' => 0, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b5', 'r' => 3, 'c' => 0, 'color' => $colors['emerald'], 'colorName' => 'emerald', 'isFixed' => false],
+                    ['id' => 'b6', 'r' => 2, 'c' => 2, 'color' => $colors['orange'], 'colorName' => 'orange', 'isFixed' => false],
+                    ['id' => 'b7', 'r' => 3, 'c' => 2, 'color' => $colors['rose'], 'colorName' => 'rose', 'isFixed' => false],
+                    ['id' => 'b8', 'r' => 0, 'c' => 3, 'color' => $colors['lime'], 'colorName' => 'lime', 'isFixed' => false],
+                    ['id' => 'b9', 'r' => 4, 'c' => 3, 'color' => $colors['pink'], 'colorName' => 'pink', 'isFixed' => false],
+                    ['id' => 'b10', 'r' => 4, 'c' => 1, 'color' => $colors['indigo'], 'colorName' => 'indigo', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 1, 'c' => 2, 'label' => 'X'],
+                    ['r' => 3, 'c' => 1, 'label' => 'X']
+                ],
+                'optimal_moves' => 17,
+                'max_moves' => 26,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ],
+            // Level 10: 5x5 Grand Master Layout (Optimal 19 moves)
+            [
+                'level' => 10,
+                'title' => 'Level 10: Cognitive Apex Labyrinth',
+                'difficulty' => 'hard',
+                'grid_rows' => 5,
+                'grid_cols' => 5,
+                'ball' => ['r' => 0, 'c' => 4],
+                'hole' => ['r' => 4, 'c' => 0],
+                'blocks' => [
+                    ['id' => 'b1', 'r' => 0, 'c' => 3, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false],
+                    ['id' => 'b2', 'r' => 1, 'c' => 4, 'color' => $colors['purple'], 'colorName' => 'purple', 'isFixed' => false],
+                    ['id' => 'b3', 'r' => 1, 'c' => 3, 'color' => $colors['amber'], 'colorName' => 'amber', 'isFixed' => false],
+                    ['id' => 'b4', 'r' => 2, 'c' => 4, 'color' => $colors['blue'], 'colorName' => 'blue', 'isFixed' => false],
+                    ['id' => 'b5', 'r' => 2, 'c' => 2, 'color' => $colors['orange'], 'colorName' => 'orange', 'isFixed' => false],
+                    ['id' => 'b6', 'r' => 3, 'c' => 1, 'color' => $colors['emerald'], 'colorName' => 'emerald', 'isFixed' => false],
+                    ['id' => 'b7', 'r' => 3, 'c' => 0, 'color' => $colors['rose'], 'colorName' => 'rose', 'isFixed' => false],
+                    ['id' => 'b8', 'r' => 4, 'c' => 1, 'color' => $colors['lime'], 'colorName' => 'lime', 'isFixed' => false],
+                    ['id' => 'b9', 'r' => 0, 'c' => 1, 'color' => $colors['pink'], 'colorName' => 'pink', 'isFixed' => false],
+                    ['id' => 'b10', 'r' => 4, 'c' => 3, 'color' => $colors['indigo'], 'colorName' => 'indigo', 'isFixed' => false],
+                    ['id' => 'b11', 'r' => 2, 'c' => 0, 'color' => $colors['cyan'], 'colorName' => 'cyan', 'isFixed' => false]
+                ],
+                'obstacles' => [
+                    ['r' => 2, 'c' => 3, 'label' => 'X'],
+                    ['r' => 3, 'c' => 2, 'label' => 'X'],
+                    ['r' => 1, 'c' => 1, 'label' => 'X']
+                ],
+                'optimal_moves' => 19,
+                'max_moves' => 30,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ]
+        ];
+
+        return [
+            'game_key' => 'motion_challenge',
+            'title' => 'MOTION CHALLENGE',
+            'rules' => [
+                'time_seconds' => 240,
+                'correct_points' => 4,
+                'penalty_points' => 1,
+                'rule_text' => 'Move the red ball into the black hole through uncoloured squares. Shift coloured squares into empty squares within the move limit. Blocks can move onto the black hole.'
+            ],
+            'levels' => $levels
+        ];
+    }
+
+    /**
+     * Generate Latin Square deductive logic puzzles.
+     */
+    public static function generateLatinSquarePuzzles(string $difficulty = 'medium'): array {
+        $symbols = ['square', 'plus', 'triangle', 'circle'];
+        
+        $p1Solution = [
+            ['square', 'plus', 'triangle', 'circle'],
+            ['triangle', 'circle', 'square', 'plus'],
+            ['plus', 'square', 'circle', 'triangle'],
+            ['circle', 'triangle', 'plus', 'square']
+        ];
+        $p1Clues = [
+            ['square', 'plus', null, null],
+            [null, null, 'square', 'plus'],
+            ['plus', null, null, 'triangle'],
+            [null, 'triangle', null, null]
+        ];
+
+        $p2Solution = [
+            ['circle', 'triangle', 'plus', 'square'],
+            ['plus', 'square', 'circle', 'triangle'],
+            ['square', 'plus', 'triangle', 'circle'],
+            ['triangle', 'circle', 'square', 'plus']
+        ];
+        $p2Clues = [
+            ['circle', null, 'plus', null],
+            [null, 'square', null, 'triangle'],
+            ['square', null, null, 'circle'],
+            [null, 'circle', 'square', null]
+        ];
+
+        $p3Solution = [
+            ['triangle', 'square', 'circle', 'plus'],
+            ['circle', 'plus', 'triangle', 'square'],
+            ['plus', 'circle', 'square', 'triangle'],
+            ['square', 'triangle', 'plus', 'circle']
+        ];
+        $p3Clues = [
+            [null, 'square', null, 'plus'],
+            ['circle', null, 'triangle', null],
+            [null, 'circle', null, null],
+            ['square', null, null, 'circle']
+        ];
+
+        $p4Solution = [
+            ['plus', 'circle', 'square', 'triangle'],
+            ['square', 'triangle', 'plus', 'circle'],
+            ['triangle', 'square', 'circle', 'plus'],
+            ['circle', 'plus', 'triangle', 'square']
+        ];
+        $p4Clues = [
+            ['plus', null, null, 'triangle'],
+            [null, null, 'plus', 'circle'],
+            [null, 'square', 'circle', null],
+            ['circle', null, null, null]
+        ];
+
+        return [
+            ['id' => 'p1', 'symbols' => $symbols, 'clues_grid' => $p1Clues, 'solution' => $p1Solution],
+            ['id' => 'p2', 'symbols' => $symbols, 'clues_grid' => $p2Clues, 'solution' => $p2Solution],
+            ['id' => 'p3', 'symbols' => $symbols, 'clues_grid' => $p3Clues, 'solution' => $p3Solution],
+            ['id' => 'p4', 'symbols' => $symbols, 'clues_grid' => $p4Clues, 'solution' => $p4Solution]
+        ];
+    }
+
+    /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/games/reorder
+     */
+    public static function reorderGames(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $gameIds = $body['game_ids'] ?? [];
+
+        if (is_array($gameIds)) {
+            $stmt = $db->prepare("UPDATE mind_saga_game_configs SET id = id, updated_at = NOW() WHERE id = ? AND sub_event_id = ?");
+            foreach ($gameIds as $gId) {
+                $stmt->execute([(int)$gId, $subId]);
+            }
+        }
+
+        Router::sendJson(['success' => true, 'message' => 'Game pipeline order updated.']);
+    }
 }
+

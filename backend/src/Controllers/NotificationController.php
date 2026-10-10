@@ -260,14 +260,15 @@ class NotificationController {
         }
 
         if ($userId) {
+            $isStaff = in_array($userRole, ['coordinator', 'core_member', 'member', 'admin']) ? 1 : 0;
             $stmt = $db->prepare("
                 SELECT * FROM notifications 
                 WHERE (user_id = ? OR user_id IS NULL) 
-                  AND (target_role = 'all' OR target_role = ? OR (target_role = 'staff' AND ? IN ('coordinator', 'core_member', 'member')))
+                  AND (target_role = 'all' OR target_role = ? OR (? = 1 AND target_role = 'staff'))
                 ORDER BY created_at DESC 
                 LIMIT 60
             ");
-            $stmt->execute([$userId, $userRole, $userRole]);
+            $stmt->execute([$userId, $userRole, $isStaff]);
         } else {
             $stmt = $db->prepare("
                 SELECT * FROM notifications 
