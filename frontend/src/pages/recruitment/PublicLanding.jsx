@@ -356,9 +356,16 @@ const PublicLanding = () => {
           let finalVal = Array.isArray(checkedVal) ? checkedVal.join(', ') : (checkedVal || '');
           const otherText = data[`${key}_other_text`];
           if (otherText) {
-            finalVal += ` (Other: ${otherText})`;
+            finalVal += ` (Other: ${String(otherText).slice(0, 25)})`;
           }
           fd.append(key, finalVal);
+        } else if (field.field_type === 'radio') {
+          let radioVal = data[key] || '';
+          const otherText = data[`${key}_other_text`];
+          if (radioVal && radioVal.toLowerCase() === 'other' && otherText) {
+            radioVal = `Other: ${String(otherText).slice(0, 25)}`;
+          }
+          fd.append(key, radioVal);
         } else {
           fd.append(key, data[key] || '');
         }
@@ -1584,9 +1591,11 @@ const PublicLanding = () => {
                                   <div className="mt-2.5">
                                     <input
                                       type="text"
-                                      placeholder="Please specify details for 'Other'..."
+                                      maxLength={25}
+                                      placeholder="Please specify details for 'Other' (max 25 chars)..."
                                       {...register(`${key}_other_text`, {
-                                        required: isOtherChecked ? "Please specify details for 'Other'" : false
+                                        required: isOtherChecked ? "Please specify details for 'Other'" : false,
+                                        maxLength: { value: 25, message: 'Maximum 25 characters allowed' }
                                       })}
                                       className={`w-full px-4 py-3 border rounded-none text-xs font-medium ${isDark ? 'bg-[#070C18] border-[#1E293B] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                                         }`}
@@ -1603,33 +1612,62 @@ const PublicLanding = () => {
                             );
                           })()}
 
-                          {/* 5. Radio Buttons */}
-                          {field.field_type === 'radio' && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                              {field.options?.map((opt) => {
-                                const isSelected = watch(key) === opt.option_value;
-                                return (
-                                  <label
-                                    key={opt.id}
-                                    className={`flex items-center gap-3 p-3.5 border rounded-none cursor-pointer text-xs font-semibold select-none transition-all ${isSelected
-                                      ? 'border-blue-500 bg-blue-600 text-white font-bold'
-                                      : isDark
-                                        ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:border-slate-700'
-                                        : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
-                                      }`}
-                                  >
+                          {/* 5. Radio Buttons with conditional "Other" text input */}
+                          {field.field_type === 'radio' && (() => {
+                            const otherOpt = field.options?.find(o => (o.option_label || '').toLowerCase() === 'other' || (o.option_value || '').toLowerCase() === 'other');
+                            const radioVal = watch(key);
+                            const isOtherSelected = otherOpt && radioVal === otherOpt.option_value;
+
+                            return (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                  {field.options?.map((opt) => {
+                                    const isSelected = radioVal === opt.option_value;
+                                    return (
+                                      <label
+                                        key={opt.id}
+                                        className={`flex items-center gap-3 p-3.5 border rounded-none cursor-pointer text-xs font-semibold select-none transition-all ${isSelected
+                                          ? 'border-blue-500 bg-blue-600 text-white font-bold'
+                                          : isDark
+                                            ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:border-slate-700'
+                                            : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
+                                          }`}
+                                      >
+                                        <input
+                                          type="radio"
+                                          value={opt.option_value}
+                                          {...register(key, { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select an option.' : false })}
+                                          className="w-4 h-4 rounded-none accent-blue-600"
+                                        />
+                                        <span>{opt.option_label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                {isOtherSelected && (
+                                  <div className="mt-2.5">
                                     <input
-                                      type="radio"
-                                      value={opt.option_value}
-                                      {...register(key, { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select an option.' : false })}
-                                      className="w-4 h-4 rounded-none accent-blue-600"
+                                      type="text"
+                                      maxLength={25}
+                                      placeholder="Please specify details for 'Other' (max 25 chars)..."
+                                      {...register(`${key}_other_text`, {
+                                        required: isOtherSelected ? "Please specify details for 'Other'" : false,
+                                        maxLength: { value: 25, message: 'Maximum 25 characters allowed' }
+                                      })}
+                                      className={`w-full px-4 py-3 border rounded-none text-xs font-medium ${isDark ? 'bg-[#070C18] border-[#1E293B] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                        }`}
                                     />
-                                    <span>{opt.option_label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
+                                    {errors[`${key}_other_text`] && (
+                                      <p className="mt-1 text-[10px] text-red-500 font-bold flex items-center gap-1.5">
+                                        <AlertCircle size={11} />
+                                        <span>{errors[`${key}_other_text`].message}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* 6. File Upload */}
                           {['file', 'image', 'resume', 'pdf', 'id_card'].includes(field.field_type) && (

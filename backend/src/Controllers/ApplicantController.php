@@ -620,8 +620,14 @@ class ApplicantController {
 
             $db->commit();
 
-            // Note: Automated emails on candidate status changes have been disabled as per requirements.
-            // Emails will be dispatched manually from the communication module.
+            // Push targeted user notification if user has registered account
+            if ($oldStatus !== $newStatus) {
+                NotificationController::notifyApplicationStatusUpdated(
+                    $applicant['email'] ?? null,
+                    $applicant['full_name'] ?? 'Candidate',
+                    $newStatus
+                );
+            }
 
             Router::sendJson(['message' => 'Status updated successfully']);
         } catch (\Exception $e) {

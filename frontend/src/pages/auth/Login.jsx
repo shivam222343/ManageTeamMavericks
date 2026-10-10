@@ -62,7 +62,7 @@ const Login = () => {
     setAuthError('');
 
     const loadingToast = toast.loading('Authenticating...');
-    const result = await login(data.email, data.password, data.rememberMe);
+    const result = await login(data.email, data.password, data.rememberMe, 'admin');
     toast.dismiss(loadingToast);
 
     if (result.success) {

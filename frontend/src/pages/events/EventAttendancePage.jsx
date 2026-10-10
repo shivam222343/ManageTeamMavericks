@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import QrCodeModal from '../../components/ui/QrCodeModal';
+import EventNotificationModal from '../../components/events/EventNotificationModal';
+import { Bell, Zap } from 'lucide-react';
 
 const EventAttendancePage = () => {
   const { id } = useParams();
@@ -47,6 +49,10 @@ const EventAttendancePage = () => {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [qrLoading, setQrLoading] = useState(false);
+
+  // Notification Modal
+  const [notifModalOpen, setNotifModalOpen] = useState(false);
+  const [notifUserIds, setNotifUserIds] = useState([]);
 
   useEffect(() => {
     fetchMainAttendance();
@@ -92,24 +98,13 @@ const EventAttendancePage = () => {
       });
       toast.success(newStatus === 1 ? 'Marked Present' : 'Marked Absent');
       fetchMainAttendance();
-      if (activeTab !== 'main') {
-        fetchSubEventAttendance(activeTab);
-      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to update attendance');
     }
   };
 
-  const handleToggleSubAttendance = async (regId, currentSubAttendance, canMarkPresent) => {
+  const handleToggleSubAttendance = async (regId, currentSubAttendance) => {
     const newStatus = currentSubAttendance === 1 ? 0 : 1;
-
-    if (newStatus === 1 && !canMarkPresent) {
-      toast.error(
-        'Participant must first be marked PRESENT in the Main Event Attendance!',
-        { icon: '⚠️', duration: 4500 }
-      );
-      return;
-    }
 
     try {
       await axios.post(`/events/${id}/sub-events/${activeTab}/attendance/mark`, {
@@ -118,7 +113,6 @@ const EventAttendancePage = () => {
       });
       toast.success(newStatus === 1 ? 'Marked Present in Sub-event' : 'Marked Absent in Sub-event');
       fetchSubEventAttendance(activeTab);
-      fetchMainAttendance();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to update sub-event attendance');
     }
@@ -234,6 +228,17 @@ const EventAttendancePage = () => {
           {/* Action buttons */}
           <div className="flex items-center gap-3 flex-wrap">
             <button
+              onClick={() => {
+                setNotifUserIds([]);
+                setNotifModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-amber-500/20 transition cursor-pointer shadow-sm"
+            >
+              <Zap size={14} className="text-amber-500" />
+              <span>Broadcast Notification</span>
+            </button>
+
+            <button
               onClick={() => handleOpenQrModal(activeTab === 'main' ? null : activeTab)}
               disabled={qrLoading}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-blue text-white rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-blue-600 transition cursor-pointer shadow-lg shadow-primary-blue/20"
@@ -290,10 +295,10 @@ const EventAttendancePage = () => {
 
       {/* Sub-Event Notice Banner */}
       {activeTab !== 'main' && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3 text-amber-600 dark:text-amber-400 text-xs">
-          <AlertTriangle size={18} className="shrink-0" />
+        <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center gap-3 text-blue-600 dark:text-blue-400 text-xs">
+          <Layers size={18} className="shrink-0" />
           <p className="leading-relaxed">
-            <strong>Gating Protocol Active:</strong> Participants can only be marked Present in <strong>{activeSubEventObj?.name}</strong> if they are already verified &amp; marked <strong>Present</strong> in the Main Event attendance.
+            <strong>Independent Attendance:</strong> Attendance for <strong>{activeSubEventObj?.name}</strong> is tracked separately from the main event and from other sub-events. Marking here only affects this sub-event.
           </p>
         </div>
       )}
@@ -358,10 +363,24 @@ const EventAttendancePage = () => {
             {activeTab === 'main' && selectedIds.length > 0 && (
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => {
+                    const uids = selectedIds.map(regId => {
+                      const p = data.participants?.find(x => x.id === regId);
+                      return p?.user_id || p?.id;
+                    }).filter(Boolean);
+                    setNotifUserIds(uids);
+                    setNotifModalOpen(true);
+                  }}
+                  className="px-3 py-2 rounded-xl text-xs font-black uppercase bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer shadow-sm flex items-center gap-1.5"
+                >
+                  <Bell size={12} />
+                  <span>Notify Selected ({selectedIds.length})</span>
+                </button>
+                <button
                   onClick={() => handleBulkMark(1)}
                   className="px-3 py-2 rounded-xl text-xs font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer shadow-sm"
                 >
-                  Mark Present ({selectedIds.length})
+                  Mark Present
                 </button>
                 <button
                   onClick={() => handleBulkMark(0)}
@@ -425,7 +444,6 @@ const EventAttendancePage = () => {
                 filteredParticipants.map((p) => {
                   const isMainTab = activeTab === 'main';
                   const isPresent = isMainTab ? p.attendance === 1 : p.sub_attendance === 1;
-                  const canMark = isMainTab ? true : p.can_mark_present;
 
                   return (
                     <tr
@@ -551,21 +569,16 @@ const EventAttendancePage = () => {
                             onClick={() =>
                               handleToggleSubAttendance(
                                 p.registration_id,
-                                p.sub_attendance,
-                                p.can_mark_present
+                                p.sub_attendance
                               )
                             }
-                            disabled={!canMark && !isPresent}
-                            title={!canMark ? 'Must mark main event attendance present first' : ''}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer ${
                               isPresent
                                 ? 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-500/20'
-                                : canMark
-                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
-                                : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 border border-zinc-300 dark:border-zinc-700'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
                             }`}
                           >
-                            {isPresent ? 'Mark Absent' : canMark ? 'Mark Present' : 'Gated'}
+                            {isPresent ? 'Mark Absent' : 'Mark Present'}
                           </button>
                         )}
                       </td>
@@ -591,6 +604,15 @@ const EventAttendancePage = () => {
           subEventName={qrData.sub_event?.name}
         />
       )}
+
+      {/* Broadcast & User Targeted Notification Modal */}
+      <EventNotificationModal
+        isOpen={notifModalOpen}
+        onClose={() => setNotifModalOpen(false)}
+        eventId={id}
+        eventName={event?.name}
+        initialSelectedUserIds={notifUserIds}
+      />
     </div>
   );
 };

@@ -6,6 +6,7 @@ import { useCursor } from '../../context/CursorContext';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import BranchedMenu from '../ui/BranchedMenu';
+import NotificationBell from '../ui/NotificationBell';
 import {
   LayoutDashboard,
   Users,
@@ -485,6 +486,10 @@ const AdminLayout = () => {
                   </React.Fragment>
                 ))}
             </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <NotificationBell />
           </div>
         </header>
 

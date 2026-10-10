@@ -359,11 +359,13 @@ const MindSagaGamingArenaPage = () => {
 
     if (currentToken) {
       try {
-        await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/submit`, {
+        // Send exit call to terminate session and sync Master score
+        await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/exit`, {
           session_token: currentToken,
           score: score,
           moves_log: movesLog,
-          status: 'auto_submitted'
+          status: 'auto_submitted',
+          reason: reason
         });
       } catch (err) {
         console.error('Auto submit error:', err);
@@ -377,30 +379,36 @@ const MindSagaGamingArenaPage = () => {
     });
   };
 
-  // 5. Fullscreen & Tab Switching Telemetry Listeners
+  // 5. Fullscreen, Tab Switching & Anti-Cheat Telemetry Listeners
   useEffect(() => {
     if (!isPlaying) return;
+
+    const triggerSecurityViolation = (eventType, reason) => {
+      if (!isPlayingRef.current) return;
+
+      const nextExits = fullscreenExitsRef.current + 1;
+      fullscreenExitsRef.current = nextExits;
+      setFullscreenExits(nextExits);
+      setViolationsCount(nextExits);
+
+      logProctorViolation(eventType, `${reason} (Strike #${nextExits} of 3)`);
+
+      if (nextExits >= 3) {
+        handleAutoSubmitRound('Round Auto-Submitted: Maximum 3 security strikes reached (tab switch, window minimization, or app switch).');
+      } else {
+        setWarningType('fullscreen');
+        setFullscreenCountdown(10);
+        setWarningMessage(`${reason} (Strike ${nextExits} of 3). Full-screen mode is strictly enforced. Return and re-enter full-screen within 10 seconds or your round will be automatically submitted.`);
+        setShowWarningModal(true);
+      }
+    };
 
     const handleFullscreenChange = () => {
       const inFullscreen = Boolean(document.fullscreenElement);
       setIsFullscreen(inFullscreen);
 
       if (!inFullscreen && isPlayingRef.current) {
-        const nextExits = fullscreenExitsRef.current + 1;
-        fullscreenExitsRef.current = nextExits;
-        setFullscreenExits(nextExits);
-        setViolationsCount(nextExits);
-
-        logProctorViolation('fullscreen_exit', `Participant exited mandatory fullscreen (Exit #${nextExits} of 3)`);
-
-        if (nextExits >= 3) {
-          handleAutoSubmitRound('Round Auto-Submitted: Exited full-screen 3 times (Maximum 3 strikes reached).');
-        } else {
-          setWarningType('fullscreen');
-          setFullscreenCountdown(10);
-          setWarningMessage(`Full-screen exit detected (Strike ${nextExits} of 3). Please return to full-screen within 10 seconds or your round will be automatically submitted.`);
-          setShowWarningModal(true);
-        }
+        triggerSecurityViolation('fullscreen_exit', 'Mandatory full-screen mode exited!');
       } else if (inFullscreen) {
         setShowWarningModal(false);
       }
@@ -408,49 +416,78 @@ const MindSagaGamingArenaPage = () => {
 
     const handleVisibilityChange = () => {
       if (document.hidden && isPlayingRef.current) {
-        // If not in fullscreen, fullscreen exit takes precedence
-        if (!document.fullscreenElement) return;
-
-        setWarningType('tab_switch');
-        setWarningMessage('Tab switching is strictly forbidden! Your violation has been logged to the proctor CCTV.');
-        setShowWarningModal(true);
-        logProctorViolation('tab_switch', 'Participant switched browser tab or minimized window');
+        triggerSecurityViolation('tab_switch', 'Tab switch or window minimization detected!');
       }
     };
 
     const handleWindowBlur = () => {
       if (isPlayingRef.current) {
-        // If not in fullscreen, fullscreen exit takes absolute precedence
-        if (!document.fullscreenElement) return;
+        triggerSecurityViolation('window_blur', 'Window lost focus or another application was opened!');
+      }
+    };
 
-        setWarningType('tab_switch');
-        setWarningMessage('Window focus lost. Please stay focused on the test screen.');
-        setShowWarningModal(true);
-        logProctorViolation('window_blur', 'Browser window lost focus');
+    // Block copy / paste / right click / Devtools & App switch shortcuts
+    const handleContextMenu = (e) => e.preventDefault();
+    const handleKeyDown = (e) => {
+      if (
+        e.key === 'F12' ||
+        e.key === 'F11' ||
+        (e.altKey && e.key === 'Tab') ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+        (e.ctrlKey && (e.key === 'u' || e.key === 't' || e.key === 'n' || e.key === 'w'))
+      ) {
+        e.preventDefault();
+        triggerSecurityViolation('devtools_opened', 'Restricted keyboard shortcut or tab switch intercepted.');
+      }
+      if (e.ctrlKey && (e.key === 'c' || e.key === 'v' || e.key === 'x')) {
+        e.preventDefault();
+      }
+    };
+
+    // Before unload / tab close beacon
+    const handleBeforeUnload = () => {
+      const currentToken = sessionTokenRef.current;
+      if (currentToken && isPlayingRef.current) {
+        const payload = JSON.stringify({
+          session_token: currentToken,
+          score: score,
+          moves_log: movesLog,
+          status: 'terminated'
+        });
+        const url = `/events/${eventId}/sub-events/${subEventId}/mind-saga/games/exit`;
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(url, blob);
+        }
       }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isPlaying, logProctorViolation]);
+  }, [isPlaying, logProctorViolation, eventId, subEventId, score, movesLog]);
 
-  // Realtime countdown timer: ticks every second whenever warning modal is active and NOT in fullscreen
+  // Realtime countdown timer: ticks every second whenever warning modal is active
   useEffect(() => {
-    const isOutOfFullscreen = !document.fullscreenElement || !isFullscreen;
-    if (!showWarningModal || !isOutOfFullscreen || !isPlaying) return;
+    if (!showWarningModal || !isPlaying || gameResult) return;
 
     const timer = setInterval(() => {
       setFullscreenCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleAutoSubmitRound('Auto-submitted due to failure to return to fullscreen within 10 seconds.');
+          handleAutoSubmitRound('Auto-submitted due to failure to return to full-screen within 10 seconds.');
           return 0;
         }
         return prev - 1;
@@ -458,7 +495,7 @@ const MindSagaGamingArenaPage = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showWarningModal, isFullscreen, isPlaying]);
+  }, [showWarningModal, isPlaying, gameResult]);
 
   // Re-enter fullscreen from warning modal or corner button and continue
   const handleReEnterFullscreen = async () => {
@@ -466,9 +503,6 @@ const MindSagaGamingArenaPage = () => {
       if (!document.fullscreenElement) {
         await document.documentElement.requestFullscreen();
         setIsFullscreen(true);
-      } else {
-        // If already in fullscreen and triggered from toggle, exit cleanly
-        // But during warning, always maintain fullscreen
       }
       setShowWarningModal(false);
     } catch (err) {

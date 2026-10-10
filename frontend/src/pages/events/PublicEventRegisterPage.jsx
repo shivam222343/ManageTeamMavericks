@@ -416,6 +416,35 @@ const PublicEventRegisterPage = () => {
         : individualSumFee
       : parseFloat(event?.registration_fee || 0);
 
+  const getDisplayEventFee = () => {
+    // 1. If currently selected sub-events have an active effective fee > 0
+    if (effectiveFee > 0) {
+      return `₹${effectiveFee.toFixed(0)}`;
+    }
+    // 2. If event has combo package fee > 0
+    if (event?.combo_fee && parseFloat(event.combo_fee) > 0) {
+      return `₹${parseFloat(event.combo_fee).toFixed(0)}`;
+    }
+    // 3. If sub-events exist with individual fees
+    if (subEvents && subEvents.length > 0) {
+      const validFees = subEvents.map((s) => parseFloat(s.fee || 0)).filter((f) => f > 0);
+      if (validFees.length > 0) {
+        const minFee = Math.min(...validFees);
+        const maxFee = Math.max(...validFees);
+        if (minFee === maxFee) {
+          return `₹${minFee.toFixed(0)}`;
+        }
+        return `₹${minFee.toFixed(0)} - ₹${maxFee.toFixed(0)}`;
+      }
+    }
+    // 4. Base registration fee if set > 0
+    if (event?.registration_fee && parseFloat(event.registration_fee) > 0) {
+      return `₹${parseFloat(event.registration_fee).toFixed(0)}`;
+    }
+    // 5. Default free
+    return 'Free Entry';
+  };
+
   const isPaid = Boolean(event?.payment_required && effectiveFee > 0);
   const hasSubEventsStep = subEvents.length > 0;
   const totalSteps = (hasSubEventsStep ? 1 : 0) + sections.length + (isPaid ? 1 : 0);
@@ -480,44 +509,86 @@ const PublicEventRegisterPage = () => {
         }
       }
 
-      // Check for already registered email in this section or current form values
+      // Extract and check for already registered email, PRN, and mobile number in this section or current form values
       const currentValues = watch();
       let emailToCheck = '';
+      let prnToCheck = '';
+      let phoneToCheck = '';
+
       for (const f of currentSection.fields || []) {
         const val = currentValues[`field_${f.id}`];
-        if (val && (f.field_type === 'email' || (f.label || '').toLowerCase().includes('email'))) {
-          emailToCheck = String(val).trim();
-          break;
+        if (val) {
+          const lbl = (f.label || '').toLowerCase();
+          if (!emailToCheck && (f.field_type === 'email' || lbl.includes('email'))) {
+            emailToCheck = String(val).trim();
+          }
+          if (!prnToCheck && (f.field_type === 'prn' || lbl.includes('prn') || lbl.includes('roll no') || lbl.includes('roll_no'))) {
+            prnToCheck = String(val).trim().toUpperCase();
+          }
+          if (!phoneToCheck && (f.field_type === 'tel' || f.field_type === 'phone' || lbl.includes('phone') || lbl.includes('mobile') || lbl.includes('contact') || lbl.includes('whatsapp'))) {
+            phoneToCheck = String(val).replace(/[^0-9]/g, '');
+          }
         }
       }
 
-      if (!emailToCheck) {
-        if (currentValues.email) emailToCheck = String(currentValues.email).trim();
-        else {
-          for (const [_, v] of Object.entries(currentValues)) {
-            if (typeof v === 'string' && v.includes('@') && v.includes('.')) {
+      // Fallbacks from root form values
+      if (!emailToCheck && currentValues.email) emailToCheck = String(currentValues.email).trim();
+      if (!prnToCheck && currentValues.prn) prnToCheck = String(currentValues.prn).trim().toUpperCase();
+      if (!phoneToCheck && currentValues.phone) phoneToCheck = String(currentValues.phone).replace(/[^0-9]/g, '');
+
+      // Check all values if still missing
+      if (!emailToCheck || !prnToCheck || !phoneToCheck) {
+        for (const [k, v] of Object.entries(currentValues)) {
+          if (typeof v === 'string') {
+            if (!emailToCheck && v.includes('@') && v.includes('.')) {
               emailToCheck = v.trim();
-              break;
             }
           }
         }
       }
 
-      if (emailToCheck && emailToCheck.includes('@') && event?.id) {
+      // Validate 10-digit phone format if entered
+      if (phoneToCheck && phoneToCheck.length > 0 && phoneToCheck.length !== 10) {
+        toast.error('Mobile number must be exactly 10 digits (numbers only)');
+        return false;
+      }
+
+      // Check uniqueness of Email, PRN, and Mobile Number against backend
+      if ((emailToCheck || prnToCheck || (phoneToCheck && phoneToCheck.length === 10)) && event?.id) {
         try {
-          const checkRes = await axios.get(`/events/${event.id}/check-email?email=${encodeURIComponent(emailToCheck)}`);
+          const checkParams = new URLSearchParams();
+          if (emailToCheck && emailToCheck.includes('@')) checkParams.append('email', emailToCheck);
+          if (prnToCheck) checkParams.append('prn', prnToCheck);
+          if (phoneToCheck && phoneToCheck.length === 10) checkParams.append('phone', phoneToCheck);
+
+          const checkRes = await axios.get(`/events/${event.id}/check-email?${checkParams.toString()}`);
           if (checkRes.data?.is_registered) {
+            const dupField = checkRes.data.duplicate_field;
+            let dupTitle = 'Already Registered';
+            let dupMsg = checkRes.data.message || 'Duplicate registration detected.';
+
+            if (dupField === 'prn') {
+              dupTitle = 'PRN Already Registered';
+              dupMsg = `A registration with PRN "${prnToCheck}" already exists for ${event.name}. PRN must be unique.`;
+            } else if (dupField === 'phone') {
+              dupTitle = 'Mobile Number Already Registered';
+              dupMsg = `A registration with Mobile Number "${phoneToCheck}" already exists for ${event.name}. Mobile number must be unique.`;
+            } else if (dupField === 'email') {
+              dupTitle = 'Email Already Registered';
+              dupMsg = `A registration with the email "${emailToCheck}" already exists for ${event.name}. You cannot register multiple times with the same email.`;
+            }
+
             setAlertModal({
               isOpen: true,
-              title: 'Already Registered',
-              message: `A registration with the email "${emailToCheck}" already exists for ${event.name}. You cannot register multiple times with the same email.`,
+              title: dupTitle,
+              message: dupMsg,
               isDuplicate: true,
               email: emailToCheck
             });
             return false;
           }
         } catch (e) {
-          console.error('Email check failed:', e);
+          console.error('Credentials uniqueness check failed:', e);
         }
       }
 
@@ -562,6 +633,7 @@ const PublicEventRegisterPage = () => {
     let resolvedFullName = '';
     let resolvedEmail = '';
     let resolvedPhone = '';
+    let resolvedPrn = '';
 
     try {
       setSubmitting(true);
@@ -573,8 +645,23 @@ const PublicEventRegisterPage = () => {
         sections.forEach((section) => {
           (section.fields || []).forEach((field) => {
             const key = `field_${field.id}`;
-            const val = data[key];
+            let val = data[key];
+            const otherTextKey = `field_${field.id}_other_text`;
+            const otherVal = data[otherTextKey] ? String(data[otherTextKey]).trim().slice(0, 25) : '';
+
+            // Handle Checkbox / Radio "Other" combination
             if (val !== undefined && val !== null && val !== '') {
+              if (Array.isArray(val)) {
+                val = val.map((v) => {
+                  if (String(v).toLowerCase() === 'other' && otherVal) {
+                    return `Other: ${otherVal}`;
+                  }
+                  return v;
+                });
+              } else if (typeof val === 'string' && val.toLowerCase() === 'other' && otherVal) {
+                val = `Other: ${otherVal}`;
+              }
+
               dynamicAnswers[field.id] = val;
               const lbl = (field.label || '').toLowerCase();
               if (!resolvedFullName && (field.field_type === 'text' && (lbl.includes('name') || lbl.includes('full name')))) {
@@ -583,8 +670,11 @@ const PublicEventRegisterPage = () => {
               if (!resolvedEmail && (field.field_type === 'email' || lbl.includes('email'))) {
                 resolvedEmail = String(val).trim();
               }
-              if (!resolvedPhone && (field.field_type === 'tel' || lbl.includes('phone') || lbl.includes('whatsapp') || lbl.includes('contact') || lbl.includes('mobile'))) {
-                resolvedPhone = String(val).trim();
+              if (!resolvedPhone && (field.field_type === 'tel' || field.field_type === 'phone' || lbl.includes('phone') || lbl.includes('whatsapp') || lbl.includes('contact') || lbl.includes('mobile'))) {
+                resolvedPhone = String(val).replace(/[^0-9]/g, '');
+              }
+              if (!resolvedPrn && (field.field_type === 'prn' || lbl.includes('prn') || lbl.includes('roll no') || lbl.includes('roll_no'))) {
+                resolvedPrn = String(val).trim().toUpperCase();
               }
             }
           });
@@ -594,7 +684,8 @@ const PublicEventRegisterPage = () => {
       // Check direct fallback from data
       if (!resolvedFullName && data.full_name) resolvedFullName = String(data.full_name).trim();
       if (!resolvedEmail && data.email) resolvedEmail = String(data.email).trim();
-      if (!resolvedPhone && data.phone) resolvedPhone = String(data.phone).trim();
+      if (!resolvedPhone && data.phone) resolvedPhone = String(data.phone).replace(/[^0-9]/g, '');
+      if (!resolvedPrn && data.prn) resolvedPrn = String(data.prn).trim().toUpperCase();
 
       // Scan all submitted keys for email if still missing
       if (!resolvedEmail) {
@@ -605,9 +696,17 @@ const PublicEventRegisterPage = () => {
         });
       }
 
+      // Validate 10-digit mobile number on submission
+      if (resolvedPhone && resolvedPhone.length !== 10) {
+        toast.error('Mobile number must be exactly 10 digits (numbers only)');
+        setSubmitting(false);
+        return;
+      }
+
       formData.append('full_name', resolvedFullName || 'Participant');
       formData.append('email', resolvedEmail || '');
       formData.append('phone', resolvedPhone || '');
+      formData.append('prn', resolvedPrn || '');
       formData.append('transaction_id', data.transaction_id || '');
       formData.append('payment_gateway', event?.payment_method === 'razorpay' ? 'Razorpay' : (data.payment_gateway || 'Manual/UPI'));
       formData.append('answers', JSON.stringify(dynamicAnswers));
@@ -1066,9 +1165,8 @@ const PublicEventRegisterPage = () => {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className={`mt-4 text-sm sm:text-base leading-relaxed ${
-                  isDark ? 'text-slate-300' : 'text-slate-600'
-                }`}
+                className={`mt-4 text-sm sm:text-base leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'
+                  }`}
               >
                 Intensive placement preparation bootcamp featuring Aptitude tests, Group Discussions, and 1-on-1 Mock Interviews.
               </motion.p>
@@ -1081,32 +1179,28 @@ const PublicEventRegisterPage = () => {
                 className="mt-6 flex flex-wrap gap-2.5"
               >
                 {event.start_date && (
-                  <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
-                    isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
-                  }`}>
+                  <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                    }`}>
                     <Calendar size={13} className="text-primary-blue" />
                     <span>{formatDate(event.start_date)}</span>
                   </div>
                 )}
-                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
-                  isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
-                }`}>
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                  }`}>
                   <MapPin size={13} className="text-rose-500" />
                   <span>{event.location || "KIT's College of Engineering"}</span>
                 </div>
-                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
-                  isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
-                }`}>
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                  }`}>
                   <Coins size={13} className="text-amber-500" />
-                  <span>{isPaid ? `₹${parseFloat(event.registration_fee).toFixed(0)}` : 'Free Entry'}</span>
+                  <span>{getDisplayEventFee()}</span>
                 </div>
-                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${
-                  isCapacityReached 
-                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' 
-                    : isRegistrationClosed 
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1.5 ${isCapacityReached
+                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                    : isRegistrationClosed
                       ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
                       : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                }`}>
+                  }`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current" />
                   <span>{isCapacityReached ? 'Housefull' : isRegistrationClosed ? 'Closed' : 'Registration Open'}</span>
                 </div>
@@ -1134,11 +1228,10 @@ const PublicEventRegisterPage = () => {
                 )}
                 <Link
                   to="/user-login"
-                  className={`inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl border text-xs font-bold uppercase tracking-wider transition ${
-                    isDark
+                  className={`inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl border text-xs font-bold uppercase tracking-wider transition ${isDark
                       ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300'
                       : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
-                  }`}
+                    }`}
                 >
                   <LogIn size={14} />
                   <span>Participant Login</span>
@@ -1322,10 +1415,10 @@ const PublicEventRegisterPage = () => {
                         type="button"
                         onClick={handleSelectAllSubEvents}
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${isAllSubSelected
-                            ? 'bg-blue-500/15 border-blue-500/40 text-primary-blue'
-                            : isDark
-                              ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-                              : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                          ? 'bg-blue-500/15 border-blue-500/40 text-primary-blue'
+                          : isDark
+                            ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                            : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
                           }`}
                       >
                         {isAllSubSelected ? <CheckSquare size={14} /> : <Square size={14} />}
@@ -1336,10 +1429,10 @@ const PublicEventRegisterPage = () => {
                     {/* Combo Deal Banner if applicable */}
                     {comboFeeVal !== null && comboFeeVal > 0 && (
                       <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${isAllSubSelected
-                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
-                          : isDark
-                            ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
-                            : 'bg-blue-50 border-blue-200 text-blue-900'
+                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                        : isDark
+                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                          : 'bg-blue-50 border-blue-200 text-blue-900'
                         }`}>
                         <div className="flex items-center gap-3">
                           <Sparkles size={20} className={isAllSubSelected ? 'text-emerald-500 animate-pulse' : 'text-primary-blue'} />
@@ -1378,12 +1471,12 @@ const PublicEventRegisterPage = () => {
                           <div
                             key={sub.id}
                             className={`rounded-2xl border transition-all ${isClosed
-                                ? 'border-slate-300 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/20 opacity-60'
-                                : isSelected
-                                  ? 'border-primary-blue/50 bg-blue-500/5 shadow-md shadow-blue-500/5'
-                                  : isDark
-                                    ? 'border-slate-800 bg-slate-900/30 opacity-80 hover:opacity-100'
-                                    : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+                              ? 'border-slate-300 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/20 opacity-60'
+                              : isSelected
+                                ? 'border-primary-blue/50 bg-blue-500/5 shadow-md shadow-blue-500/5'
+                                : isDark
+                                  ? 'border-slate-800 bg-slate-900/30 opacity-80 hover:opacity-100'
+                                  : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
                               }`}
                           >
                             {/* Card Header & Checkbox Toggle */}
@@ -1409,8 +1502,8 @@ const PublicEventRegisterPage = () => {
                                     </h5>
                                     <span
                                       className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${isGroup
-                                          ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
-                                          : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                        ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300'
+                                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                                         }`}
                                     >
                                       {isGroup ? `Group (${minTeam}-${maxTeam} members)` : 'Individual'}
@@ -1571,7 +1664,16 @@ const PublicEventRegisterPage = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         {(currentSection.fields || []).map((field) => {
                           const fieldName = `field_${field.id}`;
-                          const isFull = ['textarea', 'file', 'image', 'resume', 'pdf'].includes(field.field_type);
+                          const isFull = ['textarea', 'file', 'image', 'resume', 'pdf', 'checkbox', 'radio'].includes(field.field_type);
+                          const fieldLabelLower = (field.label || '').toLowerCase();
+                          const isPhoneField = field.field_type === 'tel' || field.field_type === 'phone' || fieldLabelLower.includes('phone') || fieldLabelLower.includes('mobile') || fieldLabelLower.includes('contact') || fieldLabelLower.includes('whatsapp');
+                          const isPrnField = field.field_type === 'prn' || fieldLabelLower.includes('prn') || fieldLabelLower.includes('roll no') || fieldLabelLower.includes('roll_no');
+
+                          // Check if options include an "Other" choice
+                          const otherOpt = (field.options || []).find((o) => {
+                            const lbl = (o.option_label || o.option_value || '').toLowerCase();
+                            return lbl === 'other' || lbl.startsWith('other ');
+                          });
 
                           return (
                             <div key={field.id} className={isFull ? 'sm:col-span-2' : ''}>
@@ -1602,22 +1704,133 @@ const PublicEventRegisterPage = () => {
                                     </option>
                                   ))}
                                 </select>
-                              ) : field.field_type === 'radio' ? (
-                                <div className="space-y-2">
-                                  {(field.options || []).map((opt) => (
-                                    <label key={opt.id || opt.option_value} className="flex items-center gap-2.5 text-xs text-slate-800 dark:text-slate-300 font-medium cursor-pointer">
-                                      <input
-                                        type="radio"
-                                        value={opt.option_value}
-                                        {...register(fieldName, {
-                                          required: field.is_required ? `${field.label} is required` : false,
+                              ) : field.field_type === 'checkbox' ? (
+                                (() => {
+                                  const currentVal = watch(fieldName);
+                                  const isOtherSelected = otherOpt && (Array.isArray(currentVal) ? currentVal.includes(otherOpt.option_value) : currentVal === otherOpt.option_value);
+                                  const otherTextVal = watch(`${fieldName}_other_text`) || '';
+
+                                  return (
+                                    <div className="space-y-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                        {(field.options || []).map((opt) => {
+                                          const val = watch(fieldName);
+                                          const isSelected = Array.isArray(val) && val.includes(opt.option_value);
+                                          return (
+                                            <label
+                                              key={opt.id || opt.option_value}
+                                              className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer text-xs font-semibold select-none transition-all ${isSelected
+                                                  ? 'border-primary-blue bg-blue-500/10 text-primary-blue font-bold'
+                                                  : isDark
+                                                    ? 'border-[#1E293B] bg-[#0E172A] text-slate-300 hover:border-slate-700'
+                                                    : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
+                                                }`}
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                value={opt.option_value}
+                                                {...register(fieldName, {
+                                                  required: field.is_required ? 'Please select at least one option' : false,
+                                                })}
+                                                className="w-4 h-4 rounded text-primary-blue focus:ring-primary-blue"
+                                              />
+                                              <span>{opt.option_label || opt.option_value}</span>
+                                            </label>
+                                          );
                                         })}
-                                        className="text-primary-blue focus:ring-primary-blue"
-                                      />
-                                      <span>{opt.option_label || opt.option_value}</span>
-                                    </label>
-                                  ))}
-                                </div>
+                                      </div>
+
+                                      {/* If 'Other' option is selected in checkboxes, show empty text field of max 25 chars */}
+                                      {isOtherSelected && (
+                                        <div className="mt-2 space-y-1">
+                                          <div className="relative">
+                                            <input
+                                              type="text"
+                                              maxLength={25}
+                                              placeholder="Please specify for 'Other' (max 25 chars)..."
+                                              {...register(`${fieldName}_other_text`, {
+                                                required: isOtherSelected ? "Please specify details for 'Other'" : false,
+                                                maxLength: { value: 25, message: 'Maximum 25 characters allowed' }
+                                              })}
+                                              className={inputClass}
+                                            />
+                                            <span className="absolute right-3 top-3 text-[10px] font-mono text-slate-400">
+                                              {otherTextVal.length}/25
+                                            </span>
+                                          </div>
+                                          {errors[`${fieldName}_other_text`] && (
+                                            <p className="text-xs text-rose-500 flex items-center gap-1 font-semibold">
+                                              <AlertCircle size={12} /> {errors[`${fieldName}_other_text`].message}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()
+                              ) : field.field_type === 'radio' ? (
+                                (() => {
+                                  const currentVal = watch(fieldName);
+                                  const isOtherSelected = otherOpt && currentVal === otherOpt.option_value;
+                                  const otherTextVal = watch(`${fieldName}_other_text`) || '';
+
+                                  return (
+                                    <div className="space-y-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                        {(field.options || []).map((opt) => {
+                                          const isSelected = currentVal === opt.option_value;
+                                          return (
+                                            <label
+                                              key={opt.id || opt.option_value}
+                                              className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer text-xs font-semibold select-none transition-all ${isSelected
+                                                  ? 'border-primary-blue bg-blue-500/10 text-primary-blue font-bold'
+                                                  : isDark
+                                                    ? 'border-[#1E293B] bg-[#0E172A] text-slate-300 hover:border-slate-700'
+                                                    : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
+                                                }`}
+                                            >
+                                              <input
+                                                type="radio"
+                                                value={opt.option_value}
+                                                {...register(fieldName, {
+                                                  required: field.is_required ? `${field.label} is required` : false,
+                                                })}
+                                                className="w-4 h-4 text-primary-blue focus:ring-primary-blue"
+                                              />
+                                              <span>{opt.option_label || opt.option_value}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+
+                                      {/* If 'Other' radio is selected, show empty text field of max 25 chars */}
+                                      {isOtherSelected && (
+                                        <div className="mt-2 space-y-1">
+                                          <div className="relative">
+                                            <input
+                                              type="text"
+                                              maxLength={25}
+                                              placeholder="Please specify for 'Other' (max 25 chars)..."
+                                              {...register(`${fieldName}_other_text`, {
+                                                required: isOtherSelected ? "Please specify details for 'Other'" : false,
+                                                maxLength: { value: 25, message: 'Maximum 25 characters allowed' }
+                                              })}
+                                              className={inputClass}
+                                            />
+                                            <span className="absolute right-3 top-3 text-[10px] font-mono text-slate-400">
+                                              {otherTextVal.length}/25
+                                            </span>
+                                          </div>
+                                          {errors[`${fieldName}_other_text`] && (
+                                            <p className="text-xs text-rose-500 flex items-center gap-1 font-semibold">
+                                              <AlertCircle size={12} /> {errors[`${fieldName}_other_text`].message}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()
                               ) : ['file', 'image', 'resume', 'pdf'].includes(field.field_type) ? (
                                 <div className={`border-2 border-dashed rounded-2xl p-6 text-center transition ${isDark ? 'border-slate-800 bg-[#070C18]' : 'border-slate-300 bg-slate-50/70'
                                   }`}>
@@ -1639,6 +1852,40 @@ const PublicEventRegisterPage = () => {
                                     {fileInputs[field.id] ? 'Change Selected File' : 'Browse File'}
                                   </label>
                                 </div>
+                              ) : isPhoneField ? (
+                                <div>
+                                  <input
+                                    type="tel"
+                                    maxLength={10}
+                                    placeholder={field.placeholder || 'Enter 10-digit mobile number'}
+                                    onInput={(e) => {
+                                      e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                                    }}
+                                    {...register(fieldName, {
+                                      required: field.is_required ? `${field.label} is required` : false,
+                                      pattern: {
+                                        value: /^[0-9]{10}$/,
+                                        message: 'Mobile number must be exactly 10 digits (numbers only)'
+                                      }
+                                    })}
+                                    className={inputClass}
+                                  />
+                                </div>
+                              ) : isPrnField ? (
+                                <div>
+                                  <input
+                                    type="text"
+                                    placeholder={field.placeholder || 'Enter PRN / College Roll No.'}
+                                    onInput={(e) => {
+                                      e.target.value = e.target.value.toUpperCase();
+                                    }}
+                                    {...register(fieldName, {
+                                      required: field.is_required ? `${field.label} is required` : false,
+                                    })}
+                                    className={`${inputClass} uppercase font-mono font-bold`}
+                                  />
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-mono">Unique student PRN</p>
+                                </div>
                               ) : (
                                 <input
                                   type={
@@ -1648,9 +1895,7 @@ const PublicEventRegisterPage = () => {
                                         ? 'date'
                                         : field.field_type === 'email'
                                           ? 'email'
-                                          : field.field_type === 'tel'
-                                            ? 'tel'
-                                            : 'text'
+                                          : 'text'
                                   }
                                   placeholder={field.placeholder || ''}
                                   {...register(fieldName, {

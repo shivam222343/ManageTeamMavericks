@@ -33,6 +33,9 @@ class EventRegistrationController {
             $db->exec("ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS user_id INT DEFAULT NULL");
         } catch (\Exception $e) { /* ignore */ }
         try {
+            $db->exec("ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS prn VARCHAR(100) DEFAULT NULL");
+        } catch (\Exception $e) { /* ignore */ }
+        try {
             $db->exec("ALTER TABLE event_registration_files MODIFY COLUMN field_id INT DEFAULT NULL");
         } catch (\Exception $e) { /* ignore */ }
         try {
@@ -294,7 +297,7 @@ class EventRegistrationController {
 
     /**
      * GET/POST /api.php/events/{id}/check-email
-     * Public endpoint to check if an email is already registered for this event
+     * Public endpoint to check if an email, PRN, or mobile number is already registered for this event
      */
     public function checkEmail(array $params): void {
         $this->ensureMigration();
@@ -302,36 +305,120 @@ class EventRegistrationController {
 
         $input = !empty($_POST) ? $_POST : (json_decode(file_get_contents('php://input'), true) ?? []);
         $email = trim($_GET['email'] ?? $input['email'] ?? '');
+        $prn = strtoupper(trim($_GET['prn'] ?? $input['prn'] ?? ''));
+        $rawPhone = trim($_GET['phone'] ?? $_GET['mobile'] ?? $input['phone'] ?? $input['mobile'] ?? '');
+        $phone = preg_replace('/[^0-9]/', '', $rawPhone);
 
-        if (empty($email)) {
+        if (empty($email) && empty($prn) && empty($phone)) {
             Router::sendJson(['is_registered' => false]);
             return;
         }
 
         $db = Database::getConnection();
-        $stmt = $db->prepare("
-            SELECT id, full_name, email, registration_token, status, payment_status 
-            FROM event_registrations 
-            WHERE event_id = ? AND email = ? AND status != 'cancelled'
-            LIMIT 1
-        ");
-        $stmt->execute([$eventId, $email]);
-        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($existing) {
-            Router::sendJson([
-                'is_registered' => true,
-                'registration' => [
-                    'id' => (int)$existing['id'],
-                    'full_name' => $existing['full_name'],
-                    'email' => $existing['email'],
-                    'token' => $existing['registration_token'],
-                    'status' => $existing['status']
-                ]
-            ]);
-        } else {
-            Router::sendJson(['is_registered' => false]);
+        // 1. Check Email
+        if (!empty($email)) {
+            $stmt = $db->prepare("
+                SELECT id, full_name, email, prn, phone, registration_token, status, payment_status 
+                FROM event_registrations 
+                WHERE event_id = ? AND email = ? AND status != 'cancelled'
+                LIMIT 1
+            ");
+            $stmt->execute([$eventId, $email]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($existing) {
+                Router::sendJson([
+                    'is_registered' => true,
+                    'duplicate_field' => 'email',
+                    'duplicate_value' => $email,
+                    'message' => "A registration with the email \"{$email}\" already exists for this event.",
+                    'registration' => [
+                        'id' => (int)$existing['id'],
+                        'full_name' => $existing['full_name'],
+                        'email' => $existing['email'],
+                        'token' => $existing['registration_token'],
+                        'status' => $existing['status']
+                    ]
+                ]);
+                return;
+            }
         }
+
+        // 2. Check PRN
+        if (!empty($prn)) {
+            $stmt = $db->prepare("
+                SELECT id, full_name, email, prn, phone, registration_token, status 
+                FROM event_registrations 
+                WHERE event_id = ? AND status != 'cancelled' AND (
+                    UPPER(prn) = ? 
+                    OR id IN (
+                        SELECT ea.registration_id 
+                        FROM event_registration_answers ea 
+                        JOIN form_fields ff ON ea.field_id = ff.id 
+                        WHERE (ff.field_type = 'prn' OR LOWER(ff.label) LIKE '%prn%') 
+                        AND UPPER(TRIM(ea.answer_text)) = ?
+                    )
+                )
+                LIMIT 1
+            ");
+            $stmt->execute([$eventId, $prn, $prn]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($existing) {
+                Router::sendJson([
+                    'is_registered' => true,
+                    'duplicate_field' => 'prn',
+                    'duplicate_value' => $prn,
+                    'message' => "A registration with PRN \"{$prn}\" already exists for this event. PRN must be unique.",
+                    'registration' => [
+                        'id' => (int)$existing['id'],
+                        'full_name' => $existing['full_name'],
+                        'email' => $existing['email'],
+                        'token' => $existing['registration_token'],
+                        'status' => $existing['status']
+                    ]
+                ]);
+                return;
+            }
+        }
+
+        // 3. Check Phone / Mobile (if valid 10 digits)
+        if (!empty($phone) && strlen($phone) === 10) {
+            $stmt = $db->prepare("
+                SELECT id, full_name, email, prn, phone, registration_token, status 
+                FROM event_registrations 
+                WHERE event_id = ? AND status != 'cancelled' AND (
+                    phone = ? 
+                    OR id IN (
+                        SELECT ea.registration_id 
+                        FROM event_registration_answers ea 
+                        JOIN form_fields ff ON ea.field_id = ff.id 
+                        WHERE (ff.field_type IN ('tel', 'phone') OR LOWER(ff.label) LIKE '%phone%' OR LOWER(ff.label) LIKE '%mobile%' OR LOWER(ff.label) LIKE '%contact%') 
+                        AND ea.answer_text = ?
+                    )
+                )
+                LIMIT 1
+            ");
+            $stmt->execute([$eventId, $phone, $phone]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($existing) {
+                Router::sendJson([
+                    'is_registered' => true,
+                    'duplicate_field' => 'phone',
+                    'duplicate_value' => $phone,
+                    'message' => "A registration with Mobile Number \"{$phone}\" already exists for this event. Mobile number must be unique.",
+                    'registration' => [
+                        'id' => (int)$existing['id'],
+                        'full_name' => $existing['full_name'],
+                        'email' => $existing['email'],
+                        'token' => $existing['registration_token'],
+                        'status' => $existing['status']
+                    ]
+                ]);
+                return;
+            }
+        }
+
+        Router::sendJson(['is_registered' => false]);
     }
 
     /**
@@ -410,7 +497,8 @@ class EventRegistrationController {
         // Extract core fields
         $fullName       = trim($input['full_name'] ?? '');
         $email          = trim($input['email'] ?? '');
-        $phone          = trim($input['phone'] ?? '');
+        $phone          = trim($input['phone'] ?? $input['mobile'] ?? '');
+        $prn            = strtoupper(trim($input['prn'] ?? ''));
         $transactionId  = trim($input['transaction_id'] ?? '');
         $paymentGateway = trim($input['payment_gateway'] ?? 'Manual/UPI');
         
@@ -421,30 +509,31 @@ class EventRegistrationController {
             $answers = is_array($answersRaw) ? $answersRaw : [];
         }
 
-        // If core identifiers are missing from top level, scan dynamic answers & form field labels
-        if (empty($fullName) || empty($email) || empty($phone)) {
-            $fieldsStmt = $db->prepare("
-                SELECT ff.id, ff.label, ff.field_type
-                FROM form_fields ff
-                JOIN form_sections fs ON ff.section_id = fs.id
-                WHERE fs.event_form_id = ?
-            ");
-            $fieldsStmt->execute([$form['id']]);
-            $formFields = $fieldsStmt->fetchAll(PDO::FETCH_ASSOC);
+        // Scan dynamic answers & form field labels to resolve missing identifiers
+        $fieldsStmt = $db->prepare("
+            SELECT ff.id, ff.label, ff.field_type
+            FROM form_fields ff
+            JOIN form_sections fs ON ff.section_id = fs.id
+            WHERE fs.event_form_id = ?
+        ");
+        $fieldsStmt->execute([$form['id']]);
+        $formFields = $fieldsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            foreach ($formFields as $f) {
-                $val = $input['field_' . $f['id']] ?? $answers[$f['id']] ?? $answers[(string)$f['id']] ?? null;
-                if ($val && is_string($val)) {
-                    $lbl = strtolower($f['label']);
-                    if (empty($fullName) && (str_contains($lbl, 'name') || $f['field_type'] === 'text')) {
-                        $fullName = trim($val);
-                    }
-                    if (empty($email) && ($f['field_type'] === 'email' || str_contains($lbl, 'email'))) {
-                        $email = trim($val);
-                    }
-                    if (empty($phone) && ($f['field_type'] === 'tel' || $f['field_type'] === 'phone' || str_contains($lbl, 'phone') || str_contains($lbl, 'contact') || str_contains($lbl, 'mobile') || str_contains($lbl, 'whatsapp'))) {
-                        $phone = trim($val);
-                    }
+        foreach ($formFields as $f) {
+            $val = $input['field_' . $f['id']] ?? $answers[$f['id']] ?? $answers[(string)$f['id']] ?? null;
+            if ($val && is_string($val)) {
+                $lbl = strtolower($f['label']);
+                if (empty($fullName) && (str_contains($lbl, 'name') || $f['field_type'] === 'text')) {
+                    $fullName = trim($val);
+                }
+                if (empty($email) && ($f['field_type'] === 'email' || str_contains($lbl, 'email'))) {
+                    $email = trim($val);
+                }
+                if (empty($phone) && ($f['field_type'] === 'tel' || $f['field_type'] === 'phone' || str_contains($lbl, 'phone') || str_contains($lbl, 'contact') || str_contains($lbl, 'mobile') || str_contains($lbl, 'whatsapp'))) {
+                    $phone = trim($val);
+                }
+                if (empty($prn) && ($f['field_type'] === 'prn' || str_contains($lbl, 'prn') || str_contains($lbl, 'roll no') || str_contains($lbl, 'roll_no'))) {
+                    $prn = strtoupper(trim($val));
                 }
             }
         }
@@ -464,12 +553,68 @@ class EventRegistrationController {
             return;
         }
 
-        // Duplicate registration check for this specific event
-        $dupCheck = $db->prepare("SELECT id FROM event_registrations WHERE event_id = ? AND email = ?");
-        $dupCheck->execute([$eventId, $email]);
-        if ($dupCheck->fetch()) {
-            Router::sendJson(['error' => 'A registration with this email already exists for this event'], 409);
+        // Clean & Validate Phone Number (10 digits only)
+        if (!empty($phone)) {
+            $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+            if (strlen($cleanPhone) !== 10) {
+                Router::sendJson(['error' => 'Mobile number must be exactly 10 digits (numbers only)'], 400);
+                return;
+            }
+            $phone = $cleanPhone;
+        }
+
+        // 1. Duplicate email check for this specific event
+        $dupEmailCheck = $db->prepare("SELECT id FROM event_registrations WHERE event_id = ? AND email = ? AND status != 'cancelled' LIMIT 1");
+        $dupEmailCheck->execute([$eventId, $email]);
+        if ($dupEmailCheck->fetch()) {
+            Router::sendJson(['error' => "A registration with the email '{$email}' already exists for this event."], 409);
             return;
+        }
+
+        // 2. Duplicate PRN check for this specific event
+        if (!empty($prn)) {
+            $dupPrnCheck = $db->prepare("
+                SELECT id FROM event_registrations 
+                WHERE event_id = ? AND status != 'cancelled' AND (
+                    UPPER(prn) = ? 
+                    OR id IN (
+                        SELECT ea.registration_id 
+                        FROM event_registration_answers ea 
+                        JOIN form_fields ff ON ea.field_id = ff.id 
+                        WHERE (ff.field_type = 'prn' OR LOWER(ff.label) LIKE '%prn%') 
+                        AND UPPER(TRIM(ea.answer_text)) = ?
+                    )
+                ) 
+                LIMIT 1
+            ");
+            $dupPrnCheck->execute([$eventId, $prn, $prn]);
+            if ($dupPrnCheck->fetch()) {
+                Router::sendJson(['error' => "A registration with PRN '{$prn}' already exists for this event. PRN must be unique."], 409);
+                return;
+            }
+        }
+
+        // 3. Duplicate Phone check for this specific event
+        if (!empty($phone)) {
+            $dupPhoneCheck = $db->prepare("
+                SELECT id FROM event_registrations 
+                WHERE event_id = ? AND status != 'cancelled' AND (
+                    phone = ? 
+                    OR id IN (
+                        SELECT ea.registration_id 
+                        FROM event_registration_answers ea 
+                        JOIN form_fields ff ON ea.field_id = ff.id 
+                        WHERE (ff.field_type IN ('tel', 'phone') OR LOWER(ff.label) LIKE '%phone%' OR LOWER(ff.label) LIKE '%mobile%' OR LOWER(ff.label) LIKE '%contact%') 
+                        AND ea.answer_text = ?
+                    )
+                ) 
+                LIMIT 1
+            ");
+            $dupPhoneCheck->execute([$eventId, $phone, $phone]);
+            if ($dupPhoneCheck->fetch()) {
+                Router::sendJson(['error' => "A registration with Mobile Number '{$phone}' already exists for this event. Mobile number must be unique."], 409);
+                return;
+            }
         }
 
         // Fetch active sub-events for this event
@@ -582,9 +727,9 @@ class EventRegistrationController {
             // 2. Insert into event_registrations
             $regStmt = $db->prepare("
                 INSERT INTO event_registrations
-                    (event_id, event_form_id, user_id, full_name, email, phone,
+                    (event_id, event_form_id, user_id, full_name, email, phone, prn,
                      status, payment_status, payment_amount, transaction_id, payment_gateway, registration_token, selected_sub_event_ids)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $regStmt->execute([
                 $eventId,
@@ -593,6 +738,7 @@ class EventRegistrationController {
                 $fullName,
                 $email,
                 $phone,
+                $prn ?: null,
                 $paymentRequired ? 'pending' : 'confirmed',
                 $paymentStatus,
                 $paymentAmount,

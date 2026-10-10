@@ -68,6 +68,8 @@ import JudgePortalPage from './pages/judge/JudgePortalPage';
 
 import MajorLoader from './components/ui/MajorLoader';
 import TargetCursor from './components/ui/TargetCursor';
+import NotFoundPage from './pages/NotFoundPage';
+import NotificationDrawer from './components/ui/NotificationDrawer';
 
 // Protected Route Guard
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -293,8 +295,9 @@ function App() {
 
         {/* Fallback routing */}
         <Route path="/" element={<Navigate to="/teammavericks/recruitment-2026" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      <NotificationDrawer />
       <ThemeToggle />
     </BrowserRouter>
   );

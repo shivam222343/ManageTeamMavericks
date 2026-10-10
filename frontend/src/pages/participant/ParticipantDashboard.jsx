@@ -54,6 +54,10 @@ import QrScannerModal from '../../components/ui/QrScannerModal';
 import Lanyard from '../../components/ui/Lanyard';
 import { useLanyardTextures, getISTGreeting } from '../../components/ui/useLanyardTextures';
 import MindSagaKeyModal from '../../components/ui/MindSagaKeyModal';
+import MobileScrollSlider from '../../components/ui/MobileScrollSlider';
+import NotificationBell from '../../components/ui/NotificationBell';
+import RegisteredEventProgressSection from '../../components/participant/RegisteredEventProgressSection';
+import SpecularButton from '../../components/ui/SpecularButton';
 
 const ParticipantDashboard = () => {
   const { user, logout } = useAuth();
@@ -206,12 +210,23 @@ const ParticipantDashboard = () => {
     const timer = setInterval(() => {
       setIstGreeting(getISTGreeting());
     }, 60000); // refresh every minute
-    return () => clearInterval(timer);
+
+    const handleRealtimeRefresh = () => {
+      fetchDashboard(true);
+    };
+    window.addEventListener('mavericks:refresh_data', handleRealtimeRefresh);
+    window.addEventListener('mavericks:notification', handleRealtimeRefresh);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('mavericks:refresh_data', handleRealtimeRefresh);
+      window.removeEventListener('mavericks:notification', handleRealtimeRefresh);
+    };
   }, []);
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await axios.get('/participant/dashboard');
       setData(res.data);
       if (res.data.user?.name) {
@@ -227,9 +242,9 @@ const ParticipantDashboard = () => {
       }
     } catch (err) {
       console.error('Failed to load participant dashboard:', err);
-      toast.error('Failed to load dashboard data.');
+      if (!silent) toast.error('Failed to load dashboard data.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -487,6 +502,9 @@ const ParticipantDashboard = () => {
               <span>Explore Events</span>
               <ArrowUpRight size={13} />
             </Link>
+
+            {/* Realtime Notification Bell */}
+            <NotificationBell />
 
             {/* Theme Toggle */}
             <button
@@ -843,9 +861,7 @@ const ParticipantDashboard = () => {
                                         sub.attended === true ||
                                         sub.attended === '1' ||
                                         sub.attendance === 1 ||
-                                        sub.attendance === '1' ||
-                                        reg.attendance === 1 ||
-                                        reg.attended === true;
+                                        sub.attendance === '1';
 
                                       return (
                                         <span
@@ -891,13 +907,7 @@ const ParticipantDashboard = () => {
                                         msSub.attendance === '1' ||
                                         msSub.attended === 1 ||
                                         msSub.attended === true ||
-                                        msSub.attended === '1' ||
-                                        reg.attendance === 1 ||
-                                        reg.attendance === true ||
-                                        reg.attendance === '1' ||
-                                        reg.attended === 1 ||
-                                        reg.attended === true ||
-                                        reg.attended === '1';
+                                        msSub.attended === '1';
 
                                       return (
                                         <div
@@ -1004,15 +1014,21 @@ const ParticipantDashboard = () => {
                                               </button>
                                             </div>
                                           ) : (
-                                            <button
-                                              type="button"
+                                            <SpecularButton
+                                              size="md"
+                                              radius={16}
+                                              textColor={isDark ? '#f5f5f5' : '#09090b'}
+                                              lineColor={isDark ? '#ffffff' : '#09090b'}
+                                              baseColor={isDark ? '#3f3f46' : '#d4d4d8'}
+                                              tint={isDark ? '#000000' : '#ffffff'}
+                                              tintOpacity={isDark ? 0.4 : 0.8}
+                                              className="w-full"
                                               onClick={() => openMindSagaKeyPrompt(reg.event_id, msSub.sub_event_id, msSub.sub_event_name, accessKey)}
-                                              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-black uppercase tracking-wider transition shadow-md shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer"
                                             >
-                                              <Play size={12} fill="white" />
-                                              <span>Enter Mind Saga Arena (Enter Key)</span>
+                                              <Play size={12} fill={isDark ? '#f5f5f5' : '#09090b'} />
+                                              <span>Enter Mind Saga Arena</span>
                                               <ArrowUpRight size={13} />
-                                            </button>
+                                            </SpecularButton>
                                           )}
                                         </div>
                                       );
@@ -1111,6 +1127,19 @@ const ParticipantDashboard = () => {
 
               </div>
 
+            </div>
+
+            {/* ========================================================================= */}
+            {/* SECTION 3: REGISTERED EVENT PROGRESS, SUB-EVENTS ATTENDANCE & MILESTONES  */}
+            {/* ========================================================================= */}
+            <div className="relative z-10 pointer-events-auto">
+              <RegisteredEventProgressSection
+                registrations={registrations}
+                isDark={isDark}
+                onOpenScanner={() => setScannerOpen(true)}
+                onOpenMindSagaModal={openMindSagaKeyPrompt}
+                onSelectPass={(p) => setSelectedPass(p)}
+              />
             </div>
           </div>
         )}
@@ -1419,9 +1448,7 @@ const ParticipantDashboard = () => {
                     <div className="space-y-2.5">
                       {selectedPass.sub_events.map((sub, sIdx) => {
                         const isSubAtt = sub.attendance === 1 || sub.attendance === true || sub.attendance === '1' ||
-                          sub.attended === 1 || sub.attended === true || sub.attended === '1' ||
-                          selectedPass.attendance === 1 || selectedPass.attendance === true || selectedPass.attendance === '1' ||
-                          selectedPass.attended === 1 || selectedPass.attended === true || selectedPass.attended === '1';
+                          sub.attended === 1 || sub.attended === true || sub.attended === '1';
 
                         const isMindSaga = sub.is_mind_saga || sub.mind_saga_key || sub.sub_event_name?.toLowerCase().includes('mind') || sub.sub_event_slug?.toLowerCase().includes('mind');
                         const accessKey = sub.mind_saga_key || 'MS-PENDING';
@@ -1492,15 +1519,21 @@ const ParticipantDashboard = () => {
                                 </div>
 
                                 {isSubAtt ? (
-                                  <button
-                                    type="button"
+                                  <SpecularButton
+                                    size="md"
+                                    radius={16}
+                                    textColor={isDark ? '#f5f5f5' : '#09090b'}
+                                    lineColor={isDark ? '#ffffff' : '#09090b'}
+                                    baseColor={isDark ? '#3f3f46' : '#d4d4d8'}
+                                    tint={isDark ? '#000000' : '#ffffff'}
+                                    tintOpacity={isDark ? 0.4 : 0.8}
+                                    className="w-full"
                                     onClick={() => openMindSagaKeyPrompt(selectedPass.event_id, sub.sub_event_id, sub.sub_event_name, accessKey)}
-                                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md shadow-indigo-600/25 cursor-pointer"
                                   >
-                                    <Play size={13} />
-                                    <span>Launch Mind Saga Arena (Enter Key)</span>
+                                    <Play size={13} fill={isDark ? '#f5f5f5' : '#09090b'} />
+                                    <span>Launch Mind Saga Arena</span>
                                     <ArrowUpRight size={13} />
-                                  </button>
+                                  </SpecularButton>
                                 ) : (
                                   <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${isDark ? 'bg-amber-500/10 border-amber-500/25' : 'bg-amber-50 border-amber-200 text-amber-900'
                                     }`}>
@@ -1573,6 +1606,9 @@ const ParticipantDashboard = () => {
         title="Scan Attendance QR Code"
         description="Point your device camera at the Event or Sub-Event Attendance QR code to mark your attendance."
       />
+
+      {/* --- MOBILE SCROLL SLIDER HELPER --- */}
+      <MobileScrollSlider isDark={isDark} />
 
       <Footer />
     </div>

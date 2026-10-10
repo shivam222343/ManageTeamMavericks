@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EventSubEventsManager from './components/EventSubEventsManager';
+import EventNotificationModal from '../../components/events/EventNotificationModal';
 
 const EVENT_STATUS = ['draft', 'published', 'ongoing', 'completed', 'archived'];
 const REG_STATUS   = ['open', 'closed', 'scheduled'];
@@ -48,6 +49,7 @@ const EventDetailPage = () => {
   const [loading, setLoading]           = useState(true);
   const [event, setEvent]               = useState(null);
   const [statusChanging, setStatusChanging] = useState(false);
+  const [notifModalOpen, setNotifModalOpen] = useState(false);
 
   const fetchEvent = async () => {
     setLoading(true);
@@ -115,6 +117,12 @@ const EventDetailPage = () => {
           </div>
 
           <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              onClick={() => setNotifModalOpen(true)}
+              className="flex items-center gap-1.5 h-9 px-4 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-[10px] font-extrabold uppercase tracking-widest hover:bg-amber-500/20 transition cursor-pointer shadow-sm"
+            >
+              <Zap size={12} className="text-amber-500" /> Send Notification
+            </button>
             <Link
               to={`/dashboard/events/${id}/attendance`}
               className="flex items-center gap-1.5 h-9 px-4 bg-primary-blue text-white rounded-xl text-[10px] font-extrabold uppercase tracking-widest hover:bg-blue-600 transition cursor-pointer shadow-md shadow-primary-blue/20"
@@ -273,6 +281,14 @@ const EventDetailPage = () => {
           </Link>
         ))}
       </div>
+
+      {/* Broadcast Notification Modal */}
+      <EventNotificationModal
+        isOpen={notifModalOpen}
+        onClose={() => setNotifModalOpen(false)}
+        eventId={id}
+        eventName={event.name}
+      />
     </div>
   );
 };

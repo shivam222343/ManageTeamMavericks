@@ -1353,6 +1353,44 @@ class SubEventControlRoomController {
             }
 
             $db->commit();
+
+            // Send real-time notifications to all shortlisted participants
+            try {
+                $subStmt = $db->prepare("SELECT name FROM event_sub_events WHERE id = ?");
+                $subStmt->execute([$subEventId]);
+                $subEventName = $subStmt->fetchColumn() ?: 'Sub-Event';
+
+                $nextRoundName = 'Next Round';
+                if ($nextRoundId) {
+                    $rndStmt = $db->prepare("SELECT name FROM sub_event_rounds WHERE id = ?");
+                    $rndStmt->execute([$nextRoundId]);
+                    $nextRoundName = $rndStmt->fetchColumn() ?: 'Next Round';
+                }
+
+                if (!empty($registrationIds)) {
+                    $inR = implode(',', array_fill(0, count($registrationIds), '?'));
+                    $regStmt = $db->prepare("
+                        SELECT id, user_id, full_name, email 
+                        FROM event_registrations 
+                        WHERE id IN ($inR)
+                    ");
+                    $regStmt->execute($registrationIds);
+                    $regs = $regStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($regs as $r) {
+                        NotificationController::notifyCandidateShortlisted(
+                            !empty($r['user_id']) ? (int)$r['user_id'] : null,
+                            $r['email'],
+                            $r['full_name'],
+                            $nextRoundName,
+                            $subEventName
+                        );
+                    }
+                }
+            } catch (\Exception $ne) {
+                // Non-fatal if notification fails
+            }
+
             Router::jsonResponse(['success' => true, 'message' => count($registrationIds) . ' participants shortlisted successfully!']);
         } catch (\Exception $e) {
             $db->rollBack();

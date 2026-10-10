@@ -333,18 +333,43 @@ const MindSagaAptitudeTestPage = () => {
   useEffect(() => {
     if (!sessionData || testResult || !fullscreenReady) return;
 
+    const triggerSecurityViolation = (type, reason) => {
+      if (testResult) return;
+      const nextExits = fullscreenExitsRef.current + 1;
+      fullscreenExitsRef.current = nextExits;
+      setFullscreenExits(nextExits);
+
+      logProctorViolation(type, `${reason} (Strike #${nextExits} of 3).`);
+
+      if (nextExits >= 3) {
+        setWarningModal({
+          isOpen: true,
+          title: '🚨 Test Auto-Submitted (Security Policy Exceeded)',
+          message: 'You have breached proctored security policies 3 times (tab switch, window blur, or fullscreen exit). Your test has been submitted.',
+          isFullscreenWarning: false
+        });
+        handleSubmitTest(true);
+      } else {
+        setFullscreenCountdown(10);
+        setWarningModal({
+          isOpen: true,
+          title: `⚠️ Security Warning: Strike ${nextExits} of 3`,
+          message: `${reason} Full-screen mode is strictly enforced. You have 10 seconds to return to full-screen mode or your test will be auto-submitted.`,
+          isFullscreenWarning: true
+        });
+      }
+    };
+
     // Visibility change / tab switch
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (!document.fullscreenElement) return; // Fullscreen exit takes precedence
-        logProctorViolation('tab_hidden', 'Participant navigated away from test tab.');
+        triggerSecurityViolation('tab_hidden', 'Tab switch or window minimization detected!');
       }
     };
 
     // Window blur
     const handleWindowBlur = () => {
-      if (!document.fullscreenElement) return; // Fullscreen exit takes precedence
-      logProctorViolation('window_blur', 'Test window lost focus.');
+      triggerSecurityViolation('window_blur', 'Window lost focus or another application was opened!');
     };
 
     // Fullscreen change
@@ -352,29 +377,7 @@ const MindSagaAptitudeTestPage = () => {
       const isFull = Boolean(document.fullscreenElement);
       setIsFullscreen(isFull);
       if (!isFull) {
-        const nextExits = fullscreenExitsRef.current + 1;
-        fullscreenExitsRef.current = nextExits;
-        setFullscreenExits(nextExits);
-
-        logProctorViolation('fullscreen_exit', `Participant exited fullscreen mode (Exit #${nextExits} of 3).`);
-
-        if (nextExits >= 3) {
-          setWarningModal({
-            isOpen: true,
-            title: 'Test Auto-Submitted',
-            message: 'You have exited full-screen 3 times (Maximum 3 strikes reached). Your test has been submitted.',
-            isFullscreenWarning: false
-          });
-          handleSubmitTest(true);
-        } else {
-          setFullscreenCountdown(10);
-          setWarningModal({
-            isOpen: true,
-            title: `Full-Screen Exit Warning (${nextExits}/3 Strikes)`,
-            message: `You exited full-screen mode (Strike ${nextExits} of 3). You have 10 seconds to return to full-screen or your test will be auto-submitted.`,
-            isFullscreenWarning: true
-          });
-        }
+        triggerSecurityViolation('fullscreen_exit', 'Exited mandatory full-screen mode!');
       } else {
         setWarningModal((prev) => (prev.isFullscreenWarning ? { isOpen: false, title: '', message: '', isFullscreenWarning: false } : prev));
       }
@@ -383,17 +386,34 @@ const MindSagaAptitudeTestPage = () => {
     // Block copy / paste / right click / Devtools shortcuts
     const handleContextMenu = (e) => e.preventDefault();
     const handleKeyDown = (e) => {
-      // F12 or Ctrl+Shift+I or Ctrl+Shift+J or Ctrl+U
+      // Block Escape, Alt+Tab, F11, F12, DevTools shortcuts
       if (
         e.key === 'F12' ||
+        e.key === 'F11' ||
+        (e.altKey && e.key === 'Tab') ||
         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-        (e.ctrlKey && e.key === 'u')
+        (e.ctrlKey && (e.key === 'u' || e.key === 't' || e.key === 'n' || e.key === 'w'))
       ) {
         e.preventDefault();
-        logProctorViolation('devtools_opened', 'Attempted to open inspection tools.');
+        triggerSecurityViolation('devtools_opened', 'Restricted keyboard shortcut intercepted.');
       }
       if (e.ctrlKey && (e.key === 'c' || e.key === 'v' || e.key === 'x')) {
-        // Deterrent
+        e.preventDefault();
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      if (sessionData?.session_token && !testResult) {
+        const payload = JSON.stringify({
+          session_token: sessionData.session_token,
+          answers: answers,
+          status: 'auto_submitted'
+        });
+        const url = `/events/${eventId}/sub-events/${subEventId}/mind-saga/aptitude/submit`;
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(url, blob);
+        }
       }
     };
 
@@ -402,6 +422,7 @@ const MindSagaAptitudeTestPage = () => {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -409,8 +430,9 @@ const MindSagaAptitudeTestPage = () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [sessionData, testResult, fullscreenReady, logProctorViolation]);
+  }, [sessionData, testResult, fullscreenReady, logProctorViolation, answers, eventId, subEventId]);
 
   // 6. Debounced Autosave Buffer
   const triggerAutosave = useCallback((updatedAnswers) => {

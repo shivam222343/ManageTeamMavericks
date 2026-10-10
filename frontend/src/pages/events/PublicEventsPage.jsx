@@ -31,6 +31,7 @@ import Footer from '../../components/layout/Footer';
 import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
 import StrokeText from '../../components/ui/StrokeText';
+import SpecularButton from '../../components/ui/SpecularButton';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
@@ -266,20 +267,25 @@ const PublicEventsPage = () => {
                 <span className="hidden sm:inline">Participant Login</span>
               </Link>
 
-              <button
+              <SpecularButton
+                size="sm"
+                radius={12}
+                textColor={isDark ? '#f5f5f5' : '#09090b'}
+                lineColor={isDark ? '#ffffff' : '#09090b'}
+                baseColor={isDark ? '#27272a' : '#d4d4d8'}
+                tint={isDark ? '#000000' : '#ffffff'}
+                tintOpacity={isDark ? 0.3 : 0.8}
                 onClick={() => {
                   const el = document.getElementById('events-grid');
                   if (el) {
                     el.scrollIntoView({ behavior: 'smooth' });
                   }
                 }}
-                title="Register Now"
-                className="inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold bg-primary-blue text-white hover:bg-blue-600 shadow-md shadow-primary-blue/20 transition cursor-pointer"
               >
-                <Calendar size={15} className="sm:hidden" />
-                <span className="hidden sm:inline">Register Now</span>
+                <Calendar size={14} className="sm:hidden" />
+                <span>Explore Events</span>
                 <ArrowRight size={13} className="hidden sm:inline" />
-              </button>
+              </SpecularButton>
             </div>
           </div>
         </header>
@@ -414,7 +420,10 @@ const PublicEventsPage = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredEvents.map((ev, idx) => {
-                const isPaid = ev.payment_required && parseFloat(ev.registration_fee || 0) > 0;
+                const eventFee = parseFloat(ev.registration_fee || 0) > 0
+                  ? parseFloat(ev.registration_fee)
+                  : parseFloat(ev.combo_fee || 0);
+                const isPaid = Boolean(ev.payment_required && eventFee > 0);
                 return (
                   <motion.div
                     key={ev.id}
@@ -458,7 +467,7 @@ const PublicEventsPage = () => {
                             </span>
                             {isPaid ? (
                               <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/80 backdrop-blur-md text-white border border-emerald-400/20">
-                                ₹{parseFloat(ev.registration_fee).toFixed(0)}
+                                ₹{eventFee.toFixed(0)}
                               </span>
                             ) : (
                               <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/80 backdrop-blur-md text-white border border-blue-400/20">
@@ -510,13 +519,20 @@ const PublicEventsPage = () => {
                           </div>
 
                           <div className="mt-6 pt-4">
-                            <Link
-                              to={`/events/${ev.slug}`}
-                              className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-black uppercase tracking-wider hover:opacity-90 shadow-md transition group/btn cursor-pointer"
+                            <SpecularButton
+                              size="md"
+                              radius={16}
+                              textColor={isDark ? '#f5f5f5' : '#09090b'}
+                              lineColor={isDark ? '#ffffff' : '#09090b'}
+                              baseColor={isDark ? '#27272a' : '#d4d4d8'}
+                              tint={isDark ? '#000000' : '#ffffff'}
+                              tintOpacity={isDark ? 0.3 : 0.8}
+                              className="w-full"
+                              onClick={() => navigate(`/events/${ev.slug}`)}
                             >
-                              <span>Register Now</span>
-                              <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
-                            </Link>
+                              <span>Register for Event</span>
+                              <ArrowRight size={14} />
+                            </SpecularButton>
                           </div>
                         </div>
                       </div>
