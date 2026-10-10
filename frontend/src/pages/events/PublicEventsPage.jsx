@@ -30,8 +30,7 @@ import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
-import StrokeText from '../../components/ui/StrokeText';
-import SpecularButton from '../../components/ui/SpecularButton';
+import TechText from '../../components/ui/TechText';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
@@ -301,12 +300,63 @@ const PublicEventsPage = () => {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="font-display-heavy text-5xl sm:text-6xl md:text-7xl lg:text-[76px] uppercase leading-[0.9] tracking-tight text-zinc-900 dark:text-white"
+                className="font-display-heavy uppercase tracking-tight text-zinc-900 dark:text-white"
               >
-                EXPLORE OUR <br />
-                <span className="bg-gradient-to-r from-blue-500 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                  FLAGSHIP EVENTS.
-                </span>
+                <div className="text-5xl sm:text-6xl md:text-7xl lg:text-[76px] uppercase leading-[0.9] tracking-tight">
+                  EXPLORE OUR
+                </div>
+                <div className="w-full h-[64px] sm:h-[80px] md:h-[96px] lg:h-[110px] relative -ml-1 sm:-ml-1.5 -mt-1 sm:-mt-2">
+                  <TechText
+                    text="FLAGSHIP"
+                    fontWeight={700}
+                    fontSize={92}
+                    reveal="letter"
+                    dashLength={4}
+                    dashGap={2}
+                    specks={15}
+                    fontFamily=""
+                    color={isDark ? '#ffffff' : '#09090b'}
+                    accentColor={isDark ? '#ffffff' : '#09090b'}
+                    letterSpacing={-0.03}
+                    reach={200}
+                    softness={0.7}
+                    strokeWidth={1.5}
+                    speed={1}
+                    lineStyle="dashed"
+                    selection
+                    labels
+                    draggable
+                    sweep
+                    align="left"
+                    paddingLeft={6}
+                  />
+                </div>
+                <div className="w-full h-[64px] sm:h-[80px] md:h-[96px] lg:h-[110px] relative -ml-1 sm:-ml-1.5 -mt-2 sm:-mt-3.5">
+                  <TechText
+                    text="EVENTS"
+                    fontWeight={700}
+                    fontSize={92}
+                    reveal="letter"
+                    dashLength={4}
+                    dashGap={2}
+                    specks={15}
+                    fontFamily=""
+                    color={isDark ? '#ffffff' : '#09090b'}
+                    accentColor={isDark ? '#ffffff' : '#09090b'}
+                    letterSpacing={-0.03}
+                    reach={200}
+                    softness={0.7}
+                    strokeWidth={1.5}
+                    speed={1}
+                    lineStyle="dashed"
+                    selection
+                    labels
+                    draggable
+                    sweep
+                    align="left"
+                    paddingLeft={6}
+                  />
+                </div>
               </motion.h1>
 
               <div className="space-y-3 pt-1 max-w-xl">
