@@ -31,8 +31,9 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
-import DitherVeil from '../../components/ui/DitherVeil';
 import ParticleText from '../../components/ui/ParticleText';
+import InteractiveBackground from '../../components/ui/InteractiveBackground';
+import StrokeText from '../../components/ui/StrokeText';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -67,14 +68,58 @@ const DEFAULT_FAQS = [
   }
 ];
 
+const DEFAULT_DOMAINS = [
+  {
+    id: 'tech',
+    name: 'Technical',
+    description: 'Full-stack web & app development, AI/ML, cloud systems, competitive programming, and technical problem solving.',
+    max_intake: '15-20'
+  },
+  {
+    id: 'design',
+    name: 'Design & Editing',
+    description: 'UI/UX design, visual branding, motion graphics, video editing, 3D assets, and creative design systems.',
+    max_intake: '10-12'
+  },
+  {
+    id: 'events',
+    name: 'Event Management',
+    description: 'End-to-end planning, stage logistics, crowd engagement, venue coordination, and hosting flagship college events.',
+    max_intake: '15-18'
+  },
+  {
+    id: 'pr',
+    name: 'Public Relations & Marketing',
+    description: 'Sponsorship outreach, cross-college partnerships, campus marketing campaigns, and brand communication.',
+    max_intake: '10-15'
+  },
+  {
+    id: 'social',
+    name: 'Social Media & Content',
+    description: 'Digital storytelling, copywriting, viral campaigns, reel production, and community engagement across channels.',
+    max_intake: '8-10'
+  }
+];
+
+const DEFAULT_CAMPAIGN = {
+  id: 'recruitment-2026',
+  name: 'Team Mavericks Recruitment 2026',
+  slug: 'recruitment-2026',
+  status: 'closed',
+  closed_message: 'The application window for this recruitment drive has concluded. Thank you for your interest!',
+  description: 'Join Team Mavericks, the premier student organization of KIT College of Engineering, Kolhapur! Multiple domains open across Technical, Design, Event Management, PR & Marketing, and Content.',
+  batch: '2026-2027',
+  deadline: null
+};
+
 const PublicLanding = () => {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
   const { slug } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [campaign, setCampaign] = useState(null);
-  const [domains, setDomains] = useState([]);
+  const [campaign, setCampaign] = useState(DEFAULT_CAMPAIGN);
+  const [domains, setDomains] = useState(DEFAULT_DOMAINS);
   const [formStructure, setFormStructure] = useState([]);
   const [activeStep, setActiveStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -94,7 +139,7 @@ const PublicLanding = () => {
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
 
   // FAQ state
-  const [faqs, setFaqs] = useState([]);
+  const [faqs, setFaqs] = useState(DEFAULT_FAQS);
   const [openFaq, setOpenFaq] = useState(0);
 
   // Event popup state
@@ -126,35 +171,48 @@ const PublicLanding = () => {
     const fetchCampaign = async () => {
       try {
         const res = await axios.get(`/campaigns/public/${slug}`);
-        setCampaign(res.data.campaign);
-        setDomains(res.data.domains || []);
-        setFormStructure(res.data.formStructure || []);
-        setOtpRequired(res.data.otp_required === 'true' || res.data.otp_required === true);
+        if (res.data?.campaign) {
+          setCampaign(res.data.campaign);
+        }
+        if (res.data?.domains && res.data.domains.length > 0) {
+          setDomains(res.data.domains);
+        } else {
+          setDomains(DEFAULT_DOMAINS);
+        }
+        setFormStructure(res.data?.formStructure || []);
+        setOtpRequired(res.data?.otp_required === 'true' || res.data?.otp_required === true);
 
         // Fetch FAQs
-        try {
-          const faqRes = await axios.get(`/campaigns/${res.data.campaign.id}/faqs`);
-          if (Array.isArray(faqRes.data) && faqRes.data.length > 0) {
-            setFaqs(faqRes.data);
-          } else {
+        if (res.data?.campaign?.id) {
+          try {
+            const faqRes = await axios.get(`/campaigns/${res.data.campaign.id}/faqs`);
+            if (Array.isArray(faqRes.data) && faqRes.data.length > 0) {
+              setFaqs(faqRes.data);
+            } else {
+              setFaqs(DEFAULT_FAQS);
+            }
+          } catch (faqErr) {
             setFaqs(DEFAULT_FAQS);
           }
-        } catch (faqErr) {
-          setFaqs(DEFAULT_FAQS);
         }
 
         // Load auto-saved draft
-        const draft = localStorage.getItem(`draft_form_${res.data.campaign.id}`);
-        if (draft) {
-          try {
-            const parsed = JSON.parse(draft);
-            Object.keys(parsed).forEach(k => setValue(k, parsed[k]));
-          } catch (e) {
-            // invalid json
+        if (res.data?.campaign?.id) {
+          const draft = localStorage.getItem(`draft_form_${res.data.campaign.id}`);
+          if (draft) {
+            try {
+              const parsed = JSON.parse(draft);
+              Object.keys(parsed).forEach(k => setValue(k, parsed[k]));
+            } catch (e) {
+              // invalid json
+            }
           }
         }
       } catch (err) {
-        console.error('Failed to load campaign structure:', err);
+        console.warn('Failed to load live campaign structure, serving fallback defaults:', err);
+        setCampaign(DEFAULT_CAMPAIGN);
+        setDomains(DEFAULT_DOMAINS);
+        setFaqs(DEFAULT_FAQS);
       } finally {
         setLoading(false);
       }
@@ -355,9 +413,16 @@ const PublicLanding = () => {
           let finalVal = Array.isArray(checkedVal) ? checkedVal.join(', ') : (checkedVal || '');
           const otherText = data[`${key}_other_text`];
           if (otherText) {
-            finalVal += ` (Other: ${otherText})`;
+            finalVal += ` (Other: ${String(otherText).slice(0, 25)})`;
           }
           fd.append(key, finalVal);
+        } else if (field.field_type === 'radio') {
+          let radioVal = data[key] || '';
+          const otherText = data[`${key}_other_text`];
+          if (radioVal && radioVal.toLowerCase() === 'other' && otherText) {
+            radioVal = `Other: ${String(otherText).slice(0, 25)}`;
+          }
+          fd.append(key, radioVal);
         } else {
           fd.append(key, data[key] || '');
         }
@@ -513,24 +578,20 @@ const PublicLanding = () => {
     );
   }
 
-  if (!campaign) {
-    return (
-      <div className="min-h-screen bg-[#070C18] text-white flex items-center justify-center p-6 text-center">
-        <div className="max-w-md p-8 bg-[#0C152B] border border-blue-900/50 rounded-none shadow-2xl space-y-4">
-          <AlertCircle className="mx-auto text-blue-400" size={36} />
-          <h2 className="text-2xl font-black uppercase font-['Syne',sans-serif]">Campaign Inactive</h2>
-          <p className="text-xs text-slate-400">This recruitment drive is either closed or does not exist.</p>
-        </div>
-      </div>
-    );
-  }
+  const activeCampaign = campaign || DEFAULT_CAMPAIGN;
 
   return (
-    <div className={`min-h-screen w-full transition-colors duration-300 font-sans selection:bg-blue-600 selection:text-white ${isDark ? 'bg-[#070C18] text-[#F8FAFC]' : 'bg-[#F8FAFC] text-[#0A1128]'
+    <div className={`min-h-screen w-full transition-colors duration-300 font-sans selection:bg-blue-600 selection:text-white relative ${isDark ? 'bg-[#07111f] text-[#F8FAFC]' : 'bg-[#F8FAFC] text-[#0A1128]'
       }`}>
 
-      {/* Custom Styles */}
-      <style>{`
+      {/* Interactive Background & Cursor Effects (preview (1).html) */}
+      <InteractiveBackground />
+
+      {/* Elevated Content Layer so all sections, cards, text, and modals stay above the background */}
+      <div className="relative z-10 flex flex-col justify-between min-h-screen">
+
+        {/* Custom Styles */}
+        <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Barlow:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
 
         .font-display-heavy {
@@ -556,6 +617,32 @@ const PublicLanding = () => {
         .flat-card {
           border-radius: 0px;
           transition: all 0.2s ease-in-out;
+        }
+
+        /* Hero upper headline icy-blue gradient & subtle glow */
+        .hero-headline-upper {
+          display: inline-block;
+          font-family: 'Barlow Condensed', sans-serif;
+          font-weight: 800;
+          letter-spacing: 0.01em;
+          line-height: 0.92;
+          text-transform: uppercase;
+        }
+
+        .hero-headline-upper-dark {
+          background: linear-gradient(180deg, #F0F9FF 0%, #BAE6FD 26%, #60A5FA 68%, #2563EB 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: #93C5FD;
+          filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.55)) drop-shadow(0 0 32px rgba(37, 99, 235, 0.35));
+        }
+
+        .hero-headline-upper-light {
+          background: linear-gradient(180deg, #0A1E3F 0%, #0F3E78 55%, #1D4ED8 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: #0A1128;
+          filter: drop-shadow(0 2px 10px rgba(37, 99, 235, 0.2));
         }
 
         /* Particle hero row: desktop uses larger negative offset */
@@ -613,7 +700,7 @@ const PublicLanding = () => {
       `}</style>
 
       {/* --- TOP FLAT NAVIGATION --- */}
-      <header className={`sticky top-0 z-40 h-[72px] border-b flex items-center justify-between px-5 sm:px-8 md:px-14 backdrop-blur-md transition-colors duration-200 ${isDark ? 'bg-[#070C18]/95 border-[#1E293B]' : 'bg-[#F8FAFC]/95 border-[#E2E8F0]'
+      <header className={`sticky top-0 z-40 h-[72px] border-b flex items-center justify-between px-2.5 sm:px-8 md:px-14 backdrop-blur-md transition-colors duration-200 ${isDark ? 'bg-[#070C18]/95 border-[#1E293B]' : 'bg-[#F8FAFC]/95 border-[#E2E8F0]'
         }`}>
         {/* Brand - Mavericks Logo */}
         <div className="flex items-center gap-3">
@@ -669,24 +756,39 @@ const PublicLanding = () => {
       </header>
 
       {/* --- HERO SECTION (EDITORIAL BRUTALIST STYLE) --- */}
-      <section ref={heroRef} className="relative z-10 px-5 sm:px-8 md:px-10 pt-10 md:pt-20 pb-10 max-w-7xl mx-auto">
+      <section ref={heroRef} className="relative z-10 px-2.5 sm:px-8 md:px-10 pt-10 md:pt-20 pb-10 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-14 items-center">
 
           {/* Left Column - Large Editorial Headline */}
           <div className="lg:col-span-6 space-y-6">
             {/* Row 1 */}
-            <h1 className="font-display-heavy text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-left uppercase leading-[0.9]" style={{ marginBottom: 0 }}>
+            <h1
+              className={`hero-headline-upper text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-left uppercase leading-[0.9] ${
+                isDark ? 'hero-headline-upper-dark' : 'hero-headline-upper-light'
+              }`}
+              style={{ marginBottom: 0 }}
+            >
               ARE YOU A TRUE
             </h1>
             {/* Row 2: Maverick (particle canvas) + ? on the same flex row */}
             <div className="particle-hero-row" style={{ display: 'flex', alignItems: 'center', marginTop: '-4em', marginBottom: '5em', gap: 0 }}>
-              <div style={{ flex: '1 1 auto', height: 'clamp(100px, 20vw, 160px)', minWidth: 0 }}>
+              <div
+                style={{
+                  flex: '1 1 auto',
+                  height: 'clamp(100px, 20vw, 160px)',
+                  minWidth: 0,
+                  filter: isDark
+                    ? 'drop-shadow(0 0 14px rgba(0, 240, 255, 0.45)) drop-shadow(0 0 32px rgba(0, 102, 255, 0.35))'
+                    : 'drop-shadow(0 2px 10px rgba(2, 132, 199, 0.2))'
+                }}
+              >
                 <ParticleText
                   text="MAVERICK?"
                   particleSize={2.2}
                   density={4}
-                  color={isDark ? '#f8fafc' : '#0B132B'}
-                  highlightColor="#3b82f6"
+                  color={isDark ? '#00F0FF' : '#0284C7'}
+                  highlightColor={isDark ? '#0066FF' : '#1D4ED8'}
+                  glowColor={isDark ? '#00F0FF' : '#0284C7'}
                   scatter={190}
                   gatherDuration={1600}
                   stagger={420}
@@ -704,9 +806,25 @@ const PublicLanding = () => {
 
 
             <div className="space-y-3 pt-2 max-w-xl">
-              <p className="font-mono-tag text-xs font-black tracking-widest uppercase text-blue-500">
-                Team Mavericks • Student Organization
-              </p>
+              <StrokeText
+                text="Team Mavericks • Student Organization"
+                strokeColor={isDark ? '#60A5FA' : '#2563EB'}
+                fillColor={isDark ? '#93C5FD' : '#1D4ED8'}
+                strokeWidth={1}
+                drawDuration={1.6}
+                fillDelay={0.2}
+                stagger={0.03}
+                ease="power2.out"
+                trigger="mount"
+                fillMode="wipe"
+                fontSize={16}
+                fontWeight={800}
+                letterSpacing={1.5}
+                uppercase={true}
+                align="left"
+                fontFamily="'DM Mono', 'Space Grotesk', monospace"
+                className="font-mono-tag"
+              />
               <p className={`text-sm md:text-base leading-relaxed font-normal ${isDark ? 'text-slate-300' : 'text-slate-700'
                 }`}>
                 {campaign.description || 'Join Team Mavericks, the premier student organization of KIT College of Engineering, Kolhapur! Multiple domains open across Technical, Design, Event Management, PR & Marketing, and Content.'}
@@ -722,7 +840,7 @@ const PublicLanding = () => {
                   : 'bg-[#0A1128] hover:bg-blue-950 text-white'
                   }`}
               >
-                Register For Drive <ChevronRight size={15} />
+                Register Now<ChevronRight size={15} />
               </a>
 
               <a
@@ -759,50 +877,22 @@ const PublicLanding = () => {
             )}
           </div>
 
-          {/* Right Column - DitherVeil Seamlessly Blended Graphic */}
-          <div className="lg:col-span-6 flex justify-center items-center relative w-full select-none">
+          {/* Right Column - Official Team Mavericks Logo (Static) */}
+          <div className="lg:col-span-6 flex justify-center items-center relative w-full select-none py-2 sm:py-4">
             {/* Ambient Background Glow matching theme */}
-            <div className={`absolute -inset-4 bg-blue-300 rounded-full blur-3xl opacity-30 pointer-events-none ${isDark ? 'bg-blue-600/40' : 'bg-blue-300/40'
+            <div className={`absolute -inset-4 rounded-full blur-3xl pointer-events-none ${isDark ? 'bg-blue-600/30' : 'bg-blue-100/30'
               }`} />
 
-            <div
-              className="w-full h-[460px] sm:h-[520px] md:h-[580px] relative overflow-hidden"
-              style={{
-                // Smoothly feather-blend all edges and corners into the page background
-                WebkitMaskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-                maskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-              }}
-            >
-              <DitherVeil
-                src="/backgrounds/dekstop_view.png"
-                pattern="floyd"
-                pixelSize={2}
-                inkColor={isDark ? "#070C18" : "#0A1128"}
-                paperColor={isDark ? "#3B82F6" : "#E2E8F0"}
-                revealRadius={240}
-                softness={0.65}
-                linger={1.2}
-                fit="cover"
-                rimColor="#60A5FA"
-                palette="duotone"
-                levels={2}
-                contrast={1.2}
-                brightness={0}
-                rim={0.2}
-                reverse={false}
-                wander={true}
-                clickBurst
+            <div className="relative z-10 flex items-center justify-center p-2 sm:p-4">
+              <img
+                src="/Logos/Mavericks_Logo.png"
+                alt="Team Mavericks Official Logo"
+                className="w-full max-w-[340px] sm:max-w-[400px] md:max-w-[460px] lg:max-w-[480px] h-auto object-contain transition-transform duration-500 hover:scale-[1.02]"
+                style={{
+                  filter: 'drop-shadow(0 0 35px rgba(37, 99, 235, 0.45)) drop-shadow(0 0 12px rgba(56, 189, 248, 0.3))'
+                }}
+                draggable="false"
               />
-
-              {/* Edge Gradient Overlays for extra smooth fade into background */}
-              <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
-                ? 'bg-gradient-to-t from-[#070C18] via-transparent to-[#070C18]/60'
-                : 'bg-gradient-to-t from-[#F8FAFC] via-transparent to-[#F8FAFC]/60'
-                }`} />
-              <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
-                ? 'bg-gradient-to-r from-[#070C18]/80 via-transparent to-[#070C18]/80'
-                : 'bg-gradient-to-r from-[#F8FAFC]/80 via-transparent to-[#F8FAFC]/80'
-                }`} />
             </div>
           </div>
 
@@ -841,7 +931,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- QUICK METADATA ROW --- */}
-      <section className={`border-b py-6 px-5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/40' : 'border-slate-200 bg-slate-50'
+      <section className={`border-b py-6 px-2.5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/40' : 'border-slate-200 bg-slate-50'
         }`}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-1">
@@ -860,7 +950,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- OUR FLAGSHIP EVENTS (4 Cards with hover image effect) --- */}
-      <section id="events" className={`py-20 px-5 sm:px-8 md:px-14 border-b ${isDark ? 'border-[#1E293B]' : 'border-slate-200'
+      <section id="events" className={`py-20 px-2.5 sm:px-8 md:px-14 border-b ${isDark ? 'border-[#1E293B]' : 'border-slate-200'
         }`}>
         <style>{`
           .event-card {
@@ -875,30 +965,36 @@ const PublicLanding = () => {
             height: 100%;
             object-fit: cover;
             opacity: 1;
-            transform: scale(1.05);
+            transform: scale(1);
             transition: transform 0.55s cubic-bezier(0.4,0,0.2,1), filter 0.45s ease;
             z-index: 0;
-            filter: brightness(0.5) saturate(0.6);
+            filter: brightness(1) saturate(1.05);
           }
           .event-card:hover .event-img {
-            transform: scale(1);
-            filter: brightness(0.88) saturate(1.1);
+            transform: scale(1.06);
+            filter: brightness(0.7) saturate(1.1);
           }
           .event-card .event-overlay {
             position: absolute;
             inset: 0;
             background: linear-gradient(
               to top,
-              rgba(4,10,30,0.90) 0%,
-              rgba(10,20,60,0.70) 50%,
-              rgba(5,15,45,0.50) 100%
+              rgba(4,10,30,0.85) 0%,
+              rgba(4,10,30,0.30) 40%,
+              transparent 70%
             );
-            opacity: 1;
-            transition: opacity 0.45s ease;
+            opacity: 0.35;
+            transition: opacity 0.45s ease, background 0.45s ease;
             z-index: 1;
           }
           .event-card:hover .event-overlay {
-            opacity: 0.2;
+            opacity: 1;
+            background: linear-gradient(
+              to top,
+              rgba(4,10,30,0.95) 0%,
+              rgba(10,20,60,0.78) 50%,
+              rgba(5,15,45,0.60) 100%
+            );
           }
           .event-card .event-content {
             position: relative;
@@ -928,11 +1024,11 @@ const PublicLanding = () => {
           /* Mobile scroll-reveal: mirrors hover when card is centred in viewport */
           @media (pointer: coarse) {
             .event-card.is-visible .event-img {
-              transform: scale(1);
-              filter: brightness(0.88) saturate(1.1);
+              transform: scale(1.06);
+              filter: brightness(0.7) saturate(1.1);
             }
             .event-card.is-visible .event-overlay {
-              opacity: 0.2;
+              opacity: 1;
             }
             .event-card.is-visible .event-content {
               transform: translateY(-6px);
@@ -950,18 +1046,19 @@ const PublicLanding = () => {
 
         <div className="max-w-7xl mx-auto">
           {/* Section Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-            <div>
-              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">
-                WHAT WE BUILD
-              </p>
-              <h2 className="font-display-heavy text-4xl sm:text-5xl md:text-6xl uppercase tracking-tight">
-                FLAGSHIP <br />
-                EVENTS.
-              </h2>
-            </div>
-            <p className={`max-w-sm text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'
-              }`}>
+          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-14 md:mb-16 flex flex-col items-center">
+            <p className="font-mono-tag text-xs sm:text-sm font-bold uppercase tracking-[0.2em] sm:tracking-[0.25em] text-blue-500 mb-3 sm:mb-4">
+              WHAT WE BUILD
+            </p>
+            <h2 className={`font-display-heavy text-4xl sm:text-6xl md:text-7xl lg:text-[76px] uppercase tracking-tight leading-[0.92] text-center mb-4 sm:mb-5 ${
+              isDark ? 'text-white' : 'text-zinc-900'
+            }`}>
+              FLAGSHIP <br />
+              EVENTS.
+            </h2>
+            <p className={`max-w-[600px] mx-auto text-xs sm:text-sm md:text-base leading-relaxed text-center ${
+              isDark ? 'text-slate-400' : 'text-slate-600'
+            }`}>
               From national-level hackathons to inter-college sports fests — Team Mavericks runs it all.
             </p>
           </div>
@@ -976,7 +1073,7 @@ const PublicLanding = () => {
                 desc: 'A five-day college event for first-year students featuring technical and non-technical sessions, interactive discussions, team-building challenges, and creative competitions.',
                 tag: 'LEARNING',
                 bg: 'from-blue-950 to-[#070C18]',
-                img: '/events/bodhantra.jpeg'
+                img: '/event-assets/bodhantra.jpeg'
               },
               {
                 number: '02',
@@ -985,7 +1082,7 @@ const PublicLanding = () => {
                 desc: 'A workshop series covering technical and non-technical topics including web development, ethical hacking, soft skills, mental health, and more.',
                 tag: 'WORKSHOPS',
                 bg: 'from-indigo-950 to-[#070C18]',
-                img: '/events/invicta.png'
+                img: '/event-assets/invicta.png'
               },
               {
                 number: '03',
@@ -994,7 +1091,7 @@ const PublicLanding = () => {
                 desc: 'A one-day placement preparation event featuring Group Discussions, debates, and mock interviews to build communication skills, confidence, and recruitment readiness.',
                 tag: 'PLACEMENT',
                 bg: 'from-slate-800 to-[#070C18]',
-                img: '/events/verbafest.JPG'
+                img: '/event-assets/verbafest.JPG'
               },
               {
                 number: '04',
@@ -1003,7 +1100,7 @@ const PublicLanding = () => {
                 desc: 'A school outreach initiative in rural areas of Kolhapur featuring technology demonstrations, workshops, career guidance, and sessions on emerging technologies.',
                 tag: 'COMMUNITY',
                 bg: 'from-blue-900 to-[#070C18]',
-                img: '/events/school_visit.jpg'
+                img: '/event-assets/school_visit.jpg'
               }
             ].map((ev) => (
               <div
@@ -1063,7 +1160,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "PICK YOUR PLAYFIELD." (DOMAINS BENTO GRID) --- */}
-      <section id="domains" className="py-20 px-5 sm:px-8 md:px-14 max-w-7xl mx-auto">
+      <section id="domains" className="py-20 px-2.5 sm:px-8 md:px-14 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
             <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">
@@ -1137,7 +1234,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "BIG IDEAS. REAL ENERGY." (ABOUT MAVERICKS) --- */}
-      <section id="about" className={`border-y py-20 px-5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/50' : 'border-slate-200 bg-slate-100/60'
+      <section id="about" className={`border-y py-20 px-2.5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/50' : 'border-slate-200 bg-slate-100/60'
         }`}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           <div className="lg:col-span-6 space-y-4">
@@ -1186,7 +1283,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "SEE YOU AT KIT COEK." / "GET READY TO JOIN." --- */}
-      <section id="venue" className="py-20 px-5 sm:px-8 md:px-14 max-w-7xl mx-auto">
+      <section id="venue" className="py-20 px-2.5 sm:px-8 md:px-14 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
 
           {/* Left Info Card */}
@@ -1247,7 +1344,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- "A FEW USEFUL ANSWERS." (FLAT ACCORDION FAQS) --- */}
-      <section id="faqs" className={`border-t py-20 px-5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/30' : 'border-slate-200 bg-slate-50'
+      <section id="faqs" className={`border-t py-20 px-2.5 sm:px-8 md:px-14 ${isDark ? 'border-[#1E293B] bg-[#0A1128]/30' : 'border-slate-200 bg-slate-50'
         }`}>
         <div className="max-w-4xl mx-auto space-y-10">
           <div>
@@ -1304,7 +1401,7 @@ const PublicLanding = () => {
       </section>
 
       {/* --- DYNAMIC CANDIDATE REGISTRATION FORM (FLAT UI) --- */}
-      <section id="apply-form" className="py-20 px-5 sm:px-8 md:px-14 border-t border-[#1E293B]">
+      <section id="apply-form" className="py-20 px-2 sm:px-8 md:px-14 border-t border-[#1E293B]">
         <div className="max-w-3xl mx-auto space-y-8">
 
           {campaign.status === 'closed' || campaignClosed ? (
@@ -1356,7 +1453,7 @@ const PublicLanding = () => {
               {/* Flat Form Box */}
               <form
                 onSubmit={handleSubmit(onSubmitForm)}
-                className={`border p-6 sm:p-10 space-y-8 ${isDark ? 'border-[#1E293B] bg-[#0E172A]' : 'border-slate-300 bg-white shadow-sm'
+                className={`border p-3.5 sm:p-10 space-y-8 ${isDark ? 'border-[#1E293B] bg-[#0E172A]' : 'border-slate-300 bg-white shadow-sm'
                   }`}
               >
                 {/* Current Section Title */}
@@ -1561,9 +1658,11 @@ const PublicLanding = () => {
                                   <div className="mt-2.5">
                                     <input
                                       type="text"
-                                      placeholder="Please specify details for 'Other'..."
+                                      maxLength={25}
+                                      placeholder="Please specify details for 'Other' (max 25 chars)..."
                                       {...register(`${key}_other_text`, {
-                                        required: isOtherChecked ? "Please specify details for 'Other'" : false
+                                        required: isOtherChecked ? "Please specify details for 'Other'" : false,
+                                        maxLength: { value: 25, message: 'Maximum 25 characters allowed' }
                                       })}
                                       className={`w-full px-4 py-3 border rounded-none text-xs font-medium ${isDark ? 'bg-[#070C18] border-[#1E293B] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                                         }`}
@@ -1580,33 +1679,62 @@ const PublicLanding = () => {
                             );
                           })()}
 
-                          {/* 5. Radio Buttons */}
-                          {field.field_type === 'radio' && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                              {field.options?.map((opt) => {
-                                const isSelected = watch(key) === opt.option_value;
-                                return (
-                                  <label
-                                    key={opt.id}
-                                    className={`flex items-center gap-3 p-3.5 border rounded-none cursor-pointer text-xs font-semibold select-none transition-all ${isSelected
-                                      ? 'border-blue-500 bg-blue-600 text-white font-bold'
-                                      : isDark
-                                        ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:border-slate-700'
-                                        : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
-                                      }`}
-                                  >
+                          {/* 5. Radio Buttons with conditional "Other" text input */}
+                          {field.field_type === 'radio' && (() => {
+                            const otherOpt = field.options?.find(o => (o.option_label || '').toLowerCase() === 'other' || (o.option_value || '').toLowerCase() === 'other');
+                            const radioVal = watch(key);
+                            const isOtherSelected = otherOpt && radioVal === otherOpt.option_value;
+
+                            return (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                  {field.options?.map((opt) => {
+                                    const isSelected = radioVal === opt.option_value;
+                                    return (
+                                      <label
+                                        key={opt.id}
+                                        className={`flex items-center gap-3 p-3.5 border rounded-none cursor-pointer text-xs font-semibold select-none transition-all ${isSelected
+                                          ? 'border-blue-500 bg-blue-600 text-white font-bold'
+                                          : isDark
+                                            ? 'border-[#1E293B] bg-[#070C18] text-slate-300 hover:border-slate-700'
+                                            : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-400'
+                                          }`}
+                                      >
+                                        <input
+                                          type="radio"
+                                          value={opt.option_value}
+                                          {...register(key, { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select an option.' : false })}
+                                          className="w-4 h-4 rounded-none accent-blue-600"
+                                        />
+                                        <span>{opt.option_label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                {isOtherSelected && (
+                                  <div className="mt-2.5">
                                     <input
-                                      type="radio"
-                                      value={opt.option_value}
-                                      {...register(key, { required: (field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? 'Please select an option.' : false })}
-                                      className="w-4 h-4 rounded-none accent-blue-600"
+                                      type="text"
+                                      maxLength={25}
+                                      placeholder="Please specify details for 'Other' (max 25 chars)..."
+                                      {...register(`${key}_other_text`, {
+                                        required: isOtherSelected ? "Please specify details for 'Other'" : false,
+                                        maxLength: { value: 25, message: 'Maximum 25 characters allowed' }
+                                      })}
+                                      className={`w-full px-4 py-3 border rounded-none text-xs font-medium ${isDark ? 'bg-[#070C18] border-[#1E293B] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                        }`}
                                     />
-                                    <span>{opt.option_label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
+                                    {errors[`${key}_other_text`] && (
+                                      <p className="mt-1 text-[10px] text-red-500 font-bold flex items-center gap-1.5">
+                                        <AlertCircle size={11} />
+                                        <span>{errors[`${key}_other_text`].message}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* 6. File Upload */}
                           {['file', 'image', 'resume', 'pdf', 'id_card'].includes(field.field_type) && (
@@ -1886,13 +2014,22 @@ const PublicLanding = () => {
       )}
 
       {/* --- BIG BOTTOM DISPLAY BRANDING --- */}
-      <section className={`border-t py-16 px-5 sm:px-8 md:px-14 select-none overflow-hidden ${isDark ? 'border-[#1E293B] bg-[#070C18]' : 'border-slate-200 bg-[#F8FAFC]'
-        }`}>
+      <section className={`border-t py-16 px-5 sm:px-8 md:px-14 select-none overflow-hidden ${
+        isDark ? 'border-[#1E293B] bg-[#070C18]/60' : 'border-slate-200 bg-[#F8FAFC]'
+      }`}>
+        <div className="max-w-7xl mx-auto">
+          <h1 className={`font-display-heavy text-6xl sm:text-8xl md:text-9xl lg:text-[140px] uppercase tracking-tighter leading-none whitespace-nowrap opacity-90 ${
+            isDark ? 'text-[#2563EB]' : 'text-[#0A1128]'
+          }`}>
+            TEAM MAVERICKS.
+          </h1>
+        </div>
       </section>
 
       {/* --- FOOTER (KEPT AS IS) --- */}
       <Footer />
 
+      </div>
     </div>
   );
 };

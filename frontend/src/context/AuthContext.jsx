@@ -36,15 +36,15 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
-  const login = async (email, password, rememberMe) => {
+  const login = async (email, password, rememberMe, portal = '') => {
     try {
-      const response = await axios.post('/auth/login', { email, password, rememberMe });
+      const response = await axios.post('/auth/login', { email, password, rememberMe, portal });
       const { token: receivedToken, user: receivedUser } = response.data;
 
       localStorage.setItem('token', receivedToken);
       setToken(receivedToken);
       setUser(receivedUser);
-      return { success: true };
+      return { success: true, user: receivedUser };
     } catch (error) {
       return {
         success: false,

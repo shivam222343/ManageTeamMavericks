@@ -25,6 +25,8 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import { useAuth } from '../../context/AuthContext';
 import ChangePasswordModal from '../../components/ui/ChangePasswordModal';
 import ReflectiveCard from '../../components/ui/ReflectiveCard';
+import CursorPreferenceToggle from '../../components/ui/CursorPreferenceToggle';
+import MobileScrollSlider from '../../components/ui/MobileScrollSlider';
 
 const MemberProfilePage = () => {
   const { id } = useParams();
@@ -311,6 +313,11 @@ const MemberProfilePage = () => {
               </div>
             </div>
 
+            {/* Cursor & Interface Preference */}
+            <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <CursorPreferenceToggle />
+            </div>
+
             {/* Credential & Verification Footer */}
             <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/60 dark:border-zinc-850 flex items-center justify-between text-xs text-zinc-500">
               <div className="flex items-center gap-2">
@@ -450,6 +457,8 @@ const MemberProfilePage = () => {
         isOpen={showChangePassModal}
         onClose={() => setShowChangePassModal(false)}
       />
+
+      <MobileScrollSlider />
     </div>
   );
 };

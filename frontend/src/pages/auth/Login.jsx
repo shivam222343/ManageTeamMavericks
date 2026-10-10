@@ -4,9 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useForm } from 'react-hook-form';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Shield, Eye, EyeOff, AlertCircle, KeyRound, Mail, X, CheckCircle2 } from 'lucide-react';
+import { Shield, Eye, EyeOff, AlertCircle, KeyRound, Mail, X, CheckCircle2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 
 const Login = () => {
@@ -63,12 +62,16 @@ const Login = () => {
     setAuthError('');
 
     const loadingToast = toast.loading('Authenticating...');
-    const result = await login(data.email, data.password, data.rememberMe);
+    const result = await login(data.email, data.password, data.rememberMe, 'admin');
     toast.dismiss(loadingToast);
 
     if (result.success) {
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      if (result.user?.role === 'participant') {
+        navigate('/user/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } else {
       setAuthError(result.error);
       toast.error(result.error);
@@ -97,24 +100,25 @@ const Login = () => {
 
   return (
     <div
-      className="min-h-screen bg-cover bg-center flex items-center justify-center p-4 transition-all duration-500 relative overflow-hidden"
+      className="min-h-screen bg-cover bg-center flex items-center justify-center p-2 sm:p-4 transition-all duration-500 relative overflow-hidden"
       style={{ backgroundImage: `url("${isMobile ? '/backgrounds/mobile_view.png' : '/backgrounds/dekstop_view.png'}")` }}
     >
       <div className="absolute inset-0 bg-black/40 dark:bg-black/55 pointer-events-none" />
 
       {/* Top Left Logo */}
+      {/* Hello */}
       <div className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-3 z-10">
-        <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain animate-pulse-subtle" />
+        <img src="/Logos/Mavericks_Logo.png" alt="Team Mavericks Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain select-none" />
         <div className="flex flex-col">
           <span className="font-logo text-xs md:text-sm text-white font-bold tracking-widest drop-shadow-md">Team Mavericks</span>
-          <span className="text-[9px] md:text-[10px] text-zinc-300 font-medium tracking-wider">Recruitment Management</span>
+          <span className="text-[9px] md:text-[10px] text-zinc-300 font-medium tracking-wider">Offical Team Management</span>
         </div>
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md glass-card-shine rounded-3xl p-8 sm:p-10 shadow-2xl z-10 border border-white/20 dark:border-white/15"
+        className="w-full max-w-md glass-card-shine rounded-3xl p-4 sm:p-10 shadow-2xl z-10 border border-white/20 dark:border-white/15"
       >
         <div className="text-center mb-8 flex flex-col items-center">
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white mb-2 drop-shadow-sm">Management Portal</h2>

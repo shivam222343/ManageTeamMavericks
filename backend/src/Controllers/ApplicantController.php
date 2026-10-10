@@ -620,8 +620,14 @@ class ApplicantController {
 
             $db->commit();
 
-            // Note: Automated emails on candidate status changes have been disabled as per requirements.
-            // Emails will be dispatched manually from the communication module.
+            // Push targeted user notification if user has registered account
+            if ($oldStatus !== $newStatus) {
+                NotificationController::notifyApplicationStatusUpdated(
+                    $applicant['email'] ?? null,
+                    $applicant['full_name'] ?? 'Candidate',
+                    $newStatus
+                );
+            }
 
             Router::sendJson(['message' => 'Status updated successfully']);
         } catch (\Exception $e) {
@@ -977,18 +983,6 @@ class ApplicantController {
 
         $db = Database::getConnection();
 
-        // Ensure email_otps table exists
-        $db->exec("CREATE TABLE IF NOT EXISTS email_otps (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            email VARCHAR(255) NOT NULL,
-            campaign_id INT NOT NULL,
-            otp_code VARCHAR(6) NOT NULL,
-            verified TINYINT(1) NOT NULL DEFAULT 0,
-            expires_at DATETIME NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_email_campaign (email, campaign_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
         // Delete any old OTPs for this email+campaign
         $db->prepare("DELETE FROM email_otps WHERE email = ? AND campaign_id = ?")->execute([$email, $campaignId]);
 
@@ -1070,7 +1064,6 @@ class ApplicantController {
     public function getSettings(): void {
         AuthMiddleware::authenticate();
         $db = Database::getConnection();
-        $db->exec("CREATE TABLE IF NOT EXISTS settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(255) UNIQUE NOT NULL, setting_value TEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $stmt = $db->query("SELECT setting_key, setting_value FROM settings");
         $rows = $stmt->fetchAll();
         $out = [];
@@ -1088,7 +1081,6 @@ class ApplicantController {
         AuthMiddleware::requireCoordinator();
         $input = json_decode(file_get_contents('php://input'), true);
         $db = Database::getConnection();
-        $db->exec("CREATE TABLE IF NOT EXISTS settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(255) UNIQUE NOT NULL, setting_value TEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
         foreach ($input as $key => $value) {
             $stmt->execute([preg_replace('/[^a-z0-9_]/', '', strtolower($key)), (string)$value]);
