@@ -33,6 +33,7 @@ import InteractiveBackground from '../../components/ui/InteractiveBackground';
 import TechText from '../../components/ui/TechText';
 import StrokeText from '../../components/ui/StrokeText';
 import SpecularButton from '../../components/ui/SpecularButton';
+import StrokeText from '../../components/ui/StrokeText';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
