@@ -68,7 +68,7 @@ const UserLogin = () => {
     setAuthError('');
 
     const loadingToast = toast.loading('Signing in to Participant Portal...');
-    const result = await login(data.email, data.password, data.rememberMe);
+    const result = await login(data.email, data.password, data.rememberMe, 'participant');
     toast.dismiss(loadingToast);
 
     if (result.success) {

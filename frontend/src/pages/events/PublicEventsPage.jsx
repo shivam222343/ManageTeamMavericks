@@ -266,20 +266,25 @@ const PublicEventsPage = () => {
                 <span className="hidden sm:inline">Participant Login</span>
               </Link>
 
-              <button
+              <SpecularButton
+                size="sm"
+                radius={12}
+                textColor={isDark ? '#f5f5f5' : '#09090b'}
+                lineColor={isDark ? '#ffffff' : '#09090b'}
+                baseColor={isDark ? '#27272a' : '#d4d4d8'}
+                tint={isDark ? '#000000' : '#ffffff'}
+                tintOpacity={isDark ? 0.3 : 0.8}
                 onClick={() => {
                   const el = document.getElementById('events-grid');
                   if (el) {
                     el.scrollIntoView({ behavior: 'smooth' });
                   }
                 }}
-                title="Register Now"
-                className="inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold bg-primary-blue text-white hover:bg-blue-600 shadow-md shadow-primary-blue/20 transition cursor-pointer"
               >
-                <Calendar size={15} className="sm:hidden" />
-                <span className="hidden sm:inline">Register Now</span>
+                <Calendar size={14} className="sm:hidden" />
+                <span>Explore Events</span>
                 <ArrowRight size={13} className="hidden sm:inline" />
-              </button>
+              </SpecularButton>
             </div>
           </div>
         </header>
@@ -355,9 +360,25 @@ const PublicEventsPage = () => {
               </motion.h1>
 
               <div className="space-y-3 pt-1 max-w-xl">
-                <p className="font-mono-tag text-xs font-black tracking-widest uppercase text-blue-500">
-                  Team Mavericks • Student Organization
-                </p>
+                <StrokeText
+                  text="Team Mavericks • Student Organization"
+                  strokeColor={isDark ? '#60A5FA' : '#2563EB'}
+                  fillColor={isDark ? '#93C5FD' : '#1D4ED8'}
+                  strokeWidth={1}
+                  drawDuration={1.6}
+                  fillDelay={0.2}
+                  stagger={0.03}
+                  ease="power2.out"
+                  trigger="mount"
+                  fillMode="wipe"
+                  fontSize={16}
+                  fontWeight={800}
+                  letterSpacing={1.5}
+                  uppercase={true}
+                  align="left"
+                  fontFamily="'DM Mono', 'Space Grotesk', monospace"
+                  className="font-mono-tag"
+                />
                 <p className={`text-sm sm:text-base leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   Register for national symposiums, hackathons, workshops, and exhibitions hosted by Team Mavericks at KIT's College of Engineering, Kolhapur.
                 </p>
@@ -449,7 +470,10 @@ const PublicEventsPage = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredEvents.map((ev, idx) => {
-                const isPaid = ev.payment_required && parseFloat(ev.registration_fee || 0) > 0;
+                const eventFee = parseFloat(ev.registration_fee || 0) > 0
+                  ? parseFloat(ev.registration_fee)
+                  : parseFloat(ev.combo_fee || 0);
+                const isPaid = Boolean(ev.payment_required && eventFee > 0);
                 return (
                   <motion.div
                     key={ev.id}
@@ -493,7 +517,7 @@ const PublicEventsPage = () => {
                             </span>
                             {isPaid ? (
                               <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/80 backdrop-blur-md text-white border border-emerald-400/20">
-                                ₹{parseFloat(ev.registration_fee).toFixed(0)}
+                                ₹{eventFee.toFixed(0)}
                               </span>
                             ) : (
                               <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/80 backdrop-blur-md text-white border border-blue-400/20">
@@ -545,13 +569,20 @@ const PublicEventsPage = () => {
                           </div>
 
                           <div className="mt-6 pt-4">
-                            <Link
-                              to={`/events/${ev.slug}`}
-                              className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-black uppercase tracking-wider hover:opacity-90 shadow-md transition group/btn cursor-pointer"
+                            <SpecularButton
+                              size="md"
+                              radius={16}
+                              textColor={isDark ? '#f5f5f5' : '#09090b'}
+                              lineColor={isDark ? '#ffffff' : '#09090b'}
+                              baseColor={isDark ? '#27272a' : '#d4d4d8'}
+                              tint={isDark ? '#000000' : '#ffffff'}
+                              tintOpacity={isDark ? 0.3 : 0.8}
+                              className="w-full"
+                              onClick={() => navigate(`/events/${ev.slug}`)}
                             >
-                              <span>Register Now</span>
-                              <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
-                            </Link>
+                              <span>Register for Event</span>
+                              <ArrowRight size={14} />
+                            </SpecularButton>
                           </div>
                         </div>
                       </div>
@@ -639,17 +670,14 @@ const PublicEventsPage = () => {
 
           <div className="max-w-7xl mx-auto">
             {/* Section Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-              <div>
-                <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
-                  WHAT WE BUILD &amp; RUN
-                </p>
-                <h2 className="font-display-heavy text-4xl sm:text-5xl md:text-6xl uppercase tracking-tight text-zinc-900 dark:text-white">
-                  FLAGSHIP <br />
-                  EVENTS.
-                </h2>
-              </div>
-              <p className={`max-w-sm text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className="text-center max-w-3xl mx-auto mb-12">
+              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
+                WHAT WE BUILD &amp; RUN
+              </p>
+              <h2 className="font-display-heavy text-3xl sm:text-5xl md:text-6xl uppercase tracking-tight text-zinc-900 dark:text-white mb-3">
+                FLAGSHIP EVENTS.
+              </h2>
+              <p className={`max-w-lg mx-auto text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 From multi-day college symposiums to placement boot camps and rural tech outreaches — Team Mavericks runs it all.
               </p>
             </div>

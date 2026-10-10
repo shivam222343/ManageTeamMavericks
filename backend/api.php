@@ -40,6 +40,7 @@ use App\Controllers\EventSubEventController;
 use App\Controllers\EventAttendanceController;
 use App\Controllers\SubEventControlRoomController;
 use App\Controllers\MindSagaController;
+use App\Controllers\NotificationController;
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: *");
@@ -237,6 +238,7 @@ $router->addRoute('PUT',    '/events/{id}/sub-events/{subId}/mind-saga/games/{ga
 $router->addRoute('DELETE', '/events/{id}/sub-events/{subId}/mind-saga/games/{gameId}',             [MindSagaController::class, 'deleteGameConfig']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/start',                [MindSagaController::class, 'startGameSession']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/submit',               [MindSagaController::class, 'submitGameScore']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/exit',                 [MindSagaController::class, 'exitGameSession']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/games/proctor-event',        [MindSagaController::class, 'logGameProctorEvent']);
 
 // Mind Saga Proctoring CCTV & Live Monitoring
@@ -277,6 +279,16 @@ $router->addRoute('POST',   '/events/attendance/scan',                          
 // --- PARTICIPANT PORTAL ROUTES ---
 $router->addRoute('GET',    '/participant/dashboard',             [EventRegistrationController::class, 'getParticipantDashboard']);
 $router->addRoute('PUT',    '/participant/profile',               [EventRegistrationController::class, 'updateParticipantProfile']);
+$router->addRoute('POST',   '/participant/upload-photo',          [EventRegistrationController::class, 'uploadParticipantPhoto']);
+$router->addRoute('DELETE', '/participant/photo',                 [EventRegistrationController::class, 'removeParticipantPhoto']);
+
+// --- GLOBAL REALTIME NOTIFICATION ROUTES ---
+$router->addRoute('GET',    '/notifications',                     [NotificationController::class, 'list']);
+$router->addRoute('GET',    '/notifications/recipients',          [NotificationController::class, 'getRecipients']);
+$router->addRoute('POST',   '/notifications/mark-read',            [NotificationController::class, 'markRead']);
+$router->addRoute('POST',   '/notifications/send',                 [NotificationController::class, 'send']);
+$router->addRoute('POST',   '/events/{id}/broadcast',             [NotificationController::class, 'broadcastEventNotification']);
+$router->addRoute('DELETE', '/notifications/{id}',                 [NotificationController::class, 'delete']);
 
 // --- SEED ROUTE (temporary — remove after seeding) ---
 $router->addRoute('GET', '/seed', function() {

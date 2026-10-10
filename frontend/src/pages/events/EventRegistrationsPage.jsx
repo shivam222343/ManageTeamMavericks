@@ -4,9 +4,10 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import MajorLoader from '../../components/ui/MajorLoader';
+import EventNotificationModal from '../../components/events/EventNotificationModal';
 import {
   ArrowLeft, Search, Users, CheckCircle, Clock, XCircle,
-  Coins, Eye, Download, ChevronDown, Filter, Trash2, AlertCircle,
+  Coins, Eye, Download, ChevronDown, Filter, Trash2, AlertCircle, Zap, Bell
 } from 'lucide-react';
 
 const STATUS_STYLE = {
@@ -47,6 +48,7 @@ const EventRegistrationsPage = () => {
   const [paymentFilter, setPaymentFilter] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]         = useState(false);
+  const [notifModalOpen, setNotifModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -129,6 +131,14 @@ const EventRegistrationsPage = () => {
               </p>
             </div>
           </div>
+
+          <button
+            onClick={() => setNotifModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-amber-500/20 transition cursor-pointer shadow-sm shrink-0"
+          >
+            <Zap size={14} className="text-amber-500" />
+            <span>Notify Participants</span>
+          </button>
         </div>
 
         {/* Stats row */}
@@ -335,6 +345,14 @@ const EventRegistrationsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Broadcast & Target Notification Modal */}
+      <EventNotificationModal
+        isOpen={notifModalOpen}
+        onClose={() => setNotifModalOpen(false)}
+        eventId={id}
+        eventName={event?.name}
+      />
     </div>
   );
 };

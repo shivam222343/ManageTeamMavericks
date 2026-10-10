@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -155,9 +155,13 @@ const SubEventControlRoomPage = () => {
     }
   }, [eventId, subEventId, activeRoundId]);
 
+  const isFetchingTabRef = useRef(false);
+
   // Fetch Tab Specific Data
   const fetchTabData = useCallback(async () => {
     if (!subEventId || !activeRoundId) return;
+    if (isFetchingTabRef.current) return;
+    isFetchingTabRef.current = true;
     try {
       setRefreshing(true);
       if (activeTab === 'groups') {
@@ -187,6 +191,7 @@ const SubEventControlRoomPage = () => {
       console.error('Failed to refresh tab data', err);
     } finally {
       setRefreshing(false);
+      isFetchingTabRef.current = false;
     }
   }, [eventId, subEventId, activeRoundId, activeTab]);
 
@@ -198,12 +203,12 @@ const SubEventControlRoomPage = () => {
     fetchTabData();
   }, [fetchTabData]);
 
-  // Real-time polling every 3 seconds for Panels and Evaluations
+  // Real-time polling every 5 seconds for Panels and Evaluations
   useEffect(() => {
     if (activeTab === 'panels' || activeTab === 'evaluations' || activeTab === 'groups') {
       const interval = setInterval(() => {
         fetchTabData();
-      }, 3000);
+      }, 5000);
       return () => clearInterval(interval);
     }
   }, [activeTab, fetchTabData]);

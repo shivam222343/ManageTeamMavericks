@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import ChangePasswordModal from '../../components/ui/ChangePasswordModal';
 import ReflectiveCard from '../../components/ui/ReflectiveCard';
 import CursorPreferenceToggle from '../../components/ui/CursorPreferenceToggle';
+import MobileScrollSlider from '../../components/ui/MobileScrollSlider';
 
 const MemberProfilePage = () => {
   const { id } = useParams();
@@ -456,6 +457,8 @@ const MemberProfilePage = () => {
         isOpen={showChangePassModal}
         onClose={() => setShowChangePassModal(false)}
       />
+
+      <MobileScrollSlider />
     </div>
   );
 };

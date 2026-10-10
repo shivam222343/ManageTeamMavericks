@@ -18,6 +18,7 @@ class AuthController {
         $email = trim($input['email'] ?? '');
         $password = $input['password'] ?? '';
         $rememberMe = $input['rememberMe'] ?? false;
+        $portal = $input['portal'] ?? ''; // 'participant' when called from participant portal
 
         if (empty($email) || empty($password)) {
             Router::sendJson(['error' => 'Email and password are required'], 400);
@@ -30,6 +31,21 @@ class AuthController {
 
         if (!$user || !password_verify($password, $user['password_hash'])) {
             Router::sendJson(['error' => 'Invalid email or password'], 401);
+        }
+
+        // Block club members (non-participants) from the Participant Portal
+        $clubRoles = ['coordinator', 'core_member', 'member'];
+        if ($portal === 'participant' && in_array($user['role'], $clubRoles)) {
+            Router::sendJson([
+                'error' => 'Club members cannot access the Participant Portal. Please use the Team Dashboard at /login instead.'
+            ], 403);
+        }
+
+        // Block participants from the admin dashboard portal
+        if ($portal === 'admin' && $user['role'] === 'participant') {
+            Router::sendJson([
+                'error' => 'Participants cannot access the Team Dashboard. Please use the Participant Portal at /user-login instead.'
+            ], 403);
         }
 
         $mustChangePassword = (bool)($user['must_change_password'] ?? false);

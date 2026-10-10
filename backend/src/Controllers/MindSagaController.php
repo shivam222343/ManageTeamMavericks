@@ -12,11 +12,16 @@ use PHPMailer\PHPMailer\Exception;
 use PDO;
 
 class MindSagaController {
+    private static bool $tablesInitialized = false;
 
     /**
      * Ensure all tables and seed configs for Mind Saga exist.
      */
     public static function initTables(PDO $db): void {
+        if (self::$tablesInitialized) {
+            return;
+        }
+        self::$tablesInitialized = true;
         // 1. Mind Saga Master Config
         $db->exec("CREATE TABLE IF NOT EXISTS mind_saga_configs (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1108,6 +1113,7 @@ class MindSagaController {
             }
 
             // Resume active session
+            $db->prepare("UPDATE mind_saga_test_sessions SET camera_status = 'connected', updated_at = NOW() WHERE id = ?")->execute([$session['id']]);
             $assignedQIds = json_decode($session['assigned_question_ids'] ?? '[]', true) ?: [];
             $answersData = json_decode($session['answers_data'] ?? '{}', true) ?: [];
 
@@ -1161,8 +1167,8 @@ class MindSagaController {
         }
 
         $insStmt = $db->prepare("INSERT INTO mind_saga_test_sessions 
-            (test_id, registration_id, sub_event_id, session_token, started_at, duration_seconds, expires_at, status, assigned_question_ids, answers_data, proctoring_events)
-            VALUES (?, ?, ?, ?, NOW(), ?, ?, 'in_progress', ?, '{}', '[]')
+            (test_id, registration_id, sub_event_id, session_token, started_at, duration_seconds, expires_at, status, camera_status, assigned_question_ids, answers_data, proctoring_events)
+            VALUES (?, ?, ?, ?, NOW(), ?, ?, 'in_progress', 'connected', ?, '{}', '[]')
         ");
         $insStmt->execute([
             $testId,
@@ -1751,29 +1757,67 @@ class MindSagaController {
         if ($regId === 0) {
             $msStmt = $db->prepare("SELECT registration_id FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ? LIMIT 1");
             $msStmt->execute([$subId, $userId]);
+        if ($regId === 0) {
+            $msStmt = $db->prepare("SELECT registration_id FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ? LIMIT 1");
+            $msStmt->execute([$subId, $userId]);
             $regId = (int)($msStmt->fetchColumn() ?? ($userId ?: 999999));
         }
 
+        // Auto-terminate any expired in-progress sessions for this participant
+        $db->prepare("UPDATE mind_saga_game_sessions 
+            SET status = 'time_out', completed_at = expires_at, updated_at = NOW() 
+            WHERE sub_event_id = ? AND registration_id = ? AND status = 'in_progress' AND expires_at < NOW()
+        ")->execute([$subId, $regId]);
+
         // Check completed gaming sessions / tournament attempts
-        $gCountStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated')");
+        $gCountStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_sessions 
+            WHERE sub_event_id = ? AND registration_id = ? 
+              AND status IN ('completed', 'auto_submitted', 'terminated', 'time_out')
+        ");
         $gCountStmt->execute([$subId, $regId]);
         $completedGameCount = (int)$gCountStmt->fetchColumn();
 
-        // Check active in-progress game session
-        $inProgGStmt = $db->prepare("SELECT * FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status = 'in_progress'");
+        // Check active in-progress game session that is still valid
+        $inProgGStmt = $db->prepare("SELECT * FROM mind_saga_game_sessions 
+            WHERE sub_event_id = ? AND registration_id = ? AND status = 'in_progress' AND expires_at >= NOW()
+            ORDER BY id DESC LIMIT 1
+        ");
         $inProgGStmt->execute([$subId, $regId]);
         $activeGSession = $inProgGStmt->fetch(PDO::FETCH_ASSOC);
 
-        // If no active in-progress session and user reached max attempts
-        // Each tournament run contains N games. We track total completed runs or sessions.
-        $distinctRunsStmt = $db->prepare("SELECT COUNT(DISTINCT DATE(completed_at)) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated')");
-        $distinctRunsStmt->execute([$subId, $regId]);
-        $completedTournamentRuns = (int)$distinctRunsStmt->fetchColumn();
+        // Calculate total active games for this round
+        $activeGamesStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_configs WHERE sub_event_id = ? AND is_active = 1");
+        $activeGamesStmt->execute([$subId]);
+        $activeGamesTotal = max(1, (int)$activeGamesStmt->fetchColumn());
+
+        $completedTournamentRuns = ($completedGameCount > 0) ? (int)ceil($completedGameCount / $activeGamesTotal) : 0;
+        if ($maxAttemptsR2 === 1 && $completedGameCount >= 1) {
+            $completedTournamentRuns = 1;
+        }
 
         if (!$activeGSession && $completedTournamentRuns >= $maxAttemptsR2 && !in_array($user['role'], ['coordinator', 'core_member'])) {
             Router::sendJson([
                 'error' => "You have exhausted the maximum allowed attempts ({$maxAttemptsR2}) for Round 2: Gaming Arena."
             ], 403);
+            return;
+        }
+
+        // If resuming an active session for the same game
+        if ($activeGSession && (int)$activeGSession['game_config_id'] === (int)$game['id']) {
+            $puzzleData = json_decode($activeGSession['game_data'] ?? '[]', true);
+            $expTs = strtotime($activeGSession['expires_at']);
+            $remaining = max(0, $expTs - time());
+            Router::sendJson([
+                'session_token' => $activeGSession['session_token'],
+                'session_id' => (int)$activeGSession['id'],
+                'game_config_id' => (int)$game['id'],
+                'game_key' => $gameKey,
+                'title' => $game['title'],
+                'duration_seconds' => $remaining,
+                'expires_at' => $activeGSession['expires_at'],
+                'max_score' => (int)$activeGSession['max_score'],
+                'puzzle_data' => $puzzleData
+            ], 200);
             return;
         }
 
@@ -1790,8 +1834,8 @@ class MindSagaController {
         $token = bin2hex(random_bytes(32));
 
         $insStmt = $db->prepare("INSERT INTO mind_saga_game_sessions 
-            (game_config_id, registration_id, sub_event_id, session_token, started_at, expires_at, status, score, max_score, game_data, moves_log, proctoring_events)
-            VALUES (?, ?, ?, ?, NOW(), ?, 'in_progress', 0, ?, ?, '[]', '[]')
+            (game_config_id, registration_id, sub_event_id, session_token, started_at, expires_at, status, camera_status, score, max_score, game_data, moves_log, proctoring_events)
+            VALUES (?, ?, ?, ?, NOW(), ?, 'in_progress', 'connected', 0, ?, ?, '[]', '[]')
         ");
         $insStmt->execute([$game['id'], $regId, $subId, $token, $expiresAt, (int)$game['max_score'], json_encode($puzzleData)]);
         $sessId = (int)$db->lastInsertId();
@@ -1935,6 +1979,61 @@ class MindSagaController {
         ]);
     }
 
+    /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/games/exit
+     * Terminate / Auto-submit in-progress game session when participant leaves or exits.
+     */
+    public static function exitGameSession(array $params): void {
+        AuthMiddleware::authenticate();
+        $db = Database::getConnection();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $token = trim($body['session_token'] ?? '');
+        $score = (int)($body['score'] ?? 0);
+        $movesLog = $body['moves_log'] ?? [];
+
+        if (empty($token)) {
+            Router::sendJson(['error' => 'Session token required'], 400);
+            return;
+        }
+
+        $sessStmt = $db->prepare("SELECT s.*, g.max_score as game_max FROM mind_saga_game_sessions s JOIN mind_saga_game_configs g ON s.game_config_id = g.id WHERE s.session_token = ?");
+        $sessStmt->execute([$token]);
+        $session = $sessStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$session) {
+            Router::sendJson(['error' => 'Session not found.'], 404);
+            return;
+        }
+
+        $vHash = hash('sha256', "{$session['id']}:{$session['registration_id']}:{$score}:exited");
+
+        $db->prepare("UPDATE mind_saga_game_sessions SET 
+            status = 'terminated',
+            score = ?,
+            moves_log = ?,
+            verification_hash = ?,
+            completed_at = NOW(),
+            updated_at = NOW()
+            WHERE id = ?
+        ")->execute([$score, json_encode($movesLog), $vHash, $session['id']]);
+
+        // Sync cumulative Round 2 score
+        $sumStmt = $db->prepare("SELECT SUM(score) as total_earned, SUM(max_score) as total_max FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'time_out', 'auto_submitted', 'terminated')");
+        $sumStmt->execute([(int)$session['sub_event_id'], (int)$session['registration_id']]);
+        $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
+        $totalEarned = (float)($sumRow['total_earned'] ?? $score);
+        $totalMax = (float)($sumRow['total_max'] ?? $session['game_max']);
+        if ($totalMax <= 0) $totalMax = 100.0;
+
+        self::syncMasterScore($db, (int)$session['sub_event_id'], (int)$session['registration_id'], 'round2', $totalEarned, $totalMax);
+
+        Router::sendJson([
+            'success' => true,
+            'message' => 'Game session finalized and attempt consumed.'
+        ]);
+    }
+
     // ==========================================
     // 7. LIVE PROCTORING & CCTV MONITORING
     // ==========================================
@@ -2008,7 +2107,7 @@ class MindSagaController {
         $outerSql = "SELECT * FROM ({$sql}) as cctv_all WHERE 1=1";
 
         if ($filter === 'online') {
-            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected' AND latest_snapshot IS NOT NULL";
+            $outerSql .= " AND status = 'in_progress' AND (camera_status = 'connected' OR latest_snapshot IS NOT NULL)";
         } else if ($filter === 'disconnected') {
             $outerSql .= " AND (camera_status = 'disconnected' OR latest_snapshot IS NULL) AND status = 'in_progress'";
         } else if ($filter === 'warnings') {
@@ -2018,11 +2117,11 @@ class MindSagaController {
         } else if ($filter === 'submitted') {
             $outerSql .= " AND status IN ('submitted', 'auto_submitted')";
         } else {
-            // Default 'all' CCTV view: only display live active streams
-            $outerSql .= " AND status = 'in_progress' AND camera_status = 'connected' AND latest_snapshot IS NOT NULL";
+            // Default 'all' CCTV view: display all active in-progress participant sessions
+            $outerSql .= " AND status = 'in_progress'";
         }
 
-        $outerSql .= " ORDER BY (status = 'in_progress') DESC, violation_count DESC, last_snapshot_at DESC, started_at DESC";
+        $outerSql .= " ORDER BY (status = 'in_progress') DESC, (camera_status = 'connected') DESC, (latest_snapshot IS NOT NULL) DESC, violation_count DESC, last_snapshot_at DESC, started_at DESC";
 
         $stmt = $db->prepare($outerSql);
         $stmt->execute([$subId, $subId]);
@@ -2067,93 +2166,67 @@ class MindSagaController {
             return;
         }
 
-        if ($round === 1) {
-            $stmt = $db->prepare("SELECT status, violation_count, proctoring_events FROM mind_saga_test_sessions WHERE session_token = ?");
-            $stmt->execute([$token]);
-            $sess = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($sess) {
-                if ($cameraStatus === 'disconnected' || empty($image)) {
-                    $db->prepare("UPDATE mind_saga_test_sessions SET 
-                        camera_status = 'disconnected',
-                        latest_snapshot = NULL,
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$token]);
-                } else {
-                    $db->prepare("UPDATE mind_saga_test_sessions SET 
-                        latest_snapshot = ?, 
-                        last_snapshot_at = NOW(), 
-                        camera_status = 'connected',
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$image, $token]);
-                }
-
-                $isTerminated = ($sess['status'] === 'terminated');
-                $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
-                $adminTerminatedReason = '';
-                foreach (array_reverse($events) as $ev) {
-                    if (($ev['type'] ?? '') === 'admin_terminated') {
-                        $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
-                        break;
-                    }
-                }
-
-                Router::sendJson([
-                    'success' => true,
-                    'status' => $sess['status'],
-                    'violation_count' => (int)$sess['violation_count'],
-                    'terminated' => $isTerminated,
-                    'termination_reason' => $adminTerminatedReason
-                ]);
-                return;
-            }
+        // Look up session in test_sessions first, then game_sessions
+        $table = null;
+        $stmt = $db->prepare("SELECT id, status, violation_count, proctoring_events FROM mind_saga_test_sessions WHERE session_token = ?");
+        $stmt->execute([$token]);
+        $sess = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($sess) {
+            $table = 'mind_saga_test_sessions';
         } else {
-            $stmt = $db->prepare("SELECT status, violation_count, proctoring_events FROM mind_saga_game_sessions WHERE session_token = ?");
+            $stmt = $db->prepare("SELECT id, status, violation_count, proctoring_events FROM mind_saga_game_sessions WHERE session_token = ?");
             $stmt->execute([$token]);
             $sess = $stmt->fetch(PDO::FETCH_ASSOC);
-
             if ($sess) {
-                if ($cameraStatus === 'disconnected' || empty($image)) {
-                    $db->prepare("UPDATE mind_saga_game_sessions SET 
-                        camera_status = 'disconnected',
-                        latest_snapshot = NULL,
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$token]);
-                } else {
-                    $db->prepare("UPDATE mind_saga_game_sessions SET 
-                        latest_snapshot = ?, 
-                        last_snapshot_at = NOW(), 
-                        camera_status = 'connected',
-                        updated_at = NOW() 
-                        WHERE session_token = ?
-                    ")->execute([$image, $token]);
-                }
-
-                $isTerminated = ($sess['status'] === 'terminated');
-                $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
-                $adminTerminatedReason = '';
-                foreach (array_reverse($events) as $ev) {
-                    if (($ev['type'] ?? '') === 'admin_terminated') {
-                        $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
-                        break;
-                    }
-                }
-
-                Router::sendJson([
-                    'success' => true,
-                    'status' => $sess['status'],
-                    'violation_count' => (int)$sess['violation_count'],
-                    'terminated' => $isTerminated,
-                    'termination_reason' => $adminTerminatedReason
-                ]);
-                return;
+                $table = 'mind_saga_game_sessions';
             }
         }
 
-        Router::sendJson(['error' => 'Session not found'], 404);
+        if ($sess && $table) {
+            if ($cameraStatus === 'disconnected') {
+                $db->prepare("UPDATE {$table} SET 
+                    camera_status = 'disconnected',
+                    updated_at = NOW() 
+                    WHERE session_token = ?
+                ")->execute([$token]);
+            } else if (!empty($image)) {
+                $db->prepare("UPDATE {$table} SET 
+                    latest_snapshot = ?, 
+                    last_snapshot_at = NOW(), 
+                    camera_status = 'connected',
+                    updated_at = NOW() 
+                    WHERE session_token = ?
+                ")->execute([$image, $token]);
+            } else {
+                $db->prepare("UPDATE {$table} SET 
+                    camera_status = 'connected',
+                    last_snapshot_at = NOW(),
+                    updated_at = NOW() 
+                    WHERE session_token = ?
+                ")->execute([$token]);
+            }
+
+            $isTerminated = ($sess['status'] === 'terminated');
+            $events = json_decode($sess['proctoring_events'] ?? '[]', true) ?: [];
+            $adminTerminatedReason = '';
+            foreach (array_reverse($events) as $ev) {
+                if (($ev['type'] ?? '') === 'admin_terminated') {
+                    $adminTerminatedReason = $ev['details'] ?? 'Terminated by proctor administrator.';
+                    break;
+                }
+            }
+
+            Router::sendJson([
+                'success' => true,
+                'status' => $sess['status'],
+                'violation_count' => (int)$sess['violation_count'],
+                'terminated' => $isTerminated,
+                'termination_reason' => $adminTerminatedReason
+            ]);
+            return;
+        }
+
+        Router::sendJson(['error' => 'Session token not found'], 404);
     }
 
     /**
@@ -2418,15 +2491,33 @@ class MindSagaController {
         $panelStmt->execute([$subId]);
         $panelInfo = $panelStmt->fetch(PDO::FETCH_ASSOC);
 
+        // Auto-expire any outdated in-progress test sessions
+        $db->prepare("UPDATE mind_saga_test_sessions 
+            SET status = 'auto_submitted', submitted_at = expires_at, updated_at = NOW() 
+            WHERE sub_event_id = ? AND registration_id = ? AND status = 'in_progress' AND expires_at < NOW()
+        ")->execute([$subId, $regId]);
+
+        // Auto-expire any outdated in-progress gaming sessions
+        $db->prepare("UPDATE mind_saga_game_sessions 
+            SET status = 'time_out', completed_at = expires_at, updated_at = NOW() 
+            WHERE sub_event_id = ? AND registration_id = ? AND status = 'in_progress' AND expires_at < NOW()
+        ")->execute([$subId, $regId]);
+
         // Round 1 completed attempts count
         $countR1Stmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_test_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('submitted', 'auto_submitted', 'terminated')");
         $countR1Stmt->execute([$subId, $regId]);
         $attemptsUsedR1 = (int)$countR1Stmt->fetchColumn();
 
-        // Round 2 completed tournament runs count
-        $countR2Stmt = $db->prepare("SELECT COUNT(DISTINCT DATE(completed_at)) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated')");
+        // Round 2 completed gaming sessions count
+        $countR2Stmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated', 'time_out')");
         $countR2Stmt->execute([$subId, $regId]);
-        $attemptsUsedR2 = (int)$countR2Stmt->fetchColumn();
+        $completedGameCount = (int)$countR2Stmt->fetchColumn();
+
+        $activeGamesTotal = max(1, $activeGamesCount);
+        $attemptsUsedR2 = ($completedGameCount > 0) ? (int)ceil($completedGameCount / $activeGamesTotal) : 0;
+        if ((int)($config['max_attempts_r2'] ?? 1) === 1 && $completedGameCount >= 1) {
+            $attemptsUsedR2 = 1;
+        }
 
         $activeRound = (int)($config['active_round'] ?? 1);
         $maxAttemptsR1 = (int)($config['max_attempts_r1'] ?? 1);

@@ -39,6 +39,36 @@ class AuthMiddleware {
     }
 
     /**
+     * Optional authentication — returns user payload if valid token provided, or null if unauthenticated
+     */
+    public static function optionalAuth(): ?array {
+        $headers = getallheaders();
+        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+
+        if (empty($authHeader) && isset($_GET['token'])) {
+            $authHeader = 'Bearer ' . $_GET['token'];
+        }
+
+        if (empty($authHeader)) {
+            return null;
+        }
+
+        $parts = explode(' ', $authHeader);
+        if (count($parts) !== 2 || strtolower($parts[0]) !== 'bearer') {
+            return null;
+        }
+
+        $token = $parts[1];
+
+        try {
+            $decoded = JWT::decode($token, new Key(JWT_SECRET, 'HS256'));
+            return (array) $decoded;
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    /**
      * Check if user has the required roles
      */
     public static function requireRoles(array $allowedRoles): array {

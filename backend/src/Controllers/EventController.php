@@ -9,11 +9,16 @@ use PDO;
 
 class EventController {
 
+    private static bool $migrated = false;
+
     /**
      * Ensure the events table migration has been applied.
-     * Safe to call on every request — silently skips if columns already exist.
      */
     private function ensureMigration(): void {
+        if (self::$migrated) {
+            return;
+        }
+        self::$migrated = true;
         $db = Database::getConnection();
         try {
             // Create events table
