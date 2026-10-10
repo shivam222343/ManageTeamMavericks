@@ -1,0 +1,271 @@
+/* =========================================================
+   Interactive Background & Cursor Effects (Team Mavericks)
+   Reference: preview (1).html
+   ========================================================= */
+
+/* Base Fullscreen Fixed Background Container */
+.interactive-bg-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: radial-gradient(circle at center, rgba(30, 80, 130, 0.25), transparent 65%), #07111f;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Slowly Moving Map Pattern Layer with Parallax */
+.interactive-map-background {
+  position: absolute;
+  width: 140%;
+  height: 140%;
+  left: -20%;
+  top: -20%;
+  background-color: #10223c;
+  pointer-events: none;
+  background-image:
+    /* Diagonal road lines 1 (25deg) */
+    linear-gradient(
+      25deg,
+      transparent 47%,
+      rgba(255, 255, 255, 0.07) 48%,
+      rgba(255, 255, 255, 0.07) 50%,
+      transparent 51%
+    ),
+    /* Diagonal road lines 2 (145deg) */
+    linear-gradient(
+      145deg,
+      transparent 47%,
+      rgba(255, 255, 255, 0.05) 48%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 51%
+    ),
+    /* Map dots grid */
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.10) 1px,
+      transparent 1px
+    );
+  background-size:
+    180px 180px,
+    220px 220px,
+    45px 45px;
+  animation: interactiveMapMove 20s linear infinite;
+  will-change: transform, background-position;
+  transition: transform 0.12s ease-out;
+}
+
+@keyframes interactiveMapMove {
+  0% {
+    background-position:
+      0 0,
+      0 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      180px 180px,
+      -220px 220px,
+      45px 45px;
+  }
+}
+
+/* Dark Radial Overlay (preserves text readability & contrast) */
+.interactive-bg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    rgba(3, 10, 25, 0.25) 45%,
+    rgba(3, 10, 25, 0.78) 100%
+  );
+}
+
+/* Interactive Cursor / Touch Glow */
+.interactive-background-glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  left: 50%;
+  top: 50%;
+  margin-left: -250px;
+  margin-top: -250px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.12),
+    transparent 70%
+  );
+  z-index: 1;
+  pointer-events: none;
+  transition: transform 0.25s ease-out;
+  will-change: transform;
+}
+
+/* Subtle Floating Particles */
+.interactive-floating-particle {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  z-index: 3;
+  animation: interactiveFloating 6s ease-in-out infinite;
+}
+
+.interactive-floating-particle.p1 { left: 8%; top: 20%; animation-delay: 0s; }
+.interactive-floating-particle.p2 { left: 18%; top: 70%; animation-delay: 1s; }
+.interactive-floating-particle.p3 { left: 35%; top: 25%; animation-delay: 2s; }
+.interactive-floating-particle.p4 { left: 52%; top: 75%; animation-delay: 3s; }
+.interactive-floating-particle.p5 { left: 70%; top: 20%; animation-delay: 4s; }
+.interactive-floating-particle.p6 { left: 85%; top: 65%; animation-delay: 2s; }
+.interactive-floating-particle.p7 { left: 90%; top: 30%; animation-delay: 1.5s; }
+.interactive-floating-particle.p8 { left: 45%; top: 50%; animation-delay: 3.5s; }
+
+@keyframes interactiveFloating {
+  0% {
+    transform: translateY(0);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-45px);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.25;
+  }
+}
+
+/* Pulsating Blue Location Pins */
+.interactive-pin {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow:
+    0 0 0 7px rgba(56, 189, 248, 0.12),
+    0 0 20px rgba(56, 189, 248, 0.8);
+  z-index: 3;
+  pointer-events: none;
+  animation: interactivePulse 2.5s ease-in-out infinite;
+}
+
+.interactive-pin.pin1 { left: 20%; top: 30%; animation-delay: 0s; }
+.interactive-pin.pin2 { left: 70%; top: 25%; animation-delay: 0.7s; }
+.interactive-pin.pin3 { left: 60%; top: 70%; animation-delay: 1.4s; }
+.interactive-pin.pin4 { left: 30%; top: 75%; animation-delay: 2s; }
+
+@keyframes interactivePulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+
+/* Desktop Cursor Core */
+.interactive-cursor-core {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 0 10px #ffffff,
+    0 0 25px #38bdf8;
+  pointer-events: none;
+  z-index: 99999;
+  will-change: transform;
+}
+
+/* Cursor Trail Particles Layer */
+.interactive-cursor-trail-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99998;
+}
+
+.interactive-cursor-particle {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow:
+    0 0 8px #38bdf8,
+    0 0 18px rgba(56, 189, 248, 0.7);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Custom Cursor Enabled Body state (scoped via JS on active page only) */
+body.interactive-cursor-active {
+  cursor: none;
+}
+
+body.interactive-cursor-active input,
+body.interactive-cursor-active textarea,
+body.interactive-cursor-active [contenteditable="true"] {
+  cursor: text;
+}
+
+body.interactive-cursor-active select,
+body.interactive-cursor-active option {
+  cursor: pointer;
+}
+
+/* Mobile & Touch Overrides */
+@media (max-width: 700px), (pointer: coarse) {
+  body.interactive-cursor-active {
+    cursor: auto;
+  }
+
+  .interactive-cursor-core {
+    display: none !important;
+  }
+
+  .interactive-cursor-particle {
+    width: 6px;
+    height: 6px;
+  }
+
+  .interactive-background-glow {
+    width: 300px;
+    height: 300px;
+    margin-left: -150px;
+    margin-top: -150px;
+  }
+
+  .interactive-map-background {
+    transition: transform 0.2s ease-out;
+  }
+}
+
+/* Prefers Reduced Motion Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .interactive-map-background,
+  .interactive-floating-particle,
+  .interactive-pin {
+    animation: none !important;
+  }
+}

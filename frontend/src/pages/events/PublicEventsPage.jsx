@@ -28,11 +28,11 @@ import {
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
-import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
+import InteractiveBackground from '../../components/ui/InteractiveBackground';
 import TechText from '../../components/ui/TechText';
-import SpecularButton from '../../components/ui/SpecularButton';
 import StrokeText from '../../components/ui/StrokeText';
+import SpecularButton from '../../components/ui/SpecularButton';
 
 export const FLAGSHIP_EVENTS_DATA = [
   {
@@ -189,23 +189,19 @@ const PublicEventsPage = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search events by name, location..."
-          className={`w-full pl-11 pr-4 py-3.5 rounded-2xl border text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue/30 focus:border-primary-blue transition shadow-sm ${isDark ? 'bg-[#0E172A] border-[#1E293B] text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
-            }`}
+          className="w-full pl-11 pr-4 py-3.5 rounded-2xl border text-sm focus:outline-none focus:ring-2 focus:ring-primary-blue/30 focus:border-primary-blue transition shadow-sm bg-[#0E172A]/90 border-[#1E293B] text-white placeholder:text-slate-400 backdrop-blur-md"
         />
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[10px] font-mono uppercase font-bold text-slate-400">Mode:</span>
-        <div className={`flex items-center gap-1.5 p-1 border rounded-2xl ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-slate-100 border-slate-200'
-          }`}>
+        <div className="flex items-center gap-1.5 p-1 border rounded-2xl bg-[#0E172A]/90 border-[#1E293B] backdrop-blur-md">
           {['all', 'offline', 'online', 'hybrid'].map((mode) => (
             <button
               key={mode}
               onClick={() => setSelectedMode(mode)}
               className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider capitalize transition cursor-pointer ${selectedMode === mode
-                  ? isDark
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white'
                 }`}
             >
               {mode}
@@ -217,18 +213,14 @@ const PublicEventsPage = () => {
   );
 
   return (
-    <div className={`min-h-screen font-sans transition-colors duration-300 relative selection:bg-primary-blue selection:text-white flex flex-col justify-between overflow-x-hidden ${isDark ? 'bg-[#070C18] text-slate-100' : 'bg-[#FAFAF9] text-slate-900'
+    <div className={`min-h-screen font-sans transition-colors duration-300 relative selection:bg-primary-blue selection:text-white flex flex-col justify-between overflow-x-hidden ${isDark ? 'bg-[#07111f] text-slate-100' : 'bg-[#FAFAF9] text-slate-900'
       }`}>
-      {/* Background Ambient Glows */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
-      </div>
+      {/* Interactive Background & Cursor Effects (preview (1).html) */}
+      <InteractiveBackground />
 
       <div className="relative z-10">
         {/* Navigation Bar */}
-        <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-colors ${isDark ? 'bg-[#070C18]/80 border-[#1E293B]' : 'bg-white/80 border-slate-200'
-          }`}>
+        <header className="sticky top-0 z-40 backdrop-blur-xl border-b transition-colors bg-[#070C18]/85 border-[#1E293B]">
           <div className="max-w-7xl mx-auto px-2.5 sm:px-6 h-20 flex items-center justify-between">
             <Link to="/" className="flex items-center gap-3 group">
               <img
@@ -237,7 +229,7 @@ const PublicEventsPage = () => {
                 className="h-9 w-auto object-contain select-none group-hover:scale-105 transition-transform"
               />
               <div className="flex flex-col">
-                <span className="font-display-heavy text-base sm:text-lg tracking-tight uppercase leading-none text-zinc-900 dark:text-white">
+                <span className="font-display-heavy text-base sm:text-lg tracking-tight uppercase leading-none text-white">
                   Team Mavericks
                 </span>
                 <span className="text-[10px] font-mono uppercase tracking-widest text-primary-blue font-bold mt-1">
@@ -249,10 +241,7 @@ const PublicEventsPage = () => {
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={toggleTheme}
-                className={`hidden sm:flex p-2 rounded-xl border transition cursor-pointer ${isDark
-                    ? 'border-slate-800 bg-slate-900 text-yellow-400 hover:bg-slate-800'
-                    : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                className="hidden sm:flex p-2 rounded-xl border transition cursor-pointer border-slate-700/80 bg-slate-900/60 text-yellow-400 hover:bg-slate-800"
                 title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
                 {isDark ? <Sun size={16} /> : <Moon size={16} />}
@@ -261,8 +250,7 @@ const PublicEventsPage = () => {
               <Link
                 to="/user-login"
                 title="Participant Login"
-                className={`inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition border cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
+                className="inline-flex items-center justify-center gap-1.5 p-2.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition border cursor-pointer border-slate-700/80 text-slate-200 hover:bg-slate-800 hover:text-white backdrop-blur-sm"
               >
                 <LogIn size={15} />
                 <span className="hidden sm:inline">Participant Login</span>
@@ -392,43 +380,21 @@ const PublicEventsPage = () => {
               </div>
             </div>
 
-            {/* Right Column - DitherVeil Visual Animation (All Events Landing) */}
-            <div className="lg:col-span-6 flex flex-col justify-center items-center relative w-full">
-              <div className={`absolute -inset-4 rounded-full blur-3xl opacity-20 pointer-events-none ${isDark ? 'bg-indigo-600/30' : 'bg-blue-100/30'
+            {/* Right Column - Official Team Mavericks Logo (Static) */}
+            <div className="lg:col-span-6 flex flex-col justify-center items-center relative w-full select-none py-2 sm:py-4">
+              <div className={`absolute -inset-4 rounded-full blur-3xl pointer-events-none ${isDark ? 'bg-indigo-600/25' : 'bg-blue-100/30'
                 }`} />
 
-              <div
-                className="w-full h-[420px] sm:h-[520px] md:h-[580px] relative overflow-hidden select-none"
-                style={{
-                  WebkitMaskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-                  maskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-                }}
-              >
-                <DitherVeil
-                  src="https://images.unsplash.com/photo-1737071371043-761e02b1ef95?q=80&w=1400&auto=format&fit=crop"
-                  pattern="floyd"
-                  pixelSize={1.6}
-                  inkColor={isDark ? "#070C18" : "#FFFFFF"}
-                  paperColor={isDark ? "#93C5FD" : "#000000"}
-                  revealRadius={220}
-                  softness={0.65}
-                  linger={1.2}
-                  fit="contain"
-                  rimColor={isDark ? "#a78bfa" : "#3b82f6"}
-                  palette="duotone"
-                  levels={2}
-                  contrast={1.1}
-                  brightness={0.10}
-                  rim={0}
-                  reverse={false}
-                  wander={false}
-                  clickBurst
+              <div className="relative z-10 flex items-center justify-center p-2 sm:p-4">
+                <img
+                  src="/Logos/Mavericks_Logo.png"
+                  alt="Team Mavericks Official Logo"
+                  className="w-full max-w-[320px] sm:max-w-[380px] md:max-w-[440px] lg:max-w-[460px] h-auto object-contain transition-transform duration-500 hover:scale-[1.02]"
+                  style={{
+                    filter: 'drop-shadow(0 0 35px rgba(37, 99, 235, 0.45)) drop-shadow(0 0 12px rgba(56, 189, 248, 0.3))'
+                  }}
+                  draggable="false"
                 />
-
-                <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
-                    ? 'bg-gradient-to-t from-[#070C18] via-transparent to-[#070C18]/60'
-                    : 'bg-gradient-to-t from-[#FAFAF9] via-transparent to-transparent'
-                  }`} />
               </div>
 
               {/* Mobile Search & Mode Filters (below idol) */}
@@ -442,12 +408,12 @@ const PublicEventsPage = () => {
 
         {/* Live Active Events Grid */}
         <section id="events-grid" className="px-2.5 sm:px-6 max-w-7xl mx-auto pb-16">
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800/80">
             <div>
-              <p className="font-mono-tag text-[10px] font-black uppercase tracking-widest text-primary-blue">
+              <p className="font-mono-tag text-xs font-black uppercase tracking-widest text-blue-400 mb-1">
                 REGISTRATIONS OPEN
               </p>
-              <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-display-heavy uppercase tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
                 Upcoming &amp; Live Events
               </h2>
             </div>
@@ -492,9 +458,7 @@ const PublicEventsPage = () => {
                       className="w-full h-full flex flex-col"
                     >
                       <div
-                        className={`group flex flex-col h-full rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl ${
-                          isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-white border-slate-200'
-                        }`}
+                        className="group flex flex-col h-full rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl bg-[#0E172A]/90 border-[#1E293B]"
                       >
                         {/* Banner / Cover */}
                         <div className="relative h-48 w-full bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden shrink-0">
@@ -539,30 +503,30 @@ const PublicEventsPage = () => {
                         {/* Body */}
                         <div className="p-6 flex-1 flex flex-col justify-between">
                           <div>
-                            <h3 className="text-xl font-black text-zinc-900 dark:text-white tracking-tight group-hover:text-primary-blue transition-colors">
+                            <h3 className="text-xl font-black text-white tracking-tight group-hover:text-blue-400 transition-colors">
                               {ev.name}
                             </h3>
                             {ev.description && (
-                              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                              <p className="mt-2 text-xs text-slate-300 line-clamp-2 leading-relaxed">
                                 {ev.description}
                               </p>
                             )}
 
-                            <div className="mt-5 space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <div className="mt-5 space-y-2 pt-4 border-t border-slate-800">
                               {ev.start_date && (
-                                <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                  <Calendar size={14} className="text-primary-blue shrink-0" />
+                                <div className="flex items-center gap-2.5 text-xs text-slate-300 font-medium">
+                                  <Calendar size={14} className="text-blue-400 shrink-0" />
                                   <span>{formatDate(ev.start_date)}</span>
                                 </div>
                               )}
                               {ev.location && (
-                                <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                  <MapPin size={14} className="text-rose-500 shrink-0" />
+                                <div className="flex items-center gap-2.5 text-xs text-slate-300 font-medium">
+                                  <MapPin size={14} className="text-rose-400 shrink-0" />
                                   <span className="truncate">{ev.location}</span>
                                 </div>
                               )}
                               {ev.organizer_name && (
-                                <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                <div className="flex items-center gap-2.5 text-xs text-slate-300 font-medium">
                                   <Users size={14} className="text-indigo-400 shrink-0" />
                                   <span className="truncate">By {ev.organizer_name}</span>
                                 </div>
@@ -598,8 +562,7 @@ const PublicEventsPage = () => {
 
         {/* --- FLAGSHIP EVENTS HIGHLIGHTS SECTION (Exactly matching recruitment page) --- */}
         {/* --- OUR FLAGSHIP EVENTS (Exact Recruitment Cards with Interactive Hover Reveal) --- */}
-        <section id="flagship-events" className={`py-24 px-5 sm:px-8 md:px-14 border-t ${isDark ? 'bg-[#070C18] border-[#1E293B]' : 'bg-white border-slate-200'
-          }`}>
+        <section id="flagship-events" className="py-24 px-5 sm:px-8 md:px-14 border-t bg-[#070C18]/60 border-[#1E293B]">
           <style>{`
             .event-card {
               position: relative;
@@ -673,13 +636,13 @@ const PublicEventsPage = () => {
           <div className="max-w-7xl mx-auto">
             {/* Section Header */}
             <div className="text-center max-w-3xl mx-auto mb-12">
-              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
+              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-400 mb-2">
                 WHAT WE BUILD &amp; RUN
               </p>
-              <h2 className="font-display-heavy text-3xl sm:text-5xl md:text-6xl uppercase tracking-tight text-zinc-900 dark:text-white mb-3">
+              <h2 className="font-display-heavy text-3xl sm:text-5xl md:text-6xl uppercase tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] mb-3">
                 FLAGSHIP EVENTS.
               </h2>
-              <p className={`max-w-lg mx-auto text-xs sm:text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              <p className="max-w-lg mx-auto text-xs sm:text-sm leading-relaxed text-[#D1DCEB]">
                 From multi-day college symposiums to placement boot camps and rural tech outreaches — Team Mavericks runs it all.
               </p>
             </div>
@@ -752,14 +715,13 @@ const PublicEventsPage = () => {
         </section>
 
         {/* --- FAQ SECTION --- */}
-        <section className={`py-16 sm:py-20 px-2.5 sm:px-6 border-t ${isDark ? 'bg-[#0E172A]/40 border-[#1E293B]' : 'bg-slate-50 border-slate-200'
-          }`}>
+        <section className="py-16 sm:py-20 px-2.5 sm:px-6 border-t bg-[#070C18]/40 border-[#1E293B]">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
-              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-primary-blue mb-2">
+              <p className="font-mono-tag text-xs font-bold uppercase tracking-widest text-blue-400 mb-2">
                 FREQUENTLY ASKED QUESTIONS
               </p>
-              <h2 className="font-display-heavy text-3xl sm:text-4xl uppercase tracking-tight text-zinc-900 dark:text-white">
+              <h2 className="font-display-heavy text-3xl sm:text-4xl uppercase tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
                 Everything you need to know.
               </h2>
             </div>
@@ -768,21 +730,20 @@ const PublicEventsPage = () => {
               {EVENT_FAQS.map((faq, idx) => (
                 <div
                   key={idx}
-                  className={`border rounded-2xl overflow-hidden transition-all duration-200 ${isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-white border-slate-200'
-                    }`}
+                  className="border rounded-2xl overflow-hidden transition-all duration-200 bg-[#0E172A]/80 border-[#1E293B]"
                 >
                   <button
                     onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                    className="w-full flex items-center justify-between p-5 text-left font-bold text-sm sm:text-base text-zinc-900 dark:text-white cursor-pointer"
+                    className="w-full flex items-center justify-between p-5 text-left font-bold text-sm sm:text-base text-white cursor-pointer hover:text-blue-300 transition-colors"
                   >
                     <span>{faq.q}</span>
                     <ChevronDown
                       size={18}
-                      className={`text-slate-400 transition-transform duration-200 ${openFaq === idx ? 'rotate-180 text-primary-blue' : ''}`}
+                      className={`text-slate-400 transition-transform duration-200 ${openFaq === idx ? 'rotate-180 text-blue-400' : ''}`}
                     />
                   </button>
                   {openFaq === idx && (
-                    <div className="px-5 pb-5 pt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800">
+                    <div className="px-5 pb-5 pt-1 text-xs sm:text-sm text-[#D1DCEB] leading-relaxed border-t border-slate-800">
                       {faq.a}
                     </div>
                   )}
@@ -808,48 +769,43 @@ const PublicEventsPage = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className={`relative z-10 w-full max-w-xl rounded-3xl overflow-hidden border shadow-2xl p-6 sm:p-8 ${isDark ? 'bg-[#0E172A] border-[#1E293B] text-white' : 'bg-white border-slate-200 text-slate-900'
-                }`}
+              className="relative z-10 w-full max-w-xl rounded-3xl overflow-hidden border shadow-2xl p-6 sm:p-8 bg-[#0E172A] border-[#1E293B] text-white"
             >
               <button
                 onClick={() => setSelectedEventModal(null)}
-                className={`absolute top-5 right-5 p-2 rounded-full transition cursor-pointer z-20 ${
-                  isDark ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900'
-                }`}
+                className="absolute top-5 right-5 p-2 rounded-full transition cursor-pointer z-20 hover:bg-slate-800 text-slate-400 hover:text-white"
               >
                 <X size={18} />
               </button>
 
               {selectedEventModal.img && (
-                <div className="w-full h-44 sm:h-52 rounded-2xl overflow-hidden mb-5 border border-slate-200 dark:border-slate-800 bg-slate-900">
+                <div className="w-full h-44 sm:h-52 rounded-2xl overflow-hidden mb-5 border border-slate-800 bg-slate-900">
                   <img src={selectedEventModal.img} alt={selectedEventModal.name} className="w-full h-full object-cover" />
                 </div>
               )}
 
               <div className="flex items-center gap-2 mb-3">
-                <span className={`font-mono-tag text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border ${
-                  isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-700 border-blue-200'
-                }`}>
+                <span className="font-mono-tag text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border bg-blue-500/10 text-blue-400 border-blue-500/20">
                   {selectedEventModal.tag}
                 </span>
                 <span className="font-mono-tag text-xs font-bold text-slate-400">{selectedEventModal.number}</span>
               </div>
 
-              <h3 className="font-display-heavy text-3xl uppercase tracking-tight mb-1 text-zinc-900 dark:text-white">
+              <h3 className="font-display-heavy text-3xl uppercase tracking-tight mb-1 text-white">
                 {selectedEventModal.name}
               </h3>
-              <p className="text-xs font-bold text-primary-blue uppercase tracking-wider mb-4">
+              <p className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">
                 {selectedEventModal.subtitle}
               </p>
 
-              <p className={`text-xs sm:text-sm leading-relaxed mb-6 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              <p className="text-xs sm:text-sm leading-relaxed mb-6 text-[#D1DCEB]">
                 {selectedEventModal.fullDesc || selectedEventModal.desc}
               </p>
 
               {selectedEventModal.highlights && (
                 <div className="mb-6 space-y-2">
                   <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">Key Highlights</h4>
-                  <ul className={`space-y-1.5 text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  <ul className="space-y-1.5 text-xs text-[#D1DCEB]">
                     {selectedEventModal.highlights.map((h, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
