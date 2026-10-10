@@ -1,7 +1,7 @@
-const rawApiUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').trim();
+const rawApiUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').trim();
 
 export const API_URL = (() => {
-  if (!rawApiUrl) return 'http://localhost:8000';
+  if (!rawApiUrl) return 'http://127.0.0.1:8000';
   if (rawApiUrl.includes('localhost') || rawApiUrl.includes('127.0.0.1')) {
     return rawApiUrl.replace(/\/+$/, '');
   }

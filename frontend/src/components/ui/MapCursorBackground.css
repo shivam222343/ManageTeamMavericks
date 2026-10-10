@@ -1,0 +1,236 @@
+/* ==========================================================================
+   Map & Cursor Effect Styles (from User Uploaded Specification)
+   ========================================================================== */
+
+/* Background Wrapper */
+.map-effect-background {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(30, 80, 130, 0.28),
+      transparent 65%
+    ),
+    #07111f;
+}
+
+/* Moving Map Layer */
+.map-effect-layer {
+  position: absolute;
+  width: 140%;
+  height: 140%;
+  left: -20%;
+  top: -20%;
+  background-color: #10223c;
+  background-image:
+    /* Roads 25deg */
+    linear-gradient(
+      25deg,
+      transparent 47%,
+      rgba(255, 255, 255, 0.07) 48%,
+      rgba(255, 255, 255, 0.07) 50%,
+      transparent 51%
+    ),
+    /* Roads 145deg */
+    linear-gradient(
+      145deg,
+      transparent 47%,
+      rgba(255, 255, 255, 0.05) 48%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 51%
+    ),
+    /* Map dots */
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.10) 1px,
+      transparent 1px
+    );
+  background-size:
+    180px 180px,
+    220px 220px,
+    45px 45px;
+  transform: translate3d(var(--map-x, 0px), var(--map-y, 0px), 0);
+  transition: transform 0.12s ease-out;
+  animation: mapMoveAnimation 20s linear infinite;
+  will-change: transform, background-position;
+}
+
+@keyframes mapMoveAnimation {
+  0% {
+    background-position:
+      0 0,
+      0 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      180px 180px,
+      -220px 220px,
+      45px 45px;
+  }
+}
+
+/* Dark Vignette Overlay */
+.map-effect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    rgba(3, 10, 25, 0.25) 45%,
+    rgba(3, 10, 25, 0.78) 100%
+  );
+}
+
+/* Cursor-Following Background Glow */
+.map-effect-glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  left: 50%;
+  top: 50%;
+  margin-left: -250px;
+  margin-top: -250px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.14),
+    transparent 70%
+  );
+  transform: translate3d(var(--glow-x, 0px), var(--glow-y, 0px), 0);
+  transition: transform 0.25s ease-out;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Floating Background Particles */
+.map-floating-particle {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  z-index: 4;
+  animation: mapFloatingAnimation 6s ease-in-out infinite;
+}
+
+.map-floating-particle.p1 { left: 8%; top: 20%; }
+.map-floating-particle.p2 { left: 18%; top: 70%; animation-delay: 1s; }
+.map-floating-particle.p3 { left: 35%; top: 25%; animation-delay: 2s; }
+.map-floating-particle.p4 { left: 52%; top: 75%; animation-delay: 3s; }
+.map-floating-particle.p5 { left: 70%; top: 20%; animation-delay: 4s; }
+.map-floating-particle.p6 { left: 85%; top: 65%; animation-delay: 2s; }
+.map-floating-particle.p7 { left: 90%; top: 30%; animation-delay: 1.5s; }
+.map-floating-particle.p8 { left: 45%; top: 50%; animation-delay: 3.5s; }
+
+@keyframes mapFloatingAnimation {
+  0% {
+    transform: translateY(0);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-45px);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.25;
+  }
+}
+
+/* Pulsing Blue Location Pins */
+.map-location-pin {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow:
+    0 0 0 7px rgba(56, 189, 248, 0.12),
+    0 0 20px rgba(56, 189, 248, 0.8);
+  z-index: 5;
+  animation: mapPinPulseAnimation 2.5s ease-in-out infinite;
+}
+
+.map-location-pin.pin1 { left: 20%; top: 30%; }
+.map-location-pin.pin2 { left: 70%; top: 25%; animation-delay: 0.7s; }
+.map-location-pin.pin3 { left: 60%; top: 70%; animation-delay: 1.4s; }
+.map-location-pin.pin4 { left: 30%; top: 75%; animation-delay: 2s; }
+
+@keyframes mapPinPulseAnimation {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+
+/* Desktop Cursor Core */
+.map-cursor-core {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  box-shadow:
+    0 0 10px white,
+    0 0 25px #38bdf8;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.2s ease;
+}
+
+/* Blue Glowing Cursor / Touch Trail Particles */
+.map-cursor-particle {
+  position: fixed;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow:
+    0 0 8px #38bdf8,
+    0 0 18px rgba(56, 189, 248, 0.7);
+  pointer-events: none;
+  z-index: 9998;
+  transform: translate(-50%, -50%);
+  will-change: left, top, transform, opacity;
+}
+
+/* Mobile & Touch Adjustments */
+@media (max-width: 700px) {
+  .map-cursor-core {
+    display: none !important;
+  }
+
+  .map-cursor-particle {
+    width: 6px;
+    height: 6px;
+  }
+
+  .map-effect-glow {
+    width: 300px;
+    height: 300px;
+    margin-left: -150px;
+    margin-top: -150px;
+  }
+
+  .map-effect-layer {
+    transition: transform 0.2s ease-out;
+  }
+}

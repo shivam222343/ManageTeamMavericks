@@ -41,7 +41,7 @@ $env = function(string $key, string $default = ''): string {
 };
 
 // Database Configuration
-define('DB_HOST', $env('DB_HOST', 'localhost'));
+define('DB_HOST', $env('DB_HOST', '127.0.0.1'));
 define('DB_PORT', (int)$env('DB_PORT', '3306'));
 define('DB_USER', $env('DB_USER', 'root'));
 define('DB_PASS', $env('DB_PASS', ''));

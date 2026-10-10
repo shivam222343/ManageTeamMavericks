@@ -652,9 +652,9 @@ const RecruitmentPage = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-24 px-4 sm:px-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-24 px-0 sm:px-4">
       {/* ── Top controls ────────────────────────────────────────────────────── */}
-      <div className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+      <div className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
         {/* Glow overlay */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/[0.015] rounded-full blur-3xl pointer-events-none" />
 
