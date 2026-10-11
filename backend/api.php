@@ -153,6 +153,7 @@ $router->addRoute('GET',    '/events/public',                   [EventController
 $router->addRoute('GET',    '/events',                          [EventController::class, 'list']);
 $router->addRoute('POST',   '/events',                          [EventController::class, 'create']);
 $router->addRoute('POST',   '/events/upload-qr',                [EventController::class, 'uploadQr']);
+$router->addRoute('POST',   '/events/upload-banner',            [EventController::class, 'uploadBanner']);
 $router->addRoute('GET',    '/events/slug/{slug}',              [EventController::class, 'getBySlug']);
 $router->addRoute('GET',    '/events/{id}',                     [EventController::class, 'get']);
 $router->addRoute('PUT',    '/events/{id}',                     [EventController::class, 'update']);

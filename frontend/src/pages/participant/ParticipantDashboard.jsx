@@ -720,7 +720,17 @@ const ParticipantDashboard = () => {
                         return (
                           <TearTicket
                             key={reg.id}
-                            image={reg.banner_url || (reg.event_slug === 'bodhantra' ? '/event-assets/bodhantra.jpeg' : null)}
+                            image={
+                              reg.banner_url ||
+                              reg.cover_image_url ||
+                              (reg.event_slug === 'invicta'
+                                ? '/event-assets/invicta.png'
+                                : (reg.event_slug === 'school-visit'
+                                    ? '/event-assets/school_visit.jpg'
+                                    : (reg.event_slug === 'varba-fest'
+                                        ? '/event-assets/verbafest.JPG'
+                                        : '/event-assets/bodhantra.jpeg')))
+                            }
                             imageAlt={reg.event_name}
                             stub={
                               <div className="flex flex-col items-center justify-between h-full w-full py-3 px-2 sm:px-3 space-y-3">

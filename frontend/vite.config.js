@@ -18,6 +18,10 @@ export default defineConfig({
         target: 'http://localhost/backend', // We can configure proxies to simplify request routing
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/uploads': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
       }
     }
   }

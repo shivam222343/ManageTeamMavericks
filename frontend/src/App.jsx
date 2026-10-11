@@ -118,6 +118,11 @@ function App() {
         }}
       />
       <Routes>
+        {/* Default entry route redirects to /events */}
+        <Route path="/" element={<Navigate to="/events" replace />} />
+        <Route path="/recruitment" element={<Navigate to="/events" replace />} />
+        <Route path="/teammavericks" element={<Navigate to="/events" replace />} />
+
         {/* Public Recruitment routes */}
         <Route path="/teammavericks/verify-prn" element={<PrnVerificationPage />} />
         <Route path="/teammavericks/:slug" element={<PublicLanding />} />
@@ -144,6 +149,14 @@ function App() {
         />
         <Route
           path="/events/:id/sub-events/:subId/mind-saga/test"
+          element={
+            <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
+              <MindSagaAptitudeTestPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:id/sub-events/:subId/mind-saga/aptitude"
           element={
             <ProtectedRoute allowedRoles={['participant', 'coordinator', 'core_member', 'member']}>
               <MindSagaAptitudeTestPage />
@@ -294,7 +307,7 @@ function App() {
         </Route>
 
         {/* Fallback routing */}
-        <Route path="/" element={<Navigate to="/teammavericks/recruitment-2026" replace />} />
+        <Route path="/" element={<Navigate to="/events" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <NotificationDrawer />

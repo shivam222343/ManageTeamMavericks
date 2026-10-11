@@ -179,12 +179,82 @@ class EventController {
         $targetPath = $uploadDir . '/' . $filename;
 
         if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+            // Also mirror to frontend/public/uploads/qr_codes if present
+            $frontendDir = dirname(__DIR__, 3) . '/frontend/public/uploads/qr_codes';
+            if (is_dir(dirname(__DIR__, 3) . '/frontend/public')) {
+                if (!is_dir($frontendDir)) @mkdir($frontendDir, 0777, true);
+                @copy($targetPath, $frontendDir . '/' . $filename);
+            }
             Router::sendJson([
                 'qr_code_url' => '/uploads/qr_codes/' . $filename,
                 'message'     => 'QR code uploaded successfully'
             ]);
         } else {
             Router::sendJson(['error' => 'Failed to save uploaded QR code image'], 500);
+        }
+    }
+
+    /**
+     * POST /api.php/events/upload-banner
+     * Coordinator/Core: Upload event banner image
+     */
+    public function uploadBanner(): void {
+        $user = AuthMiddleware::authenticate();
+        if (!in_array($user['role'] ?? '', ['coordinator', 'core_member', 'member', 'admin'])) {
+            Router::sendJson(['error' => 'Unauthorized: coordinator or core member privileges required'], 403);
+            return;
+        }
+
+        if (empty($_FILES['banner_image'])) {
+            Router::sendJson(['error' => 'No banner image file uploaded'], 400);
+            return;
+        }
+
+        $file = $_FILES['banner_image'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $uploadErrors = [
+                UPLOAD_ERR_INI_SIZE   => 'Uploaded file exceeds upload_max_filesize directive in php.ini',
+                UPLOAD_ERR_FORM_SIZE  => 'Uploaded file exceeds MAX_FILE_SIZE directive in HTML form',
+                UPLOAD_ERR_PARTIAL    => 'The uploaded file was only partially uploaded',
+                UPLOAD_ERR_NO_FILE    => 'No file was uploaded',
+                UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder on server',
+                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+                UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the file upload',
+            ];
+            $msg = $uploadErrors[$file['error']] ?? ('File upload error occurred (code ' . $file['error'] . ')');
+            Router::sendJson(['error' => $msg], 400);
+            return;
+        }
+
+        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'gif'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowedExts)) {
+            Router::sendJson(['error' => 'Only image files (JPG, PNG, WEBP, SVG, GIF) are allowed for event banner'], 400);
+            return;
+        }
+
+        $uploadDir = dirname(__DIR__, 2) . '/uploads/event_banners';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
+        $filename = 'banner_' . uniqid() . '.' . $ext;
+        $targetPath = $uploadDir . '/' . $filename;
+
+        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+            // Mirror to frontend/public/uploads/event_banners if present
+            $frontendDir = dirname(__DIR__, 3) . '/frontend/public/uploads/event_banners';
+            if (is_dir(dirname(__DIR__, 3) . '/frontend/public')) {
+                if (!is_dir($frontendDir)) @mkdir($frontendDir, 0777, true);
+                @copy($targetPath, $frontendDir . '/' . $filename);
+            }
+
+            Router::sendJson([
+                'banner_url' => '/uploads/event_banners/' . $filename,
+                'message'    => 'Event banner uploaded successfully'
+            ]);
+        } else {
+            Router::sendJson(['error' => 'Failed to save uploaded banner image to storage directory'], 500);
         }
     }
 

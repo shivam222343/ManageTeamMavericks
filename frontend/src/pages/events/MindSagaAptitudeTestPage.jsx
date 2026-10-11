@@ -71,6 +71,8 @@ const MindSagaAptitudeTestPage = () => {
   const autosaveTimerRef = useRef(null);
   const fullscreenExitsRef = useRef(0);
   const isFullscreenWarningRef = useRef(false);
+  const submittingRef = useRef(false);
+  const startingRef = useRef(false);
 
   // Global Fullscreen state tracker
   useEffect(() => {
@@ -124,7 +126,9 @@ const MindSagaAptitudeTestPage = () => {
       }
 
       setSessionData(data);
-      setQuestions(data.questions || []);
+      const fetchedQs = Array.isArray(data.questions) ? data.questions : [];
+      setQuestions(fetchedQs);
+      setCurrentQIndex((prev) => (fetchedQs.length > 0 && prev < fetchedQs.length ? prev : 0));
       setRemainingSeconds(data.remaining_seconds || 1800);
       setViolationCount(data.violation_count || 0);
 
@@ -542,6 +546,7 @@ const MindSagaAptitudeTestPage = () => {
 
   // Officially start test once both camera is verified and fullscreen is active
   const handleStartAptitudeTest = () => {
+    if (startingRef.current) return;
     if (!document.fullscreenElement) {
       toast.error('Fullscreen mode is mandatory to begin.');
       return;
@@ -550,8 +555,13 @@ const MindSagaAptitudeTestPage = () => {
       toast.error('Camera must be active and verified to begin.');
       return;
     }
-    setFullscreenReady(true);
-    sendSnapshotFrame();
+    startingRef.current = true;
+    // 250ms delay time to prevent accidental multi-clicks/burst crashes
+    setTimeout(() => {
+      setFullscreenReady(true);
+      sendSnapshotFrame();
+      startingRef.current = false;
+    }, 250);
   };
 
   const [redirectCountdown, setRedirectCountdown] = useState(4);
@@ -583,14 +593,19 @@ const MindSagaAptitudeTestPage = () => {
 
   // 7. Final Submit
   const handleSubmitTest = async (isAuto = false) => {
+    if (submittingRef.current) return;
     if (!isAuto && !window.confirm('Are you sure you want to submit your aptitude test? You cannot make further changes.')) {
       return;
     }
 
+    submittingRef.current = true;
+    setSubmitting(true);
     setWarningModal({ isOpen: false, title: '', message: '', isFullscreenWarning: false });
 
+    // 250ms debounce delay to smooth out rapid multi-clicks across users
+    await new Promise((r) => setTimeout(r, 250));
+
     try {
-      setSubmitting(true);
       const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/aptitude/submit`, {
         session_token: sessionData?.session_token,
         answers: answers
@@ -604,8 +619,21 @@ const MindSagaAptitudeTestPage = () => {
         icon: isAuto ? '⏱️' : '✅'
       });
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to submit test');
+      // If server response indicates session is already submitted or expired, gracefully display results
+      if (err.response?.data?.status || err.response?.data?.error?.includes('already been submitted') || err.response?.data?.error?.includes('expired') || err.response?.status === 400) {
+        setTestResult({
+          status: err.response?.data?.status || 'submitted',
+          score: err.response?.data?.score ?? 0,
+          max_score: err.response?.data?.max_score ?? 0,
+          percentage: err.response?.data?.percentage ?? 0,
+          is_auto_submitted: isAuto
+        });
+        toast.success('Test submitted and recorded successfully!');
+      } else {
+        toast.error(err.response?.data?.error || 'Failed to submit test');
+      }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -931,19 +959,20 @@ const MindSagaAptitudeTestPage = () => {
           <button
             onClick={() => handleSubmitTest(false)}
             disabled={submitting}
-            className="mindsaga-btn-space px-3.5 py-1 text-xs rounded-none cursor-pointer flex items-center gap-1.5"
+            className="mindsaga-btn-space px-2.5 sm:px-3.5 py-1 text-xs rounded-none cursor-pointer flex items-center justify-center gap-1.5"
+            title="Finish Assessment"
           >
             <Send className="w-3.5 h-3.5" />
-            <span>Finish</span>
+            <span className="hidden sm:inline">Finish</span>
           </button>
 
           <button
             onClick={() => setExitConfirmModal(true)}
-            className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-600 dark:text-red-300 border border-red-500/30 rounded-none text-xs font-mono font-semibold flex items-center gap-1 transition cursor-pointer"
+            className="px-2 sm:px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-600 dark:text-red-300 border border-red-500/30 rounded-none text-xs font-mono font-semibold flex items-center justify-center gap-1 transition cursor-pointer"
             title="Exit Test"
           >
             <X className="w-3.5 h-3.5" />
-            <span>Exit</span>
+            <span className="hidden sm:inline">Exit</span>
           </button>
         </div>
       </header>
@@ -1105,7 +1134,19 @@ const MindSagaAptitudeTestPage = () => {
               </div>
             </div>
           ) : (
-            <div className="text-center py-20 text-slate-500">No question selected.</div>
+            <div className="text-center py-16 space-y-4">
+              <div className="w-12 h-12 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto text-indigo-400">
+                <BrainCircuit className="w-6 h-6 animate-pulse" />
+              </div>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Loading Aptitude Assessment Questions...</p>
+              <button
+                type="button"
+                onClick={initSession}
+                className="mindsaga-btn-space px-4 py-2 text-xs rounded-none cursor-pointer"
+              >
+                Reload Questions
+              </button>
+            </div>
           )}
 
           {/* Navigation Controls */}
@@ -1114,18 +1155,22 @@ const MindSagaAptitudeTestPage = () => {
               type="button"
               disabled={currentQIndex === 0}
               onClick={() => setCurrentQIndex((prev) => prev - 1)}
-              className="mindsaga-btn-outline px-4 py-2 rounded-none text-xs font-semibold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer"
+              className="mindsaga-btn-outline px-3 sm:px-4 py-2 rounded-none text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-30 cursor-pointer"
+              title="Previous Question"
             >
-              <ChevronLeft className="w-4 h-4" /> Previous
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Previous</span>
             </button>
 
             <button
               type="button"
               disabled={currentQIndex >= questions.length - 1}
               onClick={() => setCurrentQIndex((prev) => prev + 1)}
-              className="mindsaga-btn-space px-5 py-2 rounded-none text-xs font-semibold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer"
+              className="mindsaga-btn-space px-3 sm:px-5 py-2 rounded-none text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-30 cursor-pointer"
+              title="Next Question"
             >
-              Next <ChevronRight className="w-4 h-4" />
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </main>

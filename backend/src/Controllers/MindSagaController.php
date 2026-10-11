@@ -143,6 +143,10 @@ class MindSagaController {
             INDEX idx_ms_game_sub (sub_event_id, game_key)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+        try {
+            $db->exec("ALTER TABLE mind_saga_game_configs ADD COLUMN display_order INT NOT NULL DEFAULT 0");
+        } catch (\Exception $e) {}
+
         // 6. Gaming Sessions
         $db->exec("CREATE TABLE IF NOT EXISTS mind_saga_game_sessions (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -245,95 +249,23 @@ class MindSagaController {
         }
 
         // Ensure default Aptitude Test exists
-        $testStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_aptitude_tests WHERE sub_event_id = ?");
+        $testStmt = $db->prepare("SELECT id FROM mind_saga_aptitude_tests WHERE sub_event_id = ? ORDER BY id ASC LIMIT 1");
         $testStmt->execute([$subEventId]);
-        if ($testStmt->fetchColumn() == 0) {
+        $existingTestId = (int)($testStmt->fetchColumn() ?? 0);
+
+        if ($existingTestId === 0) {
             $insTest = $db->prepare("INSERT INTO mind_saga_aptitude_tests (sub_event_id, title, description, duration_minutes, total_marks, pass_marks, is_published, negative_marking_enabled, default_negative_marks)
                 VALUES (?, 'Mind Saga Phase 1: Cognitive Aptitude Assessment', 'Comprehensive cognitive, logical reasoning, core computer science, and lateral thinking evaluation.', 25, 40.00, 16.00, 1, 1, 0.50)
             ");
             $insTest->execute([$subEventId]);
-            $testId = (int)$db->lastInsertId();
-
-            // Seed default questions for Round 1
-            $qStmt = $db->prepare("INSERT INTO mind_saga_questions (test_id, question_text, question_type, options, correct_answers, marks, negative_marks, partial_marking_enabled, expected_answer, keywords, allow_voice_answer, display_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-
-            // Q1: Single choice
-            $q1Options = json_encode([
-                ['id' => 'A', 'text' => 'O(1)'],
-                ['id' => 'B', 'text' => 'O(log N)'],
-                ['id' => 'C', 'text' => 'O(N)'],
-                ['id' => 'D', 'text' => 'O(N log N)']
-            ]);
-            $qStmt->execute([
-                $testId,
-                'What is the worst-case time complexity of searching in a Balanced Binary Search Tree (AVL / Red-Black Tree)?',
-                'single_choice',
-                $q1Options,
-                json_encode(['B']),
-                2.00,
-                0.50,
-                0,
-                null,
-                null,
-                0,
-                1
-            ]);
-
-            // Q2: Multiple Choice
-            $q2Options = json_encode([
-                ['id' => 'A', 'text' => 'TCP is connection-oriented and ensures guaranteed packet delivery'],
-                ['id' => 'B', 'text' => 'UDP has lower latency and minimal protocol overhead'],
-                ['id' => 'C', 'text' => 'HTTP/3 operates over UDP using the QUIC protocol'],
-                ['id' => 'D', 'text' => 'UDP provides automated congestion control and packet retransmission']
-            ]);
-            $qStmt->execute([
-                $testId,
-                'Which of the following statements regarding Network Transport Protocols are TRUE? (Select all that apply)',
-                'multiple_choice',
-                $q2Options,
-                json_encode(['A', 'B', 'C']),
-                3.00,
-                1.00,
-                1,
-                null,
-                null,
-                0,
-                2
-            ]);
-
-            // Q3: Written response with AI semantic evaluation & voice
-            $qStmt->execute([
-                $testId,
-                'Explain the fundamental difference between TCP and UDP protocols, detailing their reliability models and ideal real-world use cases.',
-                'written_response',
-                null,
-                null,
-                5.00,
-                0.00,
-                1,
-                'TCP is connection-oriented providing reliable, ordered byte-stream delivery with congestion control and 3-way handshakes, ideal for web browsing and file transfers. UDP is connectionless, lightweight and unreliable with low latency, ideal for live gaming, video streaming and DNS.',
-                json_encode(['connection-oriented', 'reliable transmission', '3-way handshake', 'congestion control', 'connectionless', 'low latency', 'unreliable', 'packet ordering']),
-                1,
-                3
-            ]);
-
-            // Q4: Drawing / Diagram question
-            $qStmt->execute([
-                $testId,
-                'Draw a system architecture diagram illustrating how a Client connects through a Load Balancer to multiple Application Servers with a shared Redis Cache and Database.',
-                'drawing_response',
-                null,
-                null,
-                5.00,
-                0.00,
-                1,
-                'Expected diagram shows Client -> Load Balancer -> App Servers -> Cache / DB.',
-                json_encode(['client', 'load balancer', 'app server', 'redis', 'database']),
-                0,
-                4
-            ]);
+            $existingTestId = (int)$db->lastInsertId();
+            self::seedDefaultQuestionsForTest($db, $existingTestId);
+        } else {
+            // Check if existing test has 0 questions
+            $qCount = (int)$db->query("SELECT COUNT(*) FROM mind_saga_questions WHERE test_id = {$existingTestId}")->fetchColumn();
+            if ($qCount === 0) {
+                self::seedDefaultQuestionsForTest($db, $existingTestId);
+            }
         }
 
         // Ensure default Game Configs for Round 2 exist
@@ -390,6 +322,116 @@ class MindSagaController {
         self::ensureParticipantKeys($db, $subEventId);
     }
 
+    /**
+     * Seeds default high-quality aptitude questions for any given test ID.
+     */
+    public static function seedDefaultQuestionsForTest(PDO $db, int $testId): void {
+        $qStmt = $db->prepare("INSERT INTO mind_saga_questions (test_id, question_text, question_type, options, correct_answers, marks, negative_marks, partial_marking_enabled, expected_answer, keywords, allow_voice_answer, display_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        // Q1: Single choice
+        $q1Options = json_encode([
+            ['id' => 'A', 'text' => 'O(1)'],
+            ['id' => 'B', 'text' => 'O(log N)'],
+            ['id' => 'C', 'text' => 'O(N)'],
+            ['id' => 'D', 'text' => 'O(N log N)']
+        ]);
+        $qStmt->execute([
+            $testId,
+            'What is the worst-case time complexity of searching in a Balanced Binary Search Tree (AVL / Red-Black Tree)?',
+            'single_choice',
+            $q1Options,
+            json_encode(['B']),
+            2.00,
+            0.50,
+            0,
+            null,
+            null,
+            0,
+            1
+        ]);
+
+        // Q2: Multiple Choice
+        $q2Options = json_encode([
+            ['id' => 'A', 'text' => 'TCP is connection-oriented and ensures guaranteed packet delivery'],
+            ['id' => 'B', 'text' => 'UDP has lower latency and minimal protocol overhead'],
+            ['id' => 'C', 'text' => 'HTTP/3 operates over UDP using the QUIC protocol'],
+            ['id' => 'D', 'text' => 'UDP provides automated congestion control and packet retransmission']
+        ]);
+        $qStmt->execute([
+            $testId,
+            'Which of the following statements regarding Network Transport Protocols are TRUE? (Select all that apply)',
+            'multiple_choice',
+            $q2Options,
+            json_encode(['A', 'B', 'C']),
+            3.00,
+            1.00,
+            1,
+            null,
+            null,
+            0,
+            2
+        ]);
+
+        // Q3: Written response with AI semantic evaluation & voice
+        $qStmt->execute([
+            $testId,
+            'Explain the fundamental difference between TCP and UDP protocols, detailing their reliability models and ideal real-world use cases.',
+            'written_response',
+            null,
+            null,
+            5.00,
+            0.00,
+            1,
+            'TCP is connection-oriented providing reliable, ordered byte-stream delivery with congestion control and 3-way handshakes, ideal for web browsing and file transfers. UDP is connectionless, lightweight and unreliable with low latency, ideal for live gaming, video streaming and DNS.',
+            json_encode(['connection-oriented', 'reliable transmission', '3-way handshake', 'congestion control', 'connectionless', 'low latency', 'unreliable', 'packet ordering']),
+            1,
+            3
+        ]);
+
+        // Q4: Drawing / Diagram question
+        $qStmt->execute([
+            $testId,
+            'Draw a system architecture diagram illustrating how a Client connects through a Load Balancer to multiple Application Servers with a shared Redis Cache and Database.',
+            'drawing_response',
+            null,
+            null,
+            5.00,
+            0.00,
+            1,
+            'Expected diagram shows Client -> Load Balancer -> App Servers -> Cache / DB.',
+            json_encode(['client', 'load balancer', 'app server', 'redis', 'database']),
+            0,
+            4
+        ]);
+
+        // Q5: Logical Reasoning & Quantitative
+        $q5Options = json_encode([
+            ['id' => 'A', 'text' => '8'],
+            ['id' => 'B', 'text' => '15'],
+            ['id' => 'C', 'text' => '31'],
+            ['id' => 'D', 'text' => '32']
+        ]);
+        $qStmt->execute([
+            $testId,
+            'In a full binary tree with 16 leaf nodes, what is the total number of internal nodes and total nodes respectively?',
+            'single_choice',
+            $q5Options,
+            json_encode(['C']),
+            3.00,
+            0.50,
+            0,
+            null,
+            null,
+            0,
+            5
+        ]);
+
+        // Update total marks on the test
+        $db->prepare("UPDATE mind_saga_aptitude_tests SET total_marks = (SELECT SUM(marks) FROM mind_saga_questions WHERE test_id = ?) WHERE id = ?")->execute([$testId, $testId]);
+    }
+
     // ==========================================
     // 1. ADMIN OVERVIEW & CONFIG ENDPOINTS
     // ==========================================
@@ -425,7 +467,7 @@ class MindSagaController {
         $tests = $testStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Round 2 Gaming stats
-        $gameStmt = $db->prepare("SELECT g.*, (SELECT COUNT(*) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id) as total_attempts, (SELECT AVG(score) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id AND s.status = 'completed') as avg_score FROM mind_saga_game_configs g WHERE sub_event_id = ?");
+        $gameStmt = $db->prepare("SELECT g.*, (SELECT COUNT(*) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id) as total_attempts, (SELECT AVG(score) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id AND s.status = 'completed') as avg_score FROM mind_saga_game_configs g WHERE sub_event_id = ? ORDER BY g.display_order ASC, g.id ASC");
         $gameStmt->execute([$subId]);
         $games = $gameStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -992,10 +1034,13 @@ class MindSagaController {
      * Start or resume secure test session.
      */
     public static function startTestSession(array $params): void {
-        $user = AuthMiddleware::authenticate();
+        $user = AuthMiddleware::optionalAuth();
         $db = Database::getConnection();
         $subId = (int)$params['subId'];
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        // Ensure defaults (tables, tests, game configs, and questions) are always seeded
+        self::ensureDefaults($db, $subId);
 
         $testId = (int)($body['test_id'] ?? 0);
         if ($testId === 0) {
@@ -1004,16 +1049,38 @@ class MindSagaController {
             $tStmt->execute([$subId]);
             $testId = (int)($tStmt->fetchColumn() ?? 0);
         }
+        if ($testId === 0) {
+            $tStmt = $db->query("SELECT id FROM mind_saga_aptitude_tests ORDER BY is_published DESC, id ASC LIMIT 1");
+            $testId = (int)($tStmt->fetchColumn() ?? 0);
+        }
 
         if ($testId === 0) {
             Router::sendJson(['error' => 'No active aptitude test found for this round.'], 404);
             return;
         }
 
+        // Ensure questions exist for test
+        $qCount = (int)$db->query("SELECT COUNT(*) FROM mind_saga_questions WHERE test_id = {$testId}")->fetchColumn();
+        if ($qCount === 0) {
+            self::seedDefaultQuestionsForTest($db, $testId);
+        }
+
         $userEmail = $user['email'] ?? ($user['user']['email'] ?? '');
         $userId = (int)($user['userId'] ?? ($user['id'] ?? ($user['user']['id'] ?? 0)));
         $userName = $user['name'] ?? ($user['user']['name'] ?? 'Candidate');
         $userRole = $user['role'] ?? ($user['user']['role'] ?? 'participant');
+        $accessKey = strtoupper(trim($body['access_key'] ?? ''));
+
+        if (!$user && !empty($accessKey)) {
+            $keyStmt = $db->prepare("SELECT er.id as registration_id, er.full_name, er.email FROM mind_saga_scores ms JOIN event_registrations er ON ms.registration_id = er.id WHERE UPPER(TRIM(ms.access_key)) = ? LIMIT 1");
+            $keyStmt->execute([$accessKey]);
+            $regKey = $keyStmt->fetch(PDO::FETCH_ASSOC);
+            if ($regKey) {
+                $userEmail = $regKey['email'];
+                $userId = (int)$regKey['registration_id'];
+                $userName = $regKey['full_name'];
+            }
+        }
 
         // Get participant registration
         $regStmt = $db->prepare("SELECT id as registration_id, full_name, email FROM event_registrations 
@@ -1079,7 +1146,7 @@ class MindSagaController {
         }
 
         // Rate limiting test starts
-        if (!Cache::checkRateLimit("test_start_{$regId}", 5, 60)) {
+        if (!Cache::checkRateLimit("test_start_{$regId}", 10, 60)) {
             Router::sendJson(['error' => 'Too many session requests. Please wait a moment.'], 429);
             return;
         }
@@ -1092,11 +1159,24 @@ class MindSagaController {
         $completedAttempts = (int)$countStmt->fetchColumn();
 
         // Check active in-progress session
-        $sessStmt = $db->prepare("SELECT * FROM mind_saga_test_sessions WHERE test_id = ? AND registration_id = ? AND status = 'in_progress'");
+        $sessStmt = $db->prepare("SELECT * FROM mind_saga_test_sessions WHERE test_id = ? AND registration_id = ? AND status = 'in_progress' ORDER BY id DESC LIMIT 1");
         $sessStmt->execute([$testId, $regId]);
         $session = $sessStmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$session && $completedAttempts >= $maxAttemptsR1 && !in_array($user['role'], ['coordinator', 'core_member'])) {
+        if (!$session && $completedAttempts >= $maxAttemptsR1 && !in_array($userRole, ['coordinator', 'core_member', 'admin'])) {
+            $lastStmt = $db->prepare("SELECT * FROM mind_saga_test_sessions WHERE test_id = ? AND registration_id = ? ORDER BY id DESC LIMIT 1");
+            $lastStmt->execute([$testId, $regId]);
+            $lastSess = $lastStmt->fetch(PDO::FETCH_ASSOC);
+            if ($lastSess) {
+                Router::sendJson([
+                    'status' => $lastSess['status'],
+                    'score' => (float)$lastSess['total_score'],
+                    'max_score' => (float)$lastSess['max_possible_score'],
+                    'percentage' => (float)$lastSess['percentage'],
+                    'message' => 'You have already completed Round 1: Aptitude Test.'
+                ], 200);
+                return;
+            }
             Router::sendJson([
                 'error' => "You have exhausted the maximum allowed attempts ({$maxAttemptsR1}) for Round 1: Aptitude Test."
             ], 403);
@@ -1104,15 +1184,17 @@ class MindSagaController {
         }
 
         if ($session) {
-            // Check if expired
+            // Check if expired (allow 5-minute grace period before hard auto-submitting)
             $expTs = strtotime($session['expires_at']);
-            if ($nowTs >= $expTs) {
-                // Auto-submit expired session
-                self::finalizeTestSession($db, (int)$session['id'], 'auto_submitted');
+            if ($nowTs >= ($expTs + 300)) {
+                $evalRes = self::finalizeTestSession($db, (int)$session['id'], 'auto_submitted');
                 Router::sendJson([
                     'status' => 'auto_submitted',
+                    'score' => $evalRes['total_score'],
+                    'max_score' => $evalRes['max_possible_score'],
+                    'percentage' => $evalRes['percentage'],
                     'message' => 'Your test time limit has expired and answers were auto-submitted.'
-                ]);
+                ], 200);
                 return;
             }
 
@@ -1123,6 +1205,15 @@ class MindSagaController {
 
             // Fetch questions for assigned IDs without correct answers
             $questions = self::getSanitizedQuestions($db, $testId, $assignedQIds, (bool)$test['shuffle_options']);
+            if (empty($questions)) {
+                $allQStmt = $db->prepare("SELECT id FROM mind_saga_questions WHERE test_id = ? ORDER BY display_order ASC, id ASC");
+                $allQStmt->execute([$testId]);
+                $freshQIds = $allQStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+                if (!empty($freshQIds)) {
+                    $db->prepare("UPDATE mind_saga_test_sessions SET assigned_question_ids = ? WHERE id = ?")->execute([json_encode($freshQIds), $session['id']]);
+                    $questions = self::getSanitizedQuestions($db, $testId, $freshQIds, (bool)$test['shuffle_options']);
+                }
+            }
 
             $remainingSeconds = max(0, $expTs - $nowTs);
 
@@ -1147,6 +1238,35 @@ class MindSagaController {
             return;
         }
 
+        // Concurrency safeguard: check if a session was created in the last 10 seconds for this user
+        $recentStmt = $db->prepare("SELECT * FROM mind_saga_test_sessions WHERE test_id = ? AND registration_id = ? AND status = 'in_progress' AND created_at >= DATE_SUB(NOW(), INTERVAL 10 SECOND) ORDER BY id DESC LIMIT 1");
+        $recentStmt->execute([$testId, $regId]);
+        $recentSess = $recentStmt->fetch(PDO::FETCH_ASSOC);
+        if ($recentSess) {
+            $assignedQIds = json_decode($recentSess['assigned_question_ids'] ?? '[]', true) ?: [];
+            $questions = self::getSanitizedQuestions($db, $testId, $assignedQIds, (bool)$test['shuffle_options']);
+            $remaining = max(0, strtotime($recentSess['expires_at']) - $nowTs);
+            Router::sendJson([
+                'session_token' => $recentSess['session_token'],
+                'session_id' => (int)$recentSess['id'],
+                'status' => 'in_progress',
+                'remaining_seconds' => $remaining,
+                'duration_seconds' => (int)$recentSess['duration_seconds'],
+                'expires_at' => $recentSess['expires_at'],
+                'violation_count' => (int)$recentSess['violation_count'],
+                'saved_answers' => new \stdClass(),
+                'test' => [
+                    'id' => (int)$test['id'],
+                    'title' => $test['title'],
+                    'total_marks' => (float)$test['total_marks'],
+                    'negative_marking_enabled' => (bool)$test['negative_marking_enabled'],
+                    'default_negative_marks' => (float)$test['default_negative_marks']
+                ],
+                'questions' => $questions
+            ], 200);
+            return;
+        }
+
         // CREATE NEW SECURE TEST SESSION
         $durationSeconds = (int)$test['duration_minutes'] * 60;
         $expiresAt = date('Y-m-d H:i:s', $nowTs + $durationSeconds);
@@ -1158,8 +1278,9 @@ class MindSagaController {
         $allQIds = $allQStmt->fetchAll(PDO::FETCH_COLUMN);
 
         if (empty($allQIds)) {
-            Router::sendJson(['error' => 'No questions configured in this test yet.'], 400);
-            return;
+            self::seedDefaultQuestionsForTest($db, $testId);
+            $allQStmt->execute([$testId]);
+            $allQIds = $allQStmt->fetchAll(PDO::FETCH_COLUMN);
         }
 
         $assignedQIds = $allQIds;
@@ -1220,7 +1341,17 @@ class MindSagaController {
      * Sanitizes questions to prevent leaking answer keys or evaluation logic to frontend.
      */
     private static function getSanitizedQuestions(PDO $db, int $testId, array $assignedQIds, bool $shuffleOpts): array {
+        if (empty($assignedQIds)) {
+            $stmt = $db->prepare("SELECT id FROM mind_saga_questions WHERE test_id = ? ORDER BY display_order ASC, id ASC");
+            $stmt->execute([$testId]);
+            $assignedQIds = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        }
+        if (empty($assignedQIds)) {
+            $stmt = $db->query("SELECT id FROM mind_saga_questions ORDER BY display_order ASC, id ASC LIMIT 10");
+            $assignedQIds = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        }
         if (empty($assignedQIds)) return [];
+
         $placeholders = implode(',', array_fill(0, count($assignedQIds), '?'));
         $stmt = $db->prepare("SELECT id, question_text, question_type, image_url, allow_voice_answer, options, marks, negative_marks, partial_marking_enabled, display_order FROM mind_saga_questions WHERE id IN ({$placeholders})");
         $stmt->execute($assignedQIds);
@@ -1250,6 +1381,9 @@ class MindSagaController {
             if (isset($qMap[$id])) {
                 $ordered[] = $qMap[$id];
             }
+        }
+        if (empty($ordered) && !empty($rawQuestions)) {
+            $ordered = array_values($qMap);
         }
         return $ordered;
     }
@@ -1374,7 +1508,7 @@ class MindSagaController {
      * Final submission and server-side marking calculation.
      */
     public static function submitTest(array $params): void {
-        AuthMiddleware::authenticate();
+        AuthMiddleware::optionalAuth();
         $db = Database::getConnection();
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -1386,23 +1520,31 @@ class MindSagaController {
             return;
         }
 
-        $sessStmt = $db->prepare("SELECT id, status, answers_data FROM mind_saga_test_sessions WHERE session_token = ?");
+        $sessStmt = $db->prepare("SELECT id, status, answers_data, total_score, max_possible_score, percentage FROM mind_saga_test_sessions WHERE session_token = ?");
         $sessStmt->execute([$token]);
         $sess = $sessStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$sess) {
-            Router::sendJson(['error' => 'Session not found'], 404);
+            Router::sendJson(['error' => 'Session not found or expired.'], 404);
             return;
         }
 
+        // If session was already finalized/submitted, gracefully return current score without error
         if (in_array($sess['status'], ['submitted', 'auto_submitted', 'terminated'])) {
-            Router::sendJson(['error' => 'Test has already been submitted.'], 400);
+            Router::sendJson([
+                'success' => true,
+                'status' => $sess['status'],
+                'score' => (float)$sess['total_score'],
+                'max_score' => (float)$sess['max_possible_score'],
+                'percentage' => (float)$sess['percentage'],
+                'message' => 'Aptitude test already submitted and recorded successfully.'
+            ], 200);
             return;
         }
 
         // Save latest answers if provided
         if ($finalAnswers !== null) {
-            $db->prepare("UPDATE mind_saga_test_sessions SET answers_data = ? WHERE id = ?")->execute([json_encode($finalAnswers), $sess['id']]);
+            $db->prepare("UPDATE mind_saga_test_sessions SET answers_data = ?, updated_at = NOW() WHERE id = ?")->execute([json_encode($finalAnswers), $sess['id']]);
         }
 
         $result = self::finalizeTestSession($db, (int)$sess['id'], 'submitted');
@@ -1413,7 +1555,7 @@ class MindSagaController {
             'max_score' => $result['max_possible_score'],
             'percentage' => $result['percentage'],
             'message' => 'Aptitude test submitted successfully.'
-        ]);
+        ], 200);
     }
 
     /**
@@ -1598,7 +1740,7 @@ class MindSagaController {
 
         self::ensureDefaults($db, $subId);
 
-        $stmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? ORDER BY id ASC");
+        $stmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? ORDER BY display_order ASC, id ASC");
         $stmt->execute([$subId]);
         $games = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1620,13 +1762,13 @@ class MindSagaController {
         $subId = (int)$params['subId'];
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
-        $gameKey = in_array($body['game_key'] ?? '', ['deductive_logic', 'motion_challenge']) ? $body['game_key'] : 'deductive_logic';
-        $title = trim($body['title'] ?? ($gameKey === 'deductive_logic' ? 'Deductive Symbol Matrix Deduction' : 'Motion Matrix Reflex Challenge'));
+        $gameKey = in_array($body['game_key'] ?? '', ['deductive_logic', 'motion_challenge', 'switch_challenge']) ? $body['game_key'] : 'deductive_logic';
+        $title = trim($body['title'] ?? ($gameKey === 'deductive_logic' ? 'Deductive Symbol Matrix Deduction' : ($gameKey === 'switch_challenge' ? 'SWITCH CHALLENGE: Logical Permutation Test' : 'Motion Matrix Reflex Challenge')));
         $difficulty = in_array($body['difficulty'] ?? '', ['easy', 'medium', 'hard']) ? $body['difficulty'] : 'medium';
         $durationSeconds = max(30, (int)($body['duration_seconds'] ?? 180));
         $maxScore = max(10, (int)($body['max_score'] ?? 100));
         $rulesJson = $body['rules_json'] ?? [
-            'objective' => $gameKey === 'deductive_logic' ? 'Complete the 4x4 Latin Square logic puzzle.' : 'Track matrix targets and achieve high combo locks.'
+            'objective' => $gameKey === 'deductive_logic' ? 'Complete the 4x4 Latin Square logic puzzle.' : ($gameKey === 'switch_challenge' ? 'Identify the code transforming input shapes to output shapes.' : 'Track matrix targets and achieve high combo locks.')
         ];
 
         $stmt = $db->prepare("INSERT INTO mind_saga_game_configs (sub_event_id, game_key, title, difficulty, duration_seconds, max_score, rules_json, is_active)
@@ -1663,7 +1805,7 @@ class MindSagaController {
         }
 
         $title = isset($body['title']) ? trim($body['title']) : $game['title'];
-        $gameKey = isset($body['game_key']) && in_array($body['game_key'], ['deductive_logic', 'motion_challenge']) ? $body['game_key'] : $game['game_key'];
+        $gameKey = isset($body['game_key']) && in_array($body['game_key'], ['deductive_logic', 'motion_challenge', 'switch_challenge']) ? $body['game_key'] : $game['game_key'];
         $difficulty = isset($body['difficulty']) && in_array($body['difficulty'], ['easy', 'medium', 'hard']) ? $body['difficulty'] : $game['difficulty'];
         $durationSeconds = isset($body['duration_seconds']) ? max(30, (int)$body['duration_seconds']) : (int)$game['duration_seconds'];
         $maxScore = isset($body['max_score']) ? max(10, (int)$body['max_score']) : (int)$game['max_score'];
@@ -1707,6 +1849,8 @@ class MindSagaController {
         $subId = (int)$params['subId'];
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
+        self::ensureDefaults($db, $subId);
+
         $gameConfigId = isset($body['game_config_id']) ? (int)$body['game_config_id'] : 0;
         $gameKey = trim($body['game_key'] ?? '');
 
@@ -1715,11 +1859,11 @@ class MindSagaController {
             $gStmt->execute([$gameConfigId, $subId]);
             $game = $gStmt->fetch(PDO::FETCH_ASSOC);
         } else if (!empty($gameKey)) {
-            $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? AND game_key = ? AND is_active = 1 ORDER BY id ASC LIMIT 1");
+            $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? AND game_key = ? AND is_active = 1 ORDER BY display_order ASC, id ASC LIMIT 1");
             $gStmt->execute([$subId, $gameKey]);
             $game = $gStmt->fetch(PDO::FETCH_ASSOC);
         } else {
-            $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? AND is_active = 1 ORDER BY id ASC LIMIT 1");
+            $gStmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? AND is_active = 1 ORDER BY display_order ASC, id ASC LIMIT 1");
             $gStmt->execute([$subId]);
             $game = $gStmt->fetch(PDO::FETCH_ASSOC);
         }
@@ -1822,12 +1966,39 @@ class MindSagaController {
             return;
         }
 
+        // Concurrency safeguard: check if a game session was created in the last 10 seconds for this participant
+        $recentGStmt = $db->prepare("SELECT * FROM mind_saga_game_sessions 
+            WHERE game_config_id = ? AND registration_id = ? AND status = 'in_progress' AND created_at >= DATE_SUB(NOW(), INTERVAL 10 SECOND)
+            ORDER BY id DESC LIMIT 1
+        ");
+        $recentGStmt->execute([$game['id'], $regId]);
+        $recentGSess = $recentGStmt->fetch(PDO::FETCH_ASSOC);
+        if ($recentGSess) {
+            $puzzleData = json_decode($recentGSess['game_data'] ?? '[]', true);
+            $expTs = strtotime($recentGSess['expires_at']);
+            $remaining = max(0, $expTs - time());
+            Router::sendJson([
+                'session_token' => $recentGSess['session_token'],
+                'session_id' => (int)$recentGSess['id'],
+                'game_config_id' => (int)$game['id'],
+                'game_key' => $gameKey,
+                'title' => $game['title'],
+                'duration_seconds' => $remaining,
+                'expires_at' => $recentGSess['expires_at'],
+                'max_score' => (int)$recentGSess['max_score'],
+                'puzzle_data' => $puzzleData
+            ], 200);
+            return;
+        }
+
         // Generate verified game puzzles based on game_key
         $puzzleData = [];
         if ($gameKey === 'deductive_logic') {
             $puzzleData = self::generateLatinSquarePuzzles($difficulty);
         } else if ($gameKey === 'motion_challenge') {
             $puzzleData = self::generateMotionChallengeSequence($difficulty);
+        } else if ($gameKey === 'switch_challenge') {
+            $puzzleData = self::generateSwitchChallengeSequence($difficulty);
         }
 
         $duration = (int)$game['duration_seconds'];
@@ -1921,7 +2092,7 @@ class MindSagaController {
      * Submit game score with server verification and accumulate Round 2 score.
      */
     public static function submitGameScore(array $params): void {
-        AuthMiddleware::authenticate();
+        AuthMiddleware::optionalAuth();
         $db = Database::getConnection();
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -1939,8 +2110,19 @@ class MindSagaController {
         $sessStmt->execute([$token]);
         $session = $sessStmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$session || in_array($session['status'], ['completed', 'terminated']) && $statusOverride !== 'auto_submitted') {
-            Router::sendJson(['error' => 'Session is already finished or invalid.'], 400);
+        if (!$session) {
+            Router::sendJson(['error' => 'Session not found or expired.'], 404);
+            return;
+        }
+
+        if (in_array($session['status'], ['completed', 'terminated']) && $statusOverride !== 'auto_submitted') {
+            Router::sendJson([
+                'success' => true,
+                'verified_score' => (int)$session['score'],
+                'max_score' => (int)$session['game_max'],
+                'verification_hash' => $session['verification_hash'] ?: 'ALREADY_COMPLETED',
+                'message' => 'Gaming challenge already recorded.'
+            ], 200);
             return;
         }
 
@@ -1977,7 +2159,7 @@ class MindSagaController {
             'max_score' => $maxScore,
             'verification_hash' => $vHash,
             'message' => 'Gaming challenge recorded and verified.'
-        ]);
+        ], 200);
     }
 
     /**
@@ -1985,7 +2167,7 @@ class MindSagaController {
      * Terminate / Auto-submit in-progress game session when participant leaves or exits.
      */
     public static function exitGameSession(array $params): void {
-        AuthMiddleware::authenticate();
+        AuthMiddleware::optionalAuth();
         $db = Database::getConnection();
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -2004,6 +2186,14 @@ class MindSagaController {
 
         if (!$session) {
             Router::sendJson(['error' => 'Session not found.'], 404);
+            return;
+        }
+
+        if (in_array($session['status'], ['completed', 'terminated', 'time_out', 'auto_submitted'])) {
+            Router::sendJson([
+                'success' => true,
+                'message' => 'Game session already completed.'
+            ], 200);
             return;
         }
 
@@ -2032,7 +2222,7 @@ class MindSagaController {
         Router::sendJson([
             'success' => true,
             'message' => 'Game session finalized and attempt consumed.'
-        ]);
+        ], 200);
     }
 
     // ==========================================
@@ -3190,69 +3380,85 @@ class MindSagaController {
     }
 
     /**
-     * Generate Latin Square deductive logic puzzles.
+     * Generate Latin Square deductive logic puzzles with single question mark (?) and increasing difficulty.
+     * Starts at 3x3 (levels 1-5), progresses to 4x4 (levels 6-15), then 5x5 (levels 16-35).
      */
     public static function generateLatinSquarePuzzles(string $difficulty = 'medium'): array {
-        $symbols = ['square', 'plus', 'triangle', 'circle'];
-        
-        $p1Solution = [
-            ['square', 'plus', 'triangle', 'circle'],
-            ['triangle', 'circle', 'square', 'plus'],
-            ['plus', 'square', 'circle', 'triangle'],
-            ['circle', 'triangle', 'plus', 'square']
-        ];
-        $p1Clues = [
-            ['square', 'plus', null, null],
-            [null, null, 'square', 'plus'],
-            ['plus', null, null, 'triangle'],
-            [null, 'triangle', null, null]
-        ];
+        $allSymbols = ['plus', 'square', 'circle', 'triangle', 'diamond'];
+        $puzzles = [];
+        $puzzleCount = 35;
 
-        $p2Solution = [
-            ['circle', 'triangle', 'plus', 'square'],
-            ['plus', 'square', 'circle', 'triangle'],
-            ['square', 'plus', 'triangle', 'circle'],
-            ['triangle', 'circle', 'square', 'plus']
-        ];
-        $p2Clues = [
-            ['circle', null, 'plus', null],
-            [null, 'square', null, 'triangle'],
-            ['square', null, null, 'circle'],
-            [null, 'circle', 'square', null]
-        ];
+        for ($i = 1; $i <= $puzzleCount; $i++) {
+            // Increasing level: 3x3 for first 5, 4x4 for next 10, 5x5 for remaining
+            $n = 3;
+            if ($i > 15) {
+                $n = 5;
+            } else if ($i > 5) {
+                $n = 4;
+            }
 
-        $p3Solution = [
-            ['triangle', 'square', 'circle', 'plus'],
-            ['circle', 'plus', 'triangle', 'square'],
-            ['plus', 'circle', 'square', 'triangle'],
-            ['square', 'triangle', 'plus', 'circle']
-        ];
-        $p3Clues = [
-            [null, 'square', null, 'plus'],
-            ['circle', null, 'triangle', null],
-            [null, 'circle', null, null],
-            ['square', null, null, 'circle']
-        ];
+            $symbols = array_slice($allSymbols, 0, $n);
 
-        $p4Solution = [
-            ['plus', 'circle', 'square', 'triangle'],
-            ['square', 'triangle', 'plus', 'circle'],
-            ['triangle', 'square', 'circle', 'plus'],
-            ['circle', 'plus', 'triangle', 'square']
-        ];
-        $p4Clues = [
-            ['plus', null, null, 'triangle'],
-            [null, null, 'plus', 'circle'],
-            [null, 'square', 'circle', null],
-            ['circle', null, null, null]
-        ];
+            // 1. Create base cyclic Latin square
+            $matrix = [];
+            for ($r = 0; $r < $n; $r++) {
+                $matrix[$r] = [];
+                for ($c = 0; $c < $n; $c++) {
+                    $matrix[$r][$c] = ($r + $c) % $n;
+                }
+            }
 
-        return [
-            ['id' => 'p1', 'symbols' => $symbols, 'clues_grid' => $p1Clues, 'solution' => $p1Solution],
-            ['id' => 'p2', 'symbols' => $symbols, 'clues_grid' => $p2Clues, 'solution' => $p2Solution],
-            ['id' => 'p3', 'symbols' => $symbols, 'clues_grid' => $p3Clues, 'solution' => $p3Solution],
-            ['id' => 'p4', 'symbols' => $symbols, 'clues_grid' => $p4Clues, 'solution' => $p4Solution]
-        ];
+            // 2. Randomly permute rows
+            $rowOrder = range(0, $n - 1);
+            shuffle($rowOrder);
+            $permutedRows = [];
+            foreach ($rowOrder as $r) {
+                $permutedRows[] = $matrix[$r];
+            }
+
+            // 3. Randomly permute columns
+            $colOrder = range(0, $n - 1);
+            shuffle($colOrder);
+            $grid = [];
+            for ($r = 0; $r < $n; $r++) {
+                $grid[$r] = [];
+                for ($c = 0; $c < $n; $c++) {
+                    $grid[$r][$c] = $permutedRows[$r][$colOrder[$c]];
+                }
+            }
+
+            // 4. Randomly shuffle symbol assignment
+            shuffle($symbols);
+            $solution = [];
+            for ($r = 0; $r < $n; $r++) {
+                $solution[$r] = [];
+                for ($c = 0; $c < $n; $c++) {
+                    $solution[$r][$c] = $symbols[$grid[$r][$c]];
+                }
+            }
+
+            // 5. Select exactly ONE random cell as the question mark target
+            $targetR = rand(0, $n - 1);
+            $targetC = rand(0, $n - 1);
+            $correctSymbol = $solution[$targetR][$targetC];
+
+            // 6. Clues grid is complete except the single target hole
+            $cluesGrid = $solution;
+            $cluesGrid[$targetR][$targetC] = null; // null represents the single '?'
+
+            $puzzles[] = [
+                'id' => 'p' . $i,
+                'level' => $i,
+                'grid_size' => $n,
+                'symbols' => $symbols,
+                'target_pos' => ['r' => $targetR, 'c' => $targetC],
+                'correct_symbol' => $correctSymbol,
+                'clues_grid' => $cluesGrid,
+                'solution' => $solution
+            ];
+        }
+
+        return $puzzles;
     }
 
     /**
@@ -3265,14 +3471,200 @@ class MindSagaController {
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
         $gameIds = $body['game_ids'] ?? [];
 
-        if (is_array($gameIds)) {
-            $stmt = $db->prepare("UPDATE mind_saga_game_configs SET id = id, updated_at = NOW() WHERE id = ? AND sub_event_id = ?");
-            foreach ($gameIds as $gId) {
-                $stmt->execute([(int)$gId, $subId]);
+        if (is_array($gameIds) && count($gameIds) > 0) {
+            $stmt = $db->prepare("UPDATE mind_saga_game_configs SET display_order = ?, updated_at = NOW() WHERE id = ? AND sub_event_id = ?");
+            foreach ($gameIds as $index => $gId) {
+                $stmt->execute([$index + 1, (int)$gId, $subId]);
             }
         }
 
         Router::sendJson(['success' => true, 'message' => 'Game pipeline order updated.']);
+    }
+
+    /**
+     * Generate progressive levels for Switch Challenge.
+     * Incorporates Single Switch and Dual-Stage Operator Switch puzzles matching test patterns.
+     */
+    public static function generateSwitchChallengeSequence(string $difficulty = 'medium'): array {
+        $levelConfigs = [
+            // Level 1: 4 symbols single switch (Image 1 reference)
+            [
+                'level' => 1,
+                'title' => 'Level 1: 4-Symbol Single Switch',
+                'mode' => 'single',
+                'count' => 4,
+                'time' => 25,
+                'input' => ['triangle', 'square', 'circle', 'plus'],
+                'output' => ['circle', 'triangle', 'plus', 'square'],
+                'correct' => '3142',
+                'options' => ['2413', '3142', '4321', '1432'],
+                'intermediate' => null
+            ],
+            // Level 2: 4 symbols single switch
+            [
+                'level' => 2,
+                'title' => 'Level 2: 4-Symbol Sequence Shift',
+                'mode' => 'single',
+                'count' => 4,
+                'time' => 25,
+                'input' => ['square', 'plus', 'circle', 'triangle'],
+                'output' => ['triangle', 'circle', 'plus', 'square'],
+                'correct' => '4321',
+                'options' => ['4321', '3421', '4231', '3412'],
+                'intermediate' => null
+            ],
+            // Level 3: 4 symbols single switch
+            [
+                'level' => 3,
+                'title' => 'Level 3: 4-Symbol Cross Matrix',
+                'mode' => 'single',
+                'count' => 4,
+                'time' => 25,
+                'input' => ['percent', 'circle', 'square', 'plus'],
+                'output' => ['square', 'percent', 'plus', 'circle'],
+                'correct' => '3142',
+                'options' => ['3142', '1342', '3412', '3124'],
+                'intermediate' => null
+            ],
+            // Level 4: 4 symbols dual switch
+            [
+                'level' => 4,
+                'title' => 'Level 4: 4-Symbol Dual-Stage Pipeline',
+                'mode' => 'dual',
+                'count' => 4,
+                'time' => 25,
+                'input' => ['circle', 'triangle', 'square', 'plus'],
+                'intermediate' => '2413',
+                'output' => ['square', 'triangle', 'plus', 'circle'],
+                'correct' => '4123',
+                'options' => ['4123', '2413', '3142', '4231']
+            ],
+            // Level 5: 5 symbols single switch
+            [
+                'level' => 5,
+                'title' => 'Level 5: 5-Symbol Pentagram Switch',
+                'mode' => 'single',
+                'count' => 5,
+                'time' => 25,
+                'input' => ['circle', 'square', 'percent', 'plus', 'cross'],
+                'output' => ['cross', 'percent', 'circle', 'plus', 'square'],
+                'correct' => '53142',
+                'options' => ['53142', '51342', '43152', '53412'],
+                'intermediate' => null
+            ],
+            // Level 6: 5 symbols dual switch
+            [
+                'level' => 6,
+                'title' => 'Level 6: 5-Symbol Dual Permutation',
+                'mode' => 'dual',
+                'count' => 5,
+                'time' => 25,
+                'input' => ['triangle', 'cross', 'circle', 'square', 'plus'],
+                'intermediate' => '31524',
+                'output' => ['plus', 'square', 'triangle', 'cross', 'circle'],
+                'correct' => '35241',
+                'options' => ['35241', '53241', '35421', '25341']
+            ],
+            // Level 7: 6 symbols single switch
+            [
+                'level' => 7,
+                'title' => 'Level 7: 6-Symbol Hex Matrix Switch',
+                'mode' => 'single',
+                'count' => 6,
+                'time' => 22,
+                'input' => ['triangle', 'square', 'circle', 'plus', 'cross', 'percent'],
+                'output' => ['plus', 'percent', 'triangle', 'square', 'cross', 'circle'],
+                'correct' => '461253',
+                'options' => ['461253', '641253', '462153', '416253'],
+                'intermediate' => null
+            ],
+            // Level 8: 6 symbols dual switch (Image 2 reference)
+            [
+                'level' => 8,
+                'title' => 'Level 8: 6-Symbol Dual Transformation',
+                'mode' => 'dual',
+                'count' => 6,
+                'time' => 25,
+                'input' => ['circle', 'square', 'percent', 'plus', 'cross', 'triangle'],
+                'intermediate' => '426315',
+                'output' => ['circle', 'cross', 'triangle', 'plus', 'percent', 'square'],
+                'correct' => '563142',
+                'options' => ['542361', '624153', '415362', '563142']
+            ],
+            // Level 9: 6 symbols dual switch
+            [
+                'level' => 9,
+                'title' => 'Level 9: 6-Symbol Advanced Dual Switch',
+                'mode' => 'dual',
+                'count' => 6,
+                'time' => 20,
+                'input' => ['square', 'triangle', 'plus', 'cross', 'circle', 'percent'],
+                'intermediate' => '314625',
+                'output' => ['circle', 'plus', 'percent', 'triangle', 'square', 'cross'],
+                'correct' => '614523',
+                'options' => ['614523', '164523', '615423', '641523']
+            ],
+            // Level 10: 6 symbols dual switch
+            [
+                'level' => 10,
+                'title' => 'Level 10: 6-Symbol Inversion Switch',
+                'mode' => 'dual',
+                'count' => 6,
+                'time' => 20,
+                'input' => ['percent', 'cross', 'plus', 'triangle', 'square', 'circle'],
+                'intermediate' => '526134',
+                'output' => ['triangle', 'plus', 'cross', 'circle', 'square', 'percent'],
+                'correct' => '652314',
+                'options' => ['652314', '562314', '653214', '652134']
+            ],
+            // Level 11: 6 symbols dual switch
+            [
+                'level' => 11,
+                'title' => 'Level 11: 6-Symbol Expert Scramble',
+                'mode' => 'dual',
+                'count' => 6,
+                'time' => 20,
+                'input' => ['circle', 'plus', 'square', 'cross', 'triangle', 'percent'],
+                'intermediate' => '241635',
+                'output' => ['square', 'circle', 'triangle', 'cross', 'percent', 'plus'],
+                'correct' => '536241',
+                'options' => ['536241', '356241', '532641', '536421']
+            ],
+            // Level 12: Master Championship Switch
+            [
+                'level' => 12,
+                'title' => 'Level 12: Master Championship Switch',
+                'mode' => 'dual',
+                'count' => 6,
+                'time' => 18,
+                'input' => ['triangle', 'percent', 'cross', 'circle', 'plus', 'square'],
+                'intermediate' => '416325',
+                'output' => ['plus', 'circle', 'percent', 'triangle', 'square', 'cross'],
+                'correct' => '615234',
+                'options' => ['615234', '165234', '612534', '651234']
+            ]
+        ];
+
+        $levels = [];
+        foreach ($levelConfigs as $cfg) {
+            $levels[] = [
+                'level' => $cfg['level'],
+                'title' => $cfg['title'],
+                'difficulty' => $cfg['level'] <= 4 ? 'easy' : ($cfg['level'] <= 8 ? 'medium' : 'hard'),
+                'mode' => $cfg['mode'],
+                'symbol_count' => $cfg['count'],
+                'time_limit' => $cfg['time'],
+                'points_award' => 3,
+                'penalty_deduct' => 1,
+                'input_symbols' => $cfg['input'],
+                'intermediate_code' => $cfg['intermediate'],
+                'output_symbols' => $cfg['output'],
+                'correct_code' => $cfg['correct'],
+                'options' => $cfg['options']
+            ];
+        }
+
+        return $levels;
     }
 }
 

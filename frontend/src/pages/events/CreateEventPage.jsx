@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import MajorLoader from '../../components/ui/MajorLoader';
+import { BASE_URL } from '../../config/api';
 import {
   ArrowLeft,
   Calendar,
@@ -23,6 +24,8 @@ import {
   CreditCard,
   CheckCircle2,
   Trash2,
+  Link2,
+  RefreshCw,
 } from 'lucide-react';
 
 const InputField = ({ label, id, required, error, children }) => (
@@ -49,6 +52,10 @@ const CreateEventPage = () => {
   const [errors, setErrors]   = useState({});
   const [uploadingQr, setUploadingQr] = useState(false);
   const qrInputRef = useRef(null);
+
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [bannerMode, setBannerMode] = useState('upload'); // 'upload' | 'url'
+  const bannerInputRef = useRef(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -156,6 +163,31 @@ const CreateEventPage = () => {
     }
   };
 
+  const handleBannerUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('banner_image', file);
+
+    setUploadingBanner(true);
+    const toastId = toast.loading('Uploading banner image…');
+    try {
+      const res = await axios.post('/events/upload-banner', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      set('banner_url', res.data.banner_url);
+      toast.dismiss(toastId);
+      toast.success('Event banner uploaded successfully! 🎨');
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error(err.response?.data?.error || 'Failed to upload event banner');
+    } finally {
+      setUploadingBanner(false);
+      if (bannerInputRef.current) bannerInputRef.current.value = '';
+    }
+  };
+
   const validate = () => {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Event name is required';
@@ -209,6 +241,15 @@ const CreateEventPage = () => {
   };
 
   if (loading) return <MajorLoader fullPage />;
+
+  const resolveMediaUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+      return url;
+    }
+    const clean = url.startsWith('/') ? url : `/${url}`;
+    return `${BASE_URL}${clean}`;
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-24 px-0 sm:px-4">
@@ -274,16 +315,163 @@ const CreateEventPage = () => {
             />
           </InputField>
 
-          <InputField label="Banner / Cover Image URL" id="banner_url">
+          {/* Event Banner Management: Dual Upload & URL Options */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 font-mono">
+                Event Banner / Cover Image
+              </label>
+              {/* Mode Toggle Tabs */}
+              <div className="flex items-center bg-zinc-100 dark:bg-zinc-800/80 p-0.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80">
+                <button
+                  type="button"
+                  onClick={() => setBannerMode('upload')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold font-mono transition cursor-pointer ${
+                    bannerMode === 'upload'
+                      ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Upload size={11} /> Upload Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBannerMode('url')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold font-mono transition cursor-pointer ${
+                    bannerMode === 'url'
+                      ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Link2 size={11} /> Enter URL
+                </button>
+              </div>
+            </div>
+
+            {/* Hidden Banner File Input */}
             <input
-              id="banner_url"
-              type="url"
-              value={form.banner_url}
-              onChange={e => set('banner_url', e.target.value)}
-              placeholder="https://..."
-              className={inputClass}
+              type="file"
+              ref={bannerInputRef}
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              onChange={handleBannerUpload}
+              className="hidden"
             />
-          </InputField>
+
+            {bannerMode === 'upload' ? (
+              <div
+                onClick={() => !uploadingBanner && bannerInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-2xl p-5 text-center transition cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                  uploadingBanner
+                    ? 'border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20'
+                    : 'border-zinc-300 dark:border-zinc-700 hover:border-indigo-500/80 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 bg-white/20 dark:bg-zinc-900/20'
+                }`}
+              >
+                {uploadingBanner ? (
+                  <div className="flex flex-col items-center gap-2 py-2">
+                    <RefreshCw size={22} className="animate-spin text-indigo-500" />
+                    <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      Uploading banner to server…
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-inner">
+                      <ImageIcon size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                        Click to upload event banner image
+                      </p>
+                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono mt-0.5">
+                        Supports PNG, JPG, WEBP, GIF, SVG (Recommended: 1200×630 or 16:9)
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="mt-1 px-3.5 py-1.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider hover:opacity-90 transition shadow-sm pointer-events-none"
+                    >
+                      Browse File
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="relative">
+                  <input
+                    id="banner_url"
+                    type="url"
+                    value={form.banner_url}
+                    onChange={e => set('banner_url', e.target.value)}
+                    placeholder="https://images.unsplash.com/... or /uploads/banners/..."
+                    className={inputClass}
+                  />
+                  {form.banner_url && (
+                    <button
+                      type="button"
+                      onClick={() => set('banner_url', '')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
+                      title="Clear URL"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                  Enter direct image URL or cloud storage link
+                </p>
+              </div>
+            )}
+
+            {/* Live Banner Preview Card */}
+            {Boolean(form.banner_url) && (
+              <div className="mt-3 relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-zinc-950 shadow-md group">
+                <div className="aspect-[16/7] w-full max-h-56 overflow-hidden relative">
+                  <img
+                    src={resolveMediaUrl(form.banner_url)}
+                    alt="Event Banner Preview"
+                    className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+                    onError={(e) => {
+                      if (!e.currentTarget.dataset.fallbackTried) {
+                        e.currentTarget.dataset.fallbackTried = 'true';
+                        e.currentTarget.src = form.banner_url;
+                        return;
+                      }
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end justify-between p-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-emerald-500/90 text-white shadow-sm flex items-center gap-1">
+                        <CheckCircle2 size={10} /> Active Banner
+                      </span>
+                      <span className="text-[10px] text-zinc-300 font-mono truncate max-w-[200px] sm:max-w-xs">
+                        {form.banner_url}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => bannerInputRef.current?.click()}
+                        className="px-2.5 py-1 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white rounded-lg text-[10px] font-bold font-mono transition cursor-pointer flex items-center gap-1"
+                      >
+                        <Upload size={10} /> Replace
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('banner_url', '')}
+                        className="p-1 bg-rose-500/80 hover:bg-rose-600 text-white rounded-lg transition cursor-pointer"
+                        title="Remove banner"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Date & Location */}

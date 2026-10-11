@@ -52,6 +52,7 @@ export const NotificationProvider = ({ children }) => {
 
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
 
   // Fetch notifications from backend API
   const fetchNotifications = useCallback(async (silent = false) => {
@@ -88,6 +89,7 @@ export const NotificationProvider = ({ children }) => {
 
         ws.onopen = () => {
           if (!isMounted) return;
+          reconnectAttemptsRef.current = 0;
           setSocketConnected(true);
 
           // Authenticate / identify client on socket
@@ -172,8 +174,10 @@ export const NotificationProvider = ({ children }) => {
         ws.onclose = () => {
           if (!isMounted) return;
           setSocketConnected(false);
-          // Auto reconnect after 3 seconds
-          reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
+          // Exponential backoff up to 60s to prevent spamming console
+          const delay = Math.min(3000 * Math.pow(1.5, reconnectAttemptsRef.current), 60000);
+          reconnectAttemptsRef.current += 1;
+          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
         };
 
         ws.onerror = () => {
@@ -182,7 +186,9 @@ export const NotificationProvider = ({ children }) => {
         };
       } catch (err) {
         setSocketConnected(false);
-        reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
+        const delay = Math.min(5000 * Math.pow(1.5, reconnectAttemptsRef.current), 60000);
+        reconnectAttemptsRef.current += 1;
+        reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
       }
     };
 

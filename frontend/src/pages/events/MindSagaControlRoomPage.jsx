@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import {
   ArrowLeft,
   ArrowUp,
   ArrowDown,
+  GripVertical,
   BrainCircuit,
   Layers,
   Gamepad2,
@@ -54,6 +55,7 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import DrawingCanvasModal from '../../components/ui/DrawingCanvasModal';
 import MotionChallengeGame from './components/MotionChallengeGame';
+import SwitchChallengeGame from './components/SwitchChallengeGame';
 
 const MindSagaControlRoomPage = () => {
   const { id: eventId, subId: subEventId } = useParams();
@@ -413,6 +415,29 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
+  const reorderTimeoutRef = useRef(null);
+
+  const handleReorderGames = (newGames) => {
+    // 1. Instant optimistic update for 60fps silky smooth drag
+    setGames(newGames);
+
+    // 2. Debounced realtime server sync
+    if (reorderTimeoutRef.current) {
+      clearTimeout(reorderTimeoutRef.current);
+    }
+    reorderTimeoutRef.current = setTimeout(async () => {
+      try {
+        const gameIds = newGames.map((g) => g.id);
+        await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/reorder`, { game_ids: gameIds });
+        toast.success('Sequence saved realtime! ⚡', { id: 'reorder-sync-toast', duration: 1800 });
+      } catch (err) {
+        console.error('Reorder sync error:', err);
+        toast.error('Failed to sync game sequence to server');
+        fetchOverview(true);
+      }
+    }, 280);
+  };
+
   const handleMoveGame = async (index, direction) => {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= games.length) return;
@@ -420,15 +445,7 @@ const MindSagaControlRoomPage = () => {
     const [moved] = newGames.splice(index, 1);
     newGames.splice(targetIndex, 0, moved);
 
-    const gameIds = newGames.map((g) => g.id);
-    try {
-      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/games/reorder`, { game_ids: gameIds });
-      toast.success('Game sequence order updated!');
-      fetchOverview(true);
-    } catch (err) {
-      console.error('Reorder error:', err);
-      toast.error('Failed to reorder games');
-    }
+    handleReorderGames(newGames);
   };
 
   // Handle Save Config
@@ -1501,152 +1518,275 @@ const MindSagaControlRoomPage = () => {
               </button>
             </div>
 
-            {/* Pipeline Order Summary Banner */}
-            <div className="bg-indigo-50/80 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center font-bold font-mono">
-                  {games.length}
+            {/* Pipeline Order Summary & Visual Stage Flow */}
+            <div className="bg-indigo-50/80 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-500/20 rounded-2xl p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center font-black font-mono text-sm shadow-xs">
+                    {games.length}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-indigo-900 dark:text-indigo-300 text-sm">
+                        Gaming Tournament Pipeline
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> Realtime Draggable
+                      </span>
+                    </div>
+                    <p className="text-slate-600 dark:text-zinc-400 text-[11px] mt-0.5">
+                      {games.length === 0
+                        ? 'No games configured yet. Add games to create the Round 2 tournament pipeline.'
+                        : 'Drag any card up or down to instantly reorder the sequence. Changes persist to the server in real time.'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-semibold text-indigo-900 dark:text-indigo-300">Active Game Sequence:</span>
-                  <p className="text-slate-600 dark:text-zinc-400 text-[11px] mt-0.5">
-                    {games.length === 0
-                      ? 'No games configured yet. Add games to create the Round 2 tournament pipeline.'
-                      : `Participants will play ${games.length} game(s) in sequence with individual timers and automated transition.`}
-                  </p>
-                </div>
+
+                {games.length > 0 && (
+                  <div className="flex items-center gap-3 text-[11px] font-mono font-semibold text-slate-700 dark:text-zinc-300 bg-white dark:bg-zinc-900/80 px-3.5 py-1.5 rounded-xl border border-indigo-200/60 dark:border-indigo-500/20 shadow-xs">
+                    <span>⏱ {Math.round(games.reduce((acc, g) => acc + (g.duration_seconds || 0), 0) / 60)} Mins Total</span>
+                    <span>•</span>
+                    <span className="text-indigo-600 dark:text-indigo-400">★ {games.reduce((acc, g) => acc + (g.max_score || 0), 0)} Pts Max</span>
+                  </div>
+                )}
               </div>
 
+              {/* Visual Flow Stages Breadcrumb */}
               {games.length > 0 && (
-                <div className="flex items-center gap-4 text-[11px] font-mono font-medium text-slate-700 dark:text-zinc-300">
-                  <span>Total Duration: {Math.round(games.reduce((acc, g) => acc + (g.duration_seconds || 0), 0) / 60)} Mins</span>
-                  <span>•</span>
-                  <span>Total Max: {games.reduce((acc, g) => acc + (g.max_score || 0), 0)} Pts</span>
+                <div className="pt-2 border-t border-indigo-200/50 dark:border-indigo-500/10 overflow-x-auto pb-1">
+                  <div className="flex items-center gap-2 min-w-max">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-500 dark:text-indigo-400 font-mono shrink-0 mr-1">
+                      Sequence Flow:
+                    </span>
+                    {games.map((g, idx) => (
+                      <React.Fragment key={g.id}>
+                        <div
+                          onClick={() => setTestPlayGame(g)}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-zinc-800 text-xs hover:border-indigo-500 transition cursor-pointer shadow-xs group"
+                          title="Click to test play this stage"
+                        >
+                          <span className="w-5 h-5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-mono font-bold text-[10px] flex items-center justify-center">
+                            {idx + 1}
+                          </span>
+                          <span className="font-semibold text-slate-800 dark:text-zinc-200 group-hover:text-indigo-500 transition text-[11px]">
+                            {g.title.length > 24 ? `${g.title.substring(0, 24)}…` : g.title}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500">
+                            ({g.duration_seconds}s)
+                          </span>
+                        </div>
+                        {idx < games.length - 1 && (
+                          <ChevronRight className="w-3.5 h-3.5 text-indigo-300 dark:text-indigo-500/50 shrink-0" />
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Configured Games Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {games.map((g, idx) => (
-                <div key={g.id} className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5 space-y-4 hover:border-slate-300 dark:hover:border-zinc-700 transition">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 flex items-center justify-center font-bold font-mono text-xs">
-                        #{idx + 1}
+            {/* Draggable Kanban Pipeline Cards (Framer Motion Reorder) */}
+            {games.length === 0 ? (
+              <div className="text-center py-16 bg-white dark:bg-zinc-900/40 rounded-2xl border border-dashed border-slate-300 dark:border-zinc-800 space-y-3">
+                <Gamepad2 className="w-10 h-10 text-indigo-400 mx-auto opacity-60" />
+                <h4 className="font-bold text-slate-900 dark:text-white text-base">No Games in Tournament Pipeline</h4>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-md mx-auto">
+                  Add challenges like Motion Challenge, Switch Challenge, or Deductive Logic to construct Round 2.
+                </p>
+              </div>
+            ) : (
+              <Reorder.Group
+                axis="y"
+                values={games}
+                onReorder={handleReorderGames}
+                className="space-y-4"
+              >
+                {games.map((g, idx) => (
+                  <Reorder.Item
+                    key={g.id}
+                    value={g}
+                    whileDrag={{
+                      scale: 1.02,
+                      zIndex: 50,
+                      boxShadow: isDark
+                        ? '0 25px 50px -12px rgba(99, 102, 241, 0.45)'
+                        : '0 25px 50px -12px rgba(99, 102, 241, 0.3)',
+                      borderColor: 'rgb(99, 102, 241)'
+                    }}
+                    className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-sm p-4 sm:p-5 space-y-4 hover:border-indigo-300 dark:hover:border-zinc-700 transition select-none touch-none group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        {/* Drag Grip Handle */}
+                        <div
+                          className="p-2 -ml-1 text-slate-400 hover:text-indigo-500 dark:text-zinc-500 dark:hover:text-indigo-400 cursor-grab active:cursor-grabbing rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800/80 transition flex items-center justify-center shrink-0"
+                          title="Drag to move sequence position"
+                        >
+                          <GripVertical className="w-5 h-5" />
+                        </div>
+
+                        {/* Stage Number Badge */}
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white border border-white/10 flex items-center justify-center font-black font-mono text-xs shadow-md shadow-indigo-500/20 shrink-0">
+                          #{idx + 1}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+                              {g.title}
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                              Stage {idx + 1} of {games.length}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono mt-0.5 block">
+                            {g.game_key === 'deductive_logic'
+                              ? 'Deductive Symbol Grid Challenge'
+                              : g.game_key === 'switch_challenge'
+                                ? 'Switch Challenge (Permutation Operator)'
+                                : 'Motion Challenge Matrix (Spatial Path Shifting)'}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 dark:text-white text-base leading-tight">{g.title}</h4>
-                        <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
-                          {g.game_key === 'deductive_logic' ? 'Deductive Symbol Grid' : 'Motion Challenge Matrix'}
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                            g.difficulty === 'easy'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                              : g.difficulty === 'medium'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                              : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                          }`}
+                        >
+                          {g.difficulty}
+                        </span>
+
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                            g.is_active
+                              ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
+                              : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                          }`}
+                        >
+                          {g.is_active ? 'Active' : 'Disabled'}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${g.difficulty === 'easy' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' :
-                        g.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' :
-                          'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                        }`}>
-                        {g.difficulty}
-                      </span>
-                    </div>
-                  </div>
+                    <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed pl-1 sm:pl-12">
+                      {g.rules_json?.objective || 'Sequential gameplay challenge verified authoritatively by server.'}
+                    </p>
 
-                  <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed line-clamp-2">
-                    {g.rules_json?.objective || 'Sequential gameplay challenge verified authoritatively by server.'}
-                  </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs pl-0 sm:pl-12">
+                      <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
+                        <span className="text-slate-500 dark:text-zinc-500 block text-[10px] font-mono">Stage Timer</span>
+                        <span className="font-bold text-slate-900 dark:text-white font-mono">
+                          {g.duration_seconds}s ({Math.floor(g.duration_seconds / 60)}m {g.duration_seconds % 60}s)
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
+                        <span className="text-slate-500 dark:text-zinc-500 block text-[10px] font-mono">Max Score</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 font-mono">{g.max_score} pts</span>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
+                        <span className="text-slate-500 dark:text-zinc-500 block text-[10px] font-mono">Key Type</span>
+                        <span className="font-bold text-slate-700 dark:text-zinc-300 font-mono text-[11px] truncate block">
+                          {g.game_key}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
+                        <span className="text-slate-500 dark:text-zinc-500 block text-[10px] font-mono">Drag Order</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                          Rank #{idx + 1}
+                        </span>
+                      </div>
+                    </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
-                      <span className="text-slate-500 dark:text-zinc-500 block text-[10px]">Timer</span>
-                      <span className="font-bold text-slate-900 dark:text-white font-mono">{g.duration_seconds}s ({Math.floor(g.duration_seconds / 60)}m {g.duration_seconds % 60}s)</span>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
-                      <span className="text-slate-500 dark:text-zinc-500 block text-[10px]">Max Score</span>
-                      <span className="font-bold text-indigo-600 dark:text-indigo-400 font-mono">{g.max_score} pts</span>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800">
-                      <span className="text-slate-500 dark:text-zinc-500 block text-[10px]">Status</span>
-                      <span className={`font-bold text-[11px] ${g.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-zinc-500'}`}>
-                        {g.is_active ? 'Active' : 'Disabled'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-zinc-800/80">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleToggleGameActive(g)}
-                        className={`text-[11px] font-semibold transition px-2.5 py-1 rounded-lg border cursor-pointer ${g.is_active ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white border-slate-200 dark:border-transparent' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20'
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-zinc-800/80 pl-0 sm:pl-12">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleGameActive(g)}
+                          className={`text-[11px] font-semibold transition px-3 py-1.5 rounded-xl border cursor-pointer ${
+                            g.is_active
+                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white border-slate-200 dark:border-transparent'
+                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20'
                           }`}
-                      >
-                        {g.is_active ? 'Deactivate' : 'Activate'}
-                      </button>
+                        >
+                          {g.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
 
-                      {/* Reorder Buttons */}
-                      <button
-                        type="button"
-                        disabled={idx === 0}
-                        onClick={() => handleMoveGame(idx, -1)}
-                        className="p-1 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                        title="Move Up in Sequence"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={idx === games.length - 1}
-                        onClick={() => handleMoveGame(idx, 1)}
-                        className="p-1 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                        title="Move Down in Sequence"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
+                        {/* Quick Up/Down Button Fallbacks */}
+                        <div className="flex items-center border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-zinc-950">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => handleMoveGame(idx, -1)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white transition disabled:opacity-25 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer"
+                            title="Move Up"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <div className="w-[1px] h-4 bg-slate-200 dark:bg-zinc-800" />
+                          <button
+                            type="button"
+                            disabled={idx === games.length - 1}
+                            onClick={() => handleMoveGame(idx, 1)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white transition disabled:opacity-25 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer"
+                            title="Move Down"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Test Play Button */}
+                        <button
+                          type="button"
+                          onClick={() => setTestPlayGame(g)}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-[11px] font-mono font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                          title="Test Play Challenge in modal"
+                        >
+                          <Play className="w-3.5 h-3.5 text-indigo-500 fill-indigo-500/30" />
+                          <span>Test Play</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingGame(g);
+                            setGameForm({
+                              title: g.title,
+                              game_key: g.game_key,
+                              difficulty: g.difficulty || 'medium',
+                              duration_seconds: g.duration_seconds || (g.game_key === 'motion_challenge' ? 240 : 180),
+                              max_score: g.max_score || 100,
+                              is_active: g.is_active ?? 1
+                            });
+                            setGameModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-zinc-700"
+                          title="Edit Game"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGame(g.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-red-400 rounded-xl hover:bg-rose-50 dark:hover:bg-zinc-800 transition cursor-pointer border border-transparent hover:border-rose-200 dark:hover:border-rose-900/40"
+                          title="Delete Game"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-1.5">
-                      {/* Test Play Button */}
-                      <button
-                        type="button"
-                        onClick={() => setTestPlayGame(g)}
-                        className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer"
-                        title="Test Play Challenge"
-                      >
-                        <Play className="w-3 h-3 text-indigo-500" />
-                        <span>Test Play</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setEditingGame(g);
-                          setGameForm({
-                            title: g.title,
-                            game_key: g.game_key,
-                            difficulty: g.difficulty || 'medium',
-                            duration_seconds: g.duration_seconds || (g.game_key === 'motion_challenge' ? 240 : 180),
-                            max_score: g.max_score || 100,
-                            is_active: g.is_active ?? 1
-                          });
-                          setGameModalOpen(true);
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
-                        title="Edit Game"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGame(g.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-red-400 rounded-lg hover:bg-rose-50 dark:hover:bg-zinc-800 transition cursor-pointer"
-                        title="Delete Game"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+            )}
           </div>
         )}
 
@@ -2497,7 +2637,7 @@ const MindSagaControlRoomPage = () => {
             <form onSubmit={handleSaveGame} className="space-y-4 text-xs">
               <div>
                 <label className="text-slate-700 dark:text-zinc-300 font-semibold block mb-1">Game Challenge Type</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div
                     onClick={() => {
                       setGameForm({
@@ -2535,7 +2675,28 @@ const MindSagaControlRoomPage = () => {
                     <Target className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0" />
                     <div>
                       <span className="font-bold block text-xs">Motion Challenge</span>
-                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">Path Creation & Block Sliding (+4/-1)</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">Path Creation & Sliding</span>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      setGameForm({
+                        ...gameForm,
+                        game_key: 'switch_challenge',
+                        title: editingGame ? gameForm.title : 'SWITCH CHALLENGE: Logical Permutation Test',
+                        duration_seconds: editingGame ? gameForm.duration_seconds : 240
+                      });
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-2.5 ${gameForm.game_key === 'switch_challenge'
+                      ? 'bg-lime-50 dark:bg-lime-950/30 border-lime-500 text-lime-950 dark:text-white ring-1 ring-lime-500'
+                      : 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-700'
+                      }`}
+                  >
+                    <Zap className="w-5 h-5 text-lime-500 dark:text-lime-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-xs">Switch Challenge</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-400">Single & Dual Permutation</span>
                     </div>
                   </div>
                 </div>
@@ -2644,10 +2805,10 @@ const MindSagaControlRoomPage = () => {
       {/* ADMIN TEST PLAY PREVIEW MODAL */}
       {testPlayGame && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-xl animate-in fade-in overflow-y-auto">
-          <div className="bg-slate-900 text-white border border-indigo-500/40 rounded-none w-full max-w-4xl p-5 sm:p-7 space-y-4 shadow-2xl relative my-auto">
+          <div className="bg-slate-900 text-white border border-indigo-500/40 rounded-2xl w-full max-w-4xl p-5 sm:p-7 space-y-4 shadow-2xl relative my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-none bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
                   <Play className="w-4 h-4" />
                 </div>
                 <div>
@@ -2655,7 +2816,7 @@ const MindSagaControlRoomPage = () => {
                     <h3 className="font-bold text-white text-base font-mono uppercase">
                       Admin Test Play Sandbox: {testPlayGame.title}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-none text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
                       Sandbox Mode
                     </span>
                   </div>
@@ -2666,7 +2827,7 @@ const MindSagaControlRoomPage = () => {
               </div>
               <button
                 onClick={() => setTestPlayGame(null)}
-                className="p-1.5 text-zinc-400 hover:text-white rounded-none hover:bg-zinc-800 transition cursor-pointer"
+                className="p-1.5 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2682,6 +2843,17 @@ const MindSagaControlRoomPage = () => {
                   onMoveAction={() => {}}
                   onGameComplete={() => {
                     toast.success('Admin Test Run Complete!');
+                    setTestPlayGame(null);
+                  }}
+                />
+              ) : testPlayGame.game_key === 'switch_challenge' ? (
+                <SwitchChallengeGame
+                  isDark={true}
+                  initialScore={0}
+                  onScoreUpdate={() => {}}
+                  onMoveAction={() => {}}
+                  onGameComplete={() => {
+                    toast.success('Admin Switch Challenge Test Run Complete!');
                     setTestPlayGame(null);
                   }}
                 />

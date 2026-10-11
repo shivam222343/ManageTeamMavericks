@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import ElectricBorder from './ElectricBorder';
+import { BASE_URL } from '../../config/api';
 import './TearTicket.css';
 
 const TearTicket = ({
@@ -126,9 +127,27 @@ const TearTicket = ({
             style={{ borderRadius: `${imageRadius}px` }}
           >
             <img
-              src={image.startsWith('http') || image.startsWith('/') ? image : `http://localhost:8000${image}`}
+              src={(() => {
+                if (!image) return '/event-assets/bodhantra.jpeg';
+                if (image.startsWith('http://') || image.startsWith('https://') || image.startsWith('data:') || image.startsWith('blob:')) {
+                  return image;
+                }
+                const clean = image.startsWith('/') ? image : `/${image}`;
+                return `${BASE_URL}${clean}`;
+              })()}
               alt={imageAlt}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                if (!e.currentTarget.dataset.fallbackTried) {
+                  e.currentTarget.dataset.fallbackTried = 'true';
+                  if (typeof image === 'string' && image.startsWith('/')) {
+                    e.currentTarget.src = image;
+                    return;
+                  }
+                }
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/event-assets/bodhantra.jpeg';
+              }}
             />
             {scrim && (
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />

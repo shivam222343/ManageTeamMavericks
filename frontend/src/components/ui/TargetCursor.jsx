@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import './TargetCursor.css';
@@ -77,8 +77,8 @@ const TargetCursor = ({
     gsap.to(cursorRef.current, {
       x: x - offsetX,
       y: y - offsetY,
-      duration: 0.1,
-      ease: 'power3.out'
+      duration: 0.12,
+      ease: 'power2.out'
     });
   }, []);
 
@@ -148,13 +148,11 @@ const TargetCursor = ({
         const finalX = currentX + (targetX - currentX) * strength;
         const finalY = currentY + (targetY - currentY) * strength;
 
-        const duration = strength >= 0.99 ? (parallaxOn ? 0.2 : 0) : 0.05;
-
         gsap.to(corner, {
           x: finalX,
           y: finalY,
-          duration: duration,
-          ease: duration === 0 ? 'none' : 'power1.out',
+          duration: 0.12,
+          ease: 'power2.out',
           overwrite: 'auto'
         });
       });
@@ -247,19 +245,33 @@ const TargetCursor = ({
       const cursorX = gsap.getProperty(cursorRef.current, 'x');
       const cursorY = gsap.getProperty(cursorRef.current, 'y');
 
+      // Comfortable framing box: gently frames target without excessive stretching on wide buttons/cards
+      const maxW = Math.min(rect.width, 160);
+      const maxH = Math.min(rect.height, 54);
+      const mouseViewportX = cursorX + offsetX;
+      const mouseViewportY = cursorY + offsetY;
+      const boxLeft = rect.width <= 160
+        ? rect.left
+        : Math.max(rect.left, Math.min(rect.right - maxW, mouseViewportX - maxW / 2));
+      const boxRight = rect.width <= 160 ? rect.right : boxLeft + maxW;
+      const boxTop = rect.height <= 54
+        ? rect.top
+        : Math.max(rect.top, Math.min(rect.bottom - maxH, mouseViewportY - maxH / 2));
+      const boxBottom = rect.height <= 54 ? rect.bottom : boxTop + maxH;
+
       targetCornerPositionsRef.current = [
-        { x: rect.left - borderWidth - offsetX, y: rect.top - borderWidth - offsetY },
-        { x: rect.right + borderWidth - cornerSize - offsetX, y: rect.top - borderWidth - offsetY },
-        { x: rect.right + borderWidth - cornerSize - offsetX, y: rect.bottom + borderWidth - cornerSize - offsetY },
-        { x: rect.left - borderWidth - offsetX, y: rect.bottom + borderWidth - cornerSize - offsetY }
+        { x: boxLeft - borderWidth - offsetX, y: boxTop - borderWidth - offsetY },
+        { x: boxRight + borderWidth - cornerSize - offsetX, y: boxTop - borderWidth - offsetY },
+        { x: boxRight + borderWidth - cornerSize - offsetX, y: boxBottom + borderWidth - cornerSize - offsetY },
+        { x: boxLeft - borderWidth - offsetX, y: boxBottom + borderWidth - cornerSize - offsetY }
       ];
 
       isActiveRef.current = true;
       gsap.ticker.add(tickerFnRef.current);
 
       gsap.to(activeStrengthRef, {
-        current: 1,
-        duration: hoverDuration,
+        current: 0.45,
+        duration: 0.22,
         ease: 'power2.out'
       });
 
@@ -267,7 +279,7 @@ const TargetCursor = ({
         gsap.to(corner, {
           x: targetCornerPositionsRef.current[i].x - cursorX,
           y: targetCornerPositionsRef.current[i].y - cursorY,
-          duration: 0.2,
+          duration: 0.22,
           ease: 'power2.out'
         });
       });

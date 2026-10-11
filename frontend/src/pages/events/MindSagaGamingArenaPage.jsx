@@ -36,6 +36,8 @@ import {
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import MotionChallengeGame from './components/MotionChallengeGame';
+import SwitchChallengeGame from './components/SwitchChallengeGame';
+import DeductiveChallengeGame from './components/DeductiveChallengeGame';
 import './MindSagaTheme.css';
 
 const MindSagaGamingArenaPage = () => {
@@ -62,6 +64,7 @@ const MindSagaGamingArenaPage = () => {
   const [currentGameKey, setCurrentGameKey] = useState('motion_challenge');
   const [score, setScore] = useState(0);
   const [motionGameData, setMotionGameData] = useState(null);
+  const [switchGameData, setSwitchGameData] = useState(null);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [nextGameModal, setNextGameModal] = useState({ isOpen: false, completedTitle: '', nextGame: null, nextIndex: 0 });
   const socketRef = useRef(null);
@@ -87,6 +90,9 @@ const MindSagaGamingArenaPage = () => {
   const fullscreenExitsRef = useRef(0);
   const isPlayingRef = useRef(false);
   const sessionTokenRef = useRef(null);
+  const isLaunchingRef = useRef(false);
+  const isSubmittingGameRef = useRef(false);
+  const isStartingGameRef = useRef(false);
 
   // Global Fullscreen state tracker
   useEffect(() => {
@@ -517,8 +523,13 @@ const MindSagaGamingArenaPage = () => {
 
   // 6. Start a Specific Game in the Pipeline
   const startSpecificGame = async (gameConfig, gameIdx) => {
+    if (isStartingGameRef.current) return;
+    isStartingGameRef.current = true;
     try {
       setLoading(true);
+      // 200ms debounce delay to avoid simultaneous concurrent race conditions
+      await new Promise((r) => setTimeout(r, 200));
+
       const token = localStorage.getItem('token') || sessionStorage.getItem('mind_saga_auth_token');
       if (token) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -541,8 +552,13 @@ const MindSagaGamingArenaPage = () => {
       setIsTransitioning(false);
       setGameResult(null);
 
-      const isMotion = (data.game_key === 'motion_challenge' || gameConfig?.game_key === 'motion_challenge');
-      setIsTimerRunning(!isMotion); // Motion Challenge timer starts only when candidate clicks Play!
+      const isSelfTimed = (
+        data.game_key === 'motion_challenge' ||
+        data.game_key === 'switch_challenge' ||
+        gameConfig?.game_key === 'motion_challenge' ||
+        gameConfig?.game_key === 'switch_challenge'
+      );
+      setIsTimerRunning(!isSelfTimed); // Self-timed challenges start when participant clicks Play!
 
       if (data.game_key === 'deductive_logic' || gameConfig?.game_key === 'deductive_logic') {
         const pList = data.puzzle_data || [];
@@ -553,6 +569,8 @@ const MindSagaGamingArenaPage = () => {
         }
       } else if (data.game_key === 'motion_challenge' || gameConfig?.game_key === 'motion_challenge') {
         setMotionGameData(data.puzzle_data);
+      } else if (data.game_key === 'switch_challenge' || gameConfig?.game_key === 'switch_challenge') {
+        setSwitchGameData(data.puzzle_data);
       }
 
       // Send realtime game_join over WebSocket
@@ -571,38 +589,53 @@ const MindSagaGamingArenaPage = () => {
       toast.error(err.response?.data?.error || 'Failed to start game session');
     } finally {
       setLoading(false);
+      isStartingGameRef.current = false;
     }
   };
 
   // 7. Initial Tournament Launch (Enter Fullscreen + Start Game 1)
   const handleLaunchChampionship = async () => {
-    if (!cameraActive) {
-      toast.error('Please allow camera access before entering the championship arena.');
-      await startCamera();
-      return;
-    }
-
-    // Strictly require fullscreen — abort if not granted
-    if (!document.fullscreenElement) {
-      try {
-        await document.documentElement.requestFullscreen();
-        setIsFullscreen(true);
-      } catch (err) {
-        toast.error('⚠️ Fullscreen is mandatory to start the gaming round. Please allow fullscreen and try again.');
-        return; // Abort launch - do NOT start game without fullscreen
+    if (isLaunchingRef.current) return;
+    isLaunchingRef.current = true;
+    try {
+      if (!cameraActive) {
+        toast.error('Please allow camera access before entering the championship arena.');
+        await startCamera();
+        return;
       }
-    }
 
-    if (pipelineGames.length === 0) {
-      // Fallback default: Motion Challenge first
-      await startSpecificGame({ id: null, game_key: 'motion_challenge', title: 'MOTION CHALLENGE: Spatial Path Creation & Block Shifting', duration_seconds: 240 }, 0);
-    } else {
-      await startSpecificGame(pipelineGames[0], 0);
+      // Strictly require fullscreen — abort if not granted
+      if (!document.fullscreenElement) {
+        try {
+          await document.documentElement.requestFullscreen();
+          setIsFullscreen(true);
+        } catch (err) {
+          toast.error('⚠️ Fullscreen is mandatory to start the gaming round. Please allow fullscreen and try again.');
+          return; // Abort launch - do NOT start game without fullscreen
+        }
+      }
+
+      // 250ms delay time to prevent simultaneous launch crashes
+      await new Promise((r) => setTimeout(r, 250));
+
+      if (pipelineGames.length === 0) {
+        // Fallback default: Motion Challenge first
+        await startSpecificGame({ id: null, game_key: 'motion_challenge', title: 'MOTION CHALLENGE: Spatial Path Creation & Block Shifting', duration_seconds: 240 }, 0);
+      } else {
+        await startSpecificGame(pipelineGames[0], 0);
+      }
+    } finally {
+      isLaunchingRef.current = false;
     }
   };
 
   // 8. Progress to Next Game in Pipeline or Final Submit
   const handleCompleteCurrentGame = async () => {
+    if (isSubmittingGameRef.current) return;
+    isSubmittingGameRef.current = true;
+    // 250ms debounce delay
+    await new Promise((r) => setTimeout(r, 250));
+
     const currentToken = sessionTokenRef.current;
     if (currentToken) {
       try {
@@ -617,31 +650,35 @@ const MindSagaGamingArenaPage = () => {
       }
     }
 
-    const nextIdx = currentGameIndex + 1;
-    if (nextIdx < pipelineGames.length) {
-      // Pause active gameplay and show interactive "Start Next Game" pipeline popup
-      setIsPlaying(false);
-      setNextGameModal({
-        isOpen: true,
-        completedTitle: currentGameTitle,
-        nextGame: pipelineGames[nextIdx],
-        nextIndex: nextIdx
-      });
-    } else {
-      // All games in pipeline complete!
-      setIsPlaying(false);
-      setGameResult({
-        status: 'completed',
-        total_games_played: pipelineGames.length || 1,
-        verification_hash: `SHA256-${Date.now().toString(36).toUpperCase()}-VERIFIED`
-      });
+    try {
+      const nextIdx = currentGameIndex + 1;
+      if (nextIdx < pipelineGames.length) {
+        // Pause active gameplay and show interactive "Start Next Game" pipeline popup
+        setIsPlaying(false);
+        setNextGameModal({
+          isOpen: true,
+          completedTitle: currentGameTitle,
+          nextGame: pipelineGames[nextIdx],
+          nextIndex: nextIdx
+        });
+      } else {
+        // All games in pipeline complete!
+        setIsPlaying(false);
+        setGameResult({
+          status: 'completed',
+          total_games_played: pipelineGames.length || 1,
+          verification_hash: `SHA256-${Date.now().toString(36).toUpperCase()}-VERIFIED`
+        });
 
-      // Exit fullscreen
-      if (document.fullscreenElement) {
-        try {
-          await document.exitFullscreen();
-        } catch (e) {}
+        // Exit fullscreen
+        if (document.fullscreenElement) {
+          try {
+            await document.exitFullscreen();
+          } catch (e) {}
+        }
       }
+    } finally {
+      isSubmittingGameRef.current = false;
     }
   };
 
@@ -973,20 +1010,21 @@ const MindSagaGamingArenaPage = () => {
               {/* Skip / Next Game Button */}
               <button
                 onClick={handleNextGameClick}
-                className="mindsaga-btn-space px-3 py-1 text-xs rounded-none cursor-pointer"
+                className="mindsaga-btn-space px-2.5 sm:px-3 py-1 text-xs rounded-none cursor-pointer flex items-center justify-center gap-1"
+                title={currentGameIndex + 1 < pipelineGames.length ? 'Next Challenge' : 'Finish Round'}
               >
-                <span>{currentGameIndex + 1 < pipelineGames.length ? 'Next' : 'Finish'}</span>
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                <span className="hidden sm:inline">{currentGameIndex + 1 < pipelineGames.length ? 'Next' : 'Finish'}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
 
               {/* Exit Round Button */}
               <button
                 onClick={() => setExitConfirmModal(true)}
-                className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-600 dark:text-red-300 border border-red-500/30 rounded-none text-xs font-mono font-semibold flex items-center gap-1 transition cursor-pointer"
+                className="px-2 sm:px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-600 dark:text-red-300 border border-red-500/30 rounded-none text-xs font-mono font-semibold flex items-center justify-center gap-1 transition cursor-pointer"
                 title="Exit Gaming Arena"
               >
-                <VideoOff className="w-3.5 h-3.5 hidden sm:inline" />
-                <span>Exit</span>
+                <VideoOff className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Exit</span>
               </button>
             </>
           )}
@@ -1170,102 +1208,28 @@ const MindSagaGamingArenaPage = () => {
           </div>
         )}
 
-        {/* ACTIVE GAME 1: DEDUCTIVE LOGIC (4x4 Latin Square Shape Deduction) */}
+        {/* ACTIVE GAME 1: DEDUCTIVE LOGIC (Latin Square Shape Deduction with single '?') */}
         {isPlaying && currentGameKey === 'deductive_logic' && (
-          <div className="mindsaga-card p-5 sm:p-7 space-y-6 rounded-none">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
-              <div>
-                <span className="mindsaga-hud-badge border-purple-500/30 text-purple-600 dark:text-purple-300">
-                  Puzzle {activePuzzleIndex + 1}/{puzzles.length || 1}
-                </span>
-                <h3 className="text-base font-bold font-mono uppercase mt-1 text-slate-900 dark:text-white">
-                  Symbol Matrix Deduction
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  No repeating symbols in any row or column.
-                </p>
-              </div>
-            </div>
-
-            {/* 4x4 Grid Layout */}
-            <div className="flex flex-col items-center justify-center p-2 sm:p-4">
-              <div className={`grid grid-cols-4 gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-none border-2 shadow-2xl ${
-                isDark ? 'bg-zinc-950 border-white/15' : 'bg-slate-100 border-slate-300'
-              }`}>
-                {userGrid.map((row, r) =>
-                  row.map((cell, c) => {
-                    const isSelected = selectedCell?.r === r && selectedCell?.c === c;
-                    const isClue = puzzles[activePuzzleIndex]?.clues_grid?.[r]?.[c] !== null && puzzles[activePuzzleIndex]?.clues_grid?.[r]?.[c] !== undefined;
-                    const symbolInfo = cell ? symbolComponents[cell] : null;
-                    const Icon = symbolInfo?.icon;
-
-                    return (
-                      <button
-                        key={`${r}-${c}`}
-                        type="button"
-                        onClick={() => setSelectedCell({ r, c })}
-                        className={`w-14 h-14 sm:w-20 sm:h-20 rounded-none border-2 flex items-center justify-center transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-purple-500 bg-purple-950/40 ring-4 ring-purple-500/30 scale-105 z-10'
-                            : isClue
-                            ? isDark
-                              ? 'border-white/10 bg-zinc-900/90 shadow-inner'
-                              : 'border-slate-300 bg-slate-200/80 shadow-inner'
-                            : isDark
-                            ? 'border-white/10 bg-zinc-950 hover:border-white/20'
-                            : 'border-slate-200 bg-white hover:border-indigo-300'
-                        }`}
-                      >
-                        {symbolInfo && Icon ? (
-                          <div className={`p-1.5 sm:p-2 rounded-none ${symbolInfo.bg} ${symbolInfo.color}`}>
-                            <Icon className="w-6 h-6 sm:w-8 sm:h-8 stroke-[2.5]" />
-                          </div>
-                        ) : (
-                          <span className="text-xs font-mono text-zinc-500">?</span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Symbol Palette Selector */}
-            <div className={`p-4 rounded-none border flex flex-col items-center gap-3 ${
-              isDark ? 'bg-zinc-950 border-white/10' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-400">
-                Select Symbol for Slot:
-              </span>
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-                {Object.keys(symbolComponents).map((key) => {
-                  const item = symbolComponents[key];
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => handlePlaceSymbol(key)}
-                      disabled={!selectedCell}
-                      className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-none border flex items-center gap-2 font-bold text-xs transition disabled:opacity-30 cursor-pointer ${item.bg} ${item.color} hover:scale-105`}
-                    >
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={handleClearCell}
-                  disabled={!selectedCell}
-                  className={`px-3 py-2 sm:py-2.5 rounded-none text-xs font-semibold border transition cursor-pointer ${
-                    isDark ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-white/10' : 'bg-slate-200 hover:bg-slate-300 text-slate-700 border-slate-300'
-                  }`}
-                  title="Clear Cell"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <DeductiveChallengeGame
+            gameData={puzzles}
+            isDark={isDark}
+            initialScore={score}
+            onStartTimer={() => setIsTimerRunning(true)}
+            onScoreUpdate={(newScore) => setScore(newScore)}
+            onMoveAction={(moveData) => {
+              setMovesLog((prev) => [...prev, moveData]);
+              try {
+                if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                  socketRef.current.send(JSON.stringify({
+                    type: 'game_move',
+                    subEventId: Number(subEventId),
+                    gameKey: 'deductive_logic',
+                    move: moveData
+                  }));
+                }
+              } catch (e) {}
+            }}
+          />
         )}
 
         {/* ACTIVE GAME 2: MOTION CHALLENGE (Path Creation & Block Sliding) */}
@@ -1286,6 +1250,36 @@ const MindSagaGamingArenaPage = () => {
                     type: 'game_move',
                     subEventId: Number(subEventId),
                     gameKey: 'motion_challenge',
+                    move: moveData
+                  }));
+                }
+              } catch (e) {}
+            }}
+            onGameComplete={() => {
+              handleCompleteCurrentGame();
+            }}
+          />
+        )}
+
+        {/* ACTIVE GAME 3: SWITCH CHALLENGE (Power of Logical Thinking & Permutation Test) */}
+        {isPlaying && currentGameKey === 'switch_challenge' && (
+          <SwitchChallengeGame
+            gameData={switchGameData}
+            puzzleData={switchGameData}
+            isDark={isDark}
+            sessionToken={sessionToken}
+            subEventId={subEventId}
+            initialScore={score}
+            onStartTimer={() => setIsTimerRunning(true)}
+            onScoreUpdate={(newScore) => setScore(newScore)}
+            onMoveAction={(moveData) => {
+              setMovesLog((prev) => [...prev, moveData]);
+              try {
+                if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                  socketRef.current.send(JSON.stringify({
+                    type: 'game_move',
+                    subEventId: Number(subEventId),
+                    gameKey: 'switch_challenge',
                     move: moveData
                   }));
                 }

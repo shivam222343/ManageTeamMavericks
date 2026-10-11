@@ -28,6 +28,7 @@ import {
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
+import { BASE_URL } from '../../config/api';
 import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
 import TechText from '../../components/ui/TechText';
@@ -500,9 +501,25 @@ const PublicEventsPage = () => {
                         <div className="relative h-48 w-full bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden shrink-0">
                           {ev.cover_image_url || ev.banner_url ? (
                             <img
-                              src={ev.cover_image_url || ev.banner_url}
+                              src={(() => {
+                                const raw = ev.cover_image_url || ev.banner_url;
+                                if (!raw) return '';
+                                if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+                                const clean = raw.startsWith('/') ? raw : `/${raw}`;
+                                return `${BASE_URL}${clean}`;
+                              })()}
                               alt={ev.name}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              onError={(e) => {
+                                const raw = ev.cover_image_url || ev.banner_url;
+                                if (raw && !e.currentTarget.dataset.fallbackTried) {
+                                  e.currentTarget.dataset.fallbackTried = 'true';
+                                  e.currentTarget.src = raw;
+                                  return;
+                                }
+                                e.target.onerror = null;
+                                e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200';
+                              }}
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center p-6 bg-gradient-to-tr from-blue-900/40 via-indigo-950/40 to-zinc-900">
@@ -517,13 +534,9 @@ const PublicEventsPage = () => {
                             <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/10">
                               {ev.mode}
                             </span>
-                            {isPaid ? (
+                            {isPaid && (
                               <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/80 backdrop-blur-md text-white border border-emerald-400/20">
                                 ₹{eventFee.toFixed(0)}
-                              </span>
-                            ) : (
-                              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/80 backdrop-blur-md text-white border border-blue-400/20">
-                                Free
                               </span>
                             )}
                           </div>

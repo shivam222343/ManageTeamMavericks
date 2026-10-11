@@ -92,15 +92,10 @@ const EventCard = ({ event }) => {
             <span className="truncate">{event.location}</span>
           </div>
         )}
-        {Boolean(event.payment_required) ? (
+        {Boolean(event.payment_required) && (
           <div className="flex items-center gap-2 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
             <Coins size={12} className="shrink-0" />
             <span>₹{parseFloat(event.registration_fee || 0).toFixed(0)}</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold">
-            <Coins size={12} className="shrink-0" />
-            <span>Free</span>
           </div>
         )}
         {event.max_participants && (

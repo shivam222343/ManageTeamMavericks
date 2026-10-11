@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -52,6 +52,9 @@ const MindSagaParticipantArena = () => {
   const [arenaData, setArenaData] = useState(null);
   const [verifiedCandidate, setVerifiedCandidate] = useState(() => memoryVerifiedSession.candidate);
 
+  const isNavigatingRef = useRef(false);
+  const verifyingKeyRef = useRef(false);
+
   // Check if admin preview (allows coordinators/core_members to bypass, but participants MUST verify key)
   const isAdminRole = user?.role && ['coordinator', 'core_member', 'member', 'admin'].includes(user.role);
 
@@ -83,16 +86,35 @@ const MindSagaParticipantArena = () => {
     }
   };
 
+  const navigateToRound1 = async () => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    await new Promise((r) => setTimeout(r, 200));
+    navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga/test`);
+    setTimeout(() => { isNavigatingRef.current = false; }, 600);
+  };
+
+  const navigateToRound2 = async () => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    await new Promise((r) => setTimeout(r, 200));
+    navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga/game`);
+    setTimeout(() => { isNavigatingRef.current = false; }, 600);
+  };
+
   const handleVerifyKey = async (e) => {
     e?.preventDefault?.();
+    if (verifyingKeyRef.current) return;
     const cleanKey = keyInput.trim().toUpperCase();
     if (!cleanKey) {
       toast.error('Please enter your unique Mind Saga Access Key.');
       return;
     }
 
+    verifyingKeyRef.current = true;
+    setVerifyingKey(true);
+    await new Promise((r) => setTimeout(r, 250));
     try {
-      setVerifyingKey(true);
       const res = await axios.post('/mindsaga/auth/login-with-key', {
         access_key: cleanKey
       });
@@ -132,6 +154,7 @@ const MindSagaParticipantArena = () => {
       const errMsg = err.response?.data?.error || 'Invalid Access Key. Please check your credentials and try again.';
       toast.error(errMsg);
     } finally {
+      verifyingKeyRef.current = false;
       setVerifyingKey(false);
     }
   };
@@ -244,35 +267,37 @@ const MindSagaParticipantArena = () => {
 
       {/* Top Navigation Bar with Micro Telemetry & Theme Toggle */}
       <header className="border-b border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-950/50 sticky top-0 z-30 backdrop-blur-xl transition-colors">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/user/dashboard"
-              className="p-2 rounded-none bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-none bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center cursor-pointer"
               title="Return to Dashboard"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
             <div>
-              <h1 className="text-base sm:text-lg font-black uppercase tracking-wider flex items-center gap-2 font-mono text-slate-900 dark:text-white">
-                <BrainCircuit className="w-5 h-5 text-sky-500 dark:text-sky-400" />
-                <span>Mind Saga Arena</span>
+              <h1 className="text-sm sm:text-lg font-black uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 font-mono text-slate-900 dark:text-white whitespace-nowrap">
+                <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 text-sky-500 dark:text-sky-400 shrink-0" />
+                <span>Mind Saga</span>
+                <span className="hidden sm:inline">Arena</span>
               </h1>
-              <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">Cognitive Championship</p>
+              <p className="hidden sm:block text-[11px] font-mono text-slate-500 dark:text-slate-400">Cognitive Championship</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-none border border-slate-300 dark:border-white/15 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition flex items-center justify-center cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-none border border-slate-300 dark:border-white/15 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition flex items-center justify-center cursor-pointer"
               title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
             </button>
-            <span className="mindsaga-hud-badge">
+            <span className="mindsaga-hud-badge text-[10px] sm:text-xs py-1 px-2 whitespace-nowrap">
               <span className="mindsaga-radar-dot" />
-              <span>STATUS: {qualStatus.replace(/_/g, ' ')}</span>
+              <span className="hidden sm:inline">STATUS: </span>
+              <span>{qualStatus === 'in_round_1' ? 'R1 ACTIVE' : qualStatus.replace(/_/g, ' ')}</span>
             </span>
             <span className="hidden md:inline-flex mindsaga-hud-badge border-slate-300 dark:border-white/10 text-sky-600 dark:text-sky-400">
               [ STAGE: ROUND 0{activeRound} ]
@@ -384,23 +409,28 @@ const MindSagaParticipantArena = () => {
                   <button
                     disabled
                     className="w-full py-2.5 rounded-none text-xs font-mono font-bold flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                    title="Round 1 Locked"
                   >
-                    <Lock className="w-3.5 h-3.5" /> [ ROUND 1 LOCKED ]
+                    <Lock className="w-4 h-4" />
+                    <span className="hidden sm:inline">[ ROUND 1 LOCKED ]</span>
                   </button>
                 ) : r1AttemptsExhausted ? (
                   <button
                     disabled
                     className="w-full py-2.5 rounded-none text-xs font-mono font-bold flex items-center justify-center gap-1.5 bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-400/40 text-emerald-700 dark:text-emerald-300 cursor-default"
+                    title={`Completed (${attemptsUsedR1}/${maxAttemptsR1})`}
                   >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> Completed ({attemptsUsedR1}/{maxAttemptsR1})
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                    <span className="hidden sm:inline">Completed ({attemptsUsedR1}/{maxAttemptsR1})</span>
                   </button>
                 ) : (
                   <button
-                    onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga/test`)}
-                    className="mindsaga-btn-space w-full py-2.5 rounded-none"
+                    onClick={navigateToRound1}
+                    className="mindsaga-btn-space w-full py-2.5 rounded-none cursor-pointer flex items-center justify-center gap-1.5"
+                    title={attemptsUsedR1 > 0 ? `Retake (${attemptsUsedR1}/${maxAttemptsR1})` : 'Start Round 1'}
                   >
-                    <Play className="w-3.5 h-3.5 mr-1" />
-                    <span>{attemptsUsedR1 > 0 ? `Retake (${attemptsUsedR1}/${maxAttemptsR1})` : 'Start Round 1'}</span>
+                    <Play className="w-4 h-4" />
+                    <span className="hidden sm:inline">{attemptsUsedR1 > 0 ? `Retake (${attemptsUsedR1}/${maxAttemptsR1})` : 'Start Round 1'}</span>
                   </button>
                 )}
               </div>
@@ -456,23 +486,28 @@ const MindSagaParticipantArena = () => {
                   <button
                     disabled
                     className="w-full py-2.5 rounded-none text-xs font-mono font-bold flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                    title="Round 2 Locked"
                   >
-                    <Lock className="w-3.5 h-3.5" /> [ ROUND 2 LOCKED ]
+                    <Lock className="w-4 h-4" />
+                    <span className="hidden sm:inline">[ ROUND 2 LOCKED ]</span>
                   </button>
                 ) : r2AttemptsExhausted ? (
                   <button
                     disabled
                     className="w-full py-2.5 rounded-none text-xs font-mono font-bold flex items-center justify-center gap-1.5 bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-400/40 text-emerald-700 dark:text-emerald-300 cursor-default"
+                    title={`Completed (${attemptsUsedR2}/${maxAttemptsR2})`}
                   >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> Completed ({attemptsUsedR2}/{maxAttemptsR2})
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                    <span className="hidden sm:inline">Completed ({attemptsUsedR2}/{maxAttemptsR2})</span>
                   </button>
                 ) : (
                   <button
-                    onClick={() => navigate(`/events/${eventId}/sub-events/${subEventId}/mind-saga/game`)}
-                    className="mindsaga-btn-space w-full py-2.5 rounded-none bg-gradient-to-r from-purple-800 to-indigo-700"
+                    onClick={navigateToRound2}
+                    className="mindsaga-btn-space w-full py-2.5 rounded-none bg-gradient-to-r from-purple-800 to-indigo-700 cursor-pointer flex items-center justify-center gap-1.5"
+                    title={attemptsUsedR2 > 0 ? `Retake (${attemptsUsedR2}/${maxAttemptsR2})` : 'Enter Gaming Arena'}
                   >
-                    <Play className="w-3.5 h-3.5 mr-1" />
-                    <span>{attemptsUsedR2 > 0 ? `Retake (${attemptsUsedR2}/${maxAttemptsR2})` : 'Enter Gaming Arena'}</span>
+                    <Gamepad2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">{attemptsUsedR2 > 0 ? `Retake (${attemptsUsedR2}/${maxAttemptsR2})` : 'Enter Gaming Arena'}</span>
                   </button>
                 )}
               </div>
@@ -522,12 +557,15 @@ const MindSagaParticipantArena = () => {
                   <button
                     disabled
                     className="w-full py-2.5 rounded-none text-xs font-mono font-bold flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                    title="Round 3 Locked"
                   >
-                    <Lock className="w-3.5 h-3.5" /> [ ROUND 3 LOCKED ]
+                    <Lock className="w-4 h-4" />
+                    <span className="hidden sm:inline">[ ROUND 3 LOCKED ]</span>
                   </button>
                 ) : (
                   <div className="p-2.5 rounded-none text-center text-xs font-mono font-bold border border-emerald-500/40 bg-emerald-100 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300">
-                    Qualified! Report to venue.
+                    <span className="hidden sm:inline">Qualified! Report to venue.</span>
+                    <span className="sm:hidden">Qualified! Report</span>
                   </div>
                 )}
               </div>
