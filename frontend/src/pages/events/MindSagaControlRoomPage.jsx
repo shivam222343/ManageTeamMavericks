@@ -49,13 +49,18 @@ import {
   User,
   Maximize2,
   Minimize2,
-  Ban
+  Ban,
+  Printer,
+  FileSpreadsheet,
+  FileText,
+  RotateCcw
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import DrawingCanvasModal from '../../components/ui/DrawingCanvasModal';
 import MotionChallengeGame from './components/MotionChallengeGame';
 import SwitchChallengeGame from './components/SwitchChallengeGame';
+import { MAVERICKS_LOGO_BASE64 } from '../../assets/logo_base64';
 
 const MindSagaControlRoomPage = () => {
   const { id: eventId, subId: subEventId } = useParams();
@@ -127,6 +132,24 @@ const MindSagaControlRoomPage = () => {
     session: null,
     reason: 'Frequent tab-switching & full-screen exit violation.'
   });
+
+  // Participant Management & Separate Round Attempts State
+  const [participantSearch, setParticipantSearch] = useState('');
+  const [participantStatusFilter, setParticipantStatusFilter] = useState('all');
+  const [attemptModalOpen, setAttemptModalOpen] = useState(false);
+  const [targetParticipant, setTargetParticipant] = useState(null);
+  const [attemptForm, setAttemptForm] = useState({
+    max_attempts_r1: 1,
+    max_attempts_r2: 1,
+    max_attempts_r3: 1
+  });
+  const [bulkAttemptModalOpen, setBulkAttemptModalOpen] = useState(false);
+  const [bulkAttemptForm, setBulkAttemptForm] = useState({
+    max_attempts_r1: '',
+    max_attempts_r2: '',
+    max_attempts_r3: ''
+  });
+  const [isSavingAttempts, setIsSavingAttempts] = useState(false);
 
   // Gaming Pipeline State & Modal
   const [gameModalOpen, setGameModalOpen] = useState(false);
@@ -249,7 +272,7 @@ const MindSagaControlRoomPage = () => {
   }, [activeTab, fetchProctoring]);
 
   useEffect(() => {
-    if (activeTab === 'scores' || activeTab === 'keys') {
+    if (activeTab === 'scores' || activeTab === 'keys' || activeTab === 'participants') {
       fetchLeaderboard();
     }
   }, [activeTab, fetchLeaderboard]);
@@ -538,6 +561,401 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
+  // Filtered Participants Memo for Participants Tab
+  const filteredParticipants = useMemo(() => {
+    if (!Array.isArray(leaderboard)) return [];
+    return leaderboard.filter((p) => {
+      const q = participantSearch.toLowerCase().trim();
+      const matchesSearch = !q ||
+        (p.full_name && p.full_name.toLowerCase().includes(q)) ||
+        (p.email && p.email.toLowerCase().includes(q)) ||
+        (p.phone && p.phone.toLowerCase().includes(q)) ||
+        (p.prn && p.prn.toLowerCase().includes(q)) ||
+        (p.access_key && p.access_key.toLowerCase().includes(q)) ||
+        (String(p.registration_id).includes(q));
+
+      const matchesStatus = participantStatusFilter === 'all' || p.qualification_status === participantStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [leaderboard, participantSearch, participantStatusFilter]);
+
+  // Open Attempt Configuration Modal for Single Participant
+  const handleOpenAttemptModal = (cand) => {
+    setTargetParticipant(cand);
+    setAttemptForm({
+      max_attempts_r1: cand.effective_attempts_r1 ?? cand.default_attempts_r1 ?? 1,
+      max_attempts_r2: cand.effective_attempts_r2 ?? cand.default_attempts_r2 ?? 1,
+      max_attempts_r3: cand.effective_attempts_r3 ?? cand.default_attempts_r3 ?? 1
+    });
+    setAttemptModalOpen(true);
+  };
+
+  // Save Attempt Configuration for Single Participant
+  const handleSaveParticipantAttempts = async (e) => {
+    if (e) e.preventDefault();
+    if (!targetParticipant) return;
+    setIsSavingAttempts(true);
+    try {
+      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/participants/attempts`, {
+        registration_id: targetParticipant.registration_id,
+        max_attempts_r1: parseInt(attemptForm.max_attempts_r1) || 1,
+        max_attempts_r2: parseInt(attemptForm.max_attempts_r2) || 1,
+        max_attempts_r3: parseInt(attemptForm.max_attempts_r3) || 1
+      });
+      toast.success(`Updated attempts for ${targetParticipant.full_name}!`);
+      setAttemptModalOpen(false);
+      setTargetParticipant(null);
+      fetchLeaderboard();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update attempts');
+    } finally {
+      setIsSavingAttempts(false);
+    }
+  };
+
+  // Quick Inline Increment (+1 Attempt for Round 1, 2, or 3)
+  const handleQuickIncrementAttempt = async (cand, round) => {
+    try {
+      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/participants/reset-attempt`, {
+        registration_id: cand.registration_id,
+        round,
+        action: 'grant_extra'
+      });
+      toast.success(`+1 Attempt granted to ${cand.full_name} for Round ${round}!`, { icon: '✨' });
+      fetchLeaderboard();
+    } catch (err) {
+      toast.error(err.response?.data?.error || `Failed to grant attempt for Round ${round}`);
+    }
+  };
+
+  // Reset / Clear Participant Session for Fresh Attempt
+  const handleResetParticipantSession = async (cand, round) => {
+    const roundName = round === 1 ? 'Round 1 (Aptitude)' : 'Round 2 (Gaming)';
+    if (!window.confirm(`Are you sure you want to reset ${cand.full_name}'s session for ${roundName}? Existing answers and session will be cleared so they can start fresh.`)) {
+      return;
+    }
+    try {
+      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/participants/reset-attempt`, {
+        registration_id: cand.registration_id,
+        round,
+        action: 'clear_session'
+      });
+      toast.success(`${roundName} session reset for ${cand.full_name}. They can retake fresh!`);
+      fetchLeaderboard();
+    } catch (err) {
+      toast.error(err.response?.data?.error || `Failed to reset session for ${roundName}`);
+    }
+  };
+
+  // Bulk Attempts Save
+  const handleSaveBulkAttempts = async (e) => {
+    if (e) e.preventDefault();
+    if (selectedRegIds.length === 0) {
+      toast.error('No participants selected.');
+      return;
+    }
+    setIsSavingAttempts(true);
+    try {
+      const payload = {
+        registration_ids: selectedRegIds
+      };
+      if (bulkAttemptForm.max_attempts_r1 !== '') payload.max_attempts_r1 = parseInt(bulkAttemptForm.max_attempts_r1);
+      if (bulkAttemptForm.max_attempts_r2 !== '') payload.max_attempts_r2 = parseInt(bulkAttemptForm.max_attempts_r2);
+      if (bulkAttemptForm.max_attempts_r3 !== '') payload.max_attempts_r3 = parseInt(bulkAttemptForm.max_attempts_r3);
+
+      await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/participants/attempts`, payload);
+      toast.success(`Updated attempts for ${selectedRegIds.length} participant(s)!`);
+      setBulkAttemptModalOpen(false);
+      setSelectedRegIds([]);
+      fetchLeaderboard();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update bulk attempts');
+    } finally {
+      setIsSavingAttempts(false);
+    }
+  };
+
+  // Export CSV
+  const handleExportCSV = () => {
+    if (!leaderboard || leaderboard.length === 0) {
+      toast.error('No participant records to export.');
+      return;
+    }
+
+    const headers = [
+      'Rank',
+      'Full Name',
+      'PRN / Roll No',
+      'Email Address',
+      'Phone',
+      'Access Key',
+      'Round 1 Aptitude Score',
+      'Round 1 Max',
+      'R1 Attempts Used',
+      'R1 Attempts Allowed',
+      'Round 2 Gaming Score',
+      'Round 2 Max',
+      'R2 Attempts Used',
+      'R2 Attempts Allowed',
+      'Round 3 Interview Score',
+      'Round 3 Max',
+      'Final Weighted Score',
+      'Qualification Status'
+    ];
+
+    const rows = leaderboard.map((cand, idx) => [
+      idx + 1,
+      `"${(cand.full_name || '').replace(/"/g, '""')}"`,
+      `"${(cand.prn || '').replace(/"/g, '""')}"`,
+      `"${(cand.email || '').replace(/"/g, '""')}"`,
+      `"${(cand.phone || '').replace(/"/g, '""')}"`,
+      `"${(cand.access_key || '').replace(/"/g, '""')}"`,
+      Number(cand.round1_score || 0).toFixed(2),
+      Number(cand.round1_max || 50).toFixed(2),
+      cand.attempts_used_r1 ?? 0,
+      cand.effective_attempts_r1 ?? 1,
+      Number(cand.round2_score || 0).toFixed(2),
+      Number(cand.round2_max || 100).toFixed(2),
+      cand.attempts_used_r2 ?? 0,
+      cand.effective_attempts_r2 ?? 1,
+      Number(cand.round3_score || 0).toFixed(2),
+      Number(cand.round3_max || 100).toFixed(2),
+      Number(cand.final_weighted_score || 0).toFixed(2),
+      `"${(cand.qualification_status || 'in_round_1').replace(/_/g, ' ').toUpperCase()}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `MindSaga_Participant_Scores_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('CSV score sheet exported successfully!');
+  };
+
+  // Export HTML with Team Mavericks Logo Background Watermark (14% Opacity on every page)
+  const handleExportHTML = () => {
+    if (!leaderboard || leaderboard.length === 0) {
+      toast.error('No participant records to export.');
+      return;
+    }
+
+    const title = `${overviewData?.sub_event?.name || 'Mind Saga'} - Participant Score & Attempts Ledger`;
+    const genDate = new Date().toLocaleString();
+
+    const tableRows = leaderboard.map((cand, idx) => `
+      <tr>
+        <td style="text-align:center;font-weight:bold;">#${idx + 1}</td>
+        <td>
+          <div style="font-weight:600;color:#0f172a;">${cand.full_name || 'N/A'}</div>
+          <div style="font-size:11px;color:#64748b;">${cand.prn ? 'PRN: ' + cand.prn : 'ID: ' + cand.registration_id}</div>
+        </td>
+        <td style="font-family:monospace;font-size:11px;color:#334155;">
+          ${cand.email || ''}<br><span style="color:#64748b;">${cand.phone || ''}</span>
+        </td>
+        <td style="text-align:center;font-family:monospace;font-weight:700;color:#4f46e5;background:#f8fafc;border-radius:6px;">
+          ${cand.access_key || '—'}
+        </td>
+        <td style="text-align:center;">
+          <span style="font-weight:700;color:#0f172a;">${Number(cand.round1_score || 0).toFixed(2)}</span> / ${cand.round1_max || 50}
+          <div style="font-size:10px;color:#64748b;">Att: ${cand.attempts_used_r1 || 0} / ${cand.effective_attempts_r1 || 1}</div>
+        </td>
+        <td style="text-align:center;">
+          <span style="font-weight:700;color:#0f172a;">${Number(cand.round2_score || 0).toFixed(2)}</span> / ${cand.round2_max || 100}
+          <div style="font-size:10px;color:#64748b;">Att: ${cand.attempts_used_r2 || 0} / ${cand.effective_attempts_r2 || 1}</div>
+        </td>
+        <td style="text-align:center;">
+          <span style="font-weight:700;color:#0f172a;">${Number(cand.round3_score || 0).toFixed(2)}</span> / ${cand.round3_max || 100}
+          <div style="font-size:10px;color:#64748b;">Att: ${cand.attempts_used_r3 || 0} / ${cand.effective_attempts_r3 || 1}</div>
+        </td>
+        <td style="text-align:center;font-weight:800;color:#4338ca;font-size:13px;background:#eef2ff;">
+          ${Number(cand.final_weighted_score || 0).toFixed(2)}
+        </td>
+        <td style="text-align:center;">
+          <span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;">
+            ${(cand.qualification_status || 'in_round_1').replace(/_/g, ' ')}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+
+    const htmlDoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 12mm 10mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      color: #0f172a;
+      background: #ffffff;
+      position: relative;
+      min-height: 100vh;
+    }
+    /* Fixed background watermark with 14% opacity repeating on every page */
+    .watermark-layer {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 520px;
+      height: 520px;
+      background-image: url('${MAVERICKS_LOGO_BASE64}');
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+      opacity: 0.14;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .content-wrapper {
+      position: relative;
+      z-index: 1;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1e1b4b;
+      margin: 0 0 4px 0;
+    }
+    .brand-sub {
+      font-size: 13px;
+      color: #475569;
+      margin: 0;
+    }
+    .meta-box {
+      text-align: right;
+      font-size: 11px;
+      color: #64748b;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      margin-top: 10px;
+    }
+    thead {
+      display: table-header-group;
+    }
+    tr {
+      page-break-inside: avoid;
+    }
+    th {
+      background: #f8fafc;
+      color: #334155;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 10px 8px;
+      border: 1px solid #cbd5e1;
+      text-align: left;
+    }
+    td {
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      vertical-align: middle;
+    }
+    .footer {
+      margin-top: 24px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    @media print {
+      body {
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="watermark-layer"></div>
+  <div class="content-wrapper">
+    <div class="header">
+      <div>
+        <h1 class="brand-title">TEAM MAVERICKS • MIND SAGA</h1>
+        <p class="brand-sub">${title} | Multi-Round Evaluation & Telemetry Report</p>
+      </div>
+      <div class="meta-box">
+        <div><strong>Generated:</strong> ${genDate}</div>
+        <div><strong>Candidates Count:</strong> ${leaderboard.length}</div>
+        <div><strong>Weights:</strong> R1 (${configForm.round1_weight}%) | R2 (${configForm.round2_weight}%) | R3 (${configForm.round3_weight}%)</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center;">#</th>
+          <th>Participant & ID</th>
+          <th>Contact & Email</th>
+          <th style="text-align:center;">Access Key</th>
+          <th style="text-align:center;">R1 Aptitude (Score & Att.)</th>
+          <th style="text-align:center;">R2 Gaming (Score & Att.)</th>
+          <th style="text-align:center;">R3 Interview</th>
+          <th style="text-align:center;">Final Weighted</th>
+          <th style="text-align:center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tableRows}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      <span>Official Mind Saga Telemetry Ledger • Team Mavericks Assessment Engine</span>
+      <span>Confidential & Certified Result Sheet</span>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `MindSaga_Score_Report_${new Date().toISOString().slice(0, 10)}.html`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('HTML score ledger downloaded with Team Mavericks watermark!');
+  };
+
+  // Print / PDF Trigger
+  const handlePrintReport = () => {
+    if (!leaderboard || leaderboard.length === 0) {
+      toast.error('No participant records to print.');
+      return;
+    }
+    window.print();
+  };
+
   const [sendingEmails, setSendingEmails] = useState(false);
   const [regeneratingKeys, setRegeneratingKeys] = useState(false);
   const [platformStatus, setPlatformStatus] = useState('locked');
@@ -761,6 +1179,7 @@ const MindSagaControlRoomPage = () => {
           <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 scrollbar-none">
             {[
               { id: 'overview', label: 'Overview & CCTV', icon: Video, count: (Array.isArray(proctoringList) ? proctoringList : []).filter(s => s.status === 'in_progress').length },
+              { id: 'participants', label: 'Participants & Attempts', icon: UserCheck, count: (Array.isArray(leaderboard) ? leaderboard.length : 0) || overviewData?.total_registered || 0 },
               { id: 'keys', label: 'Participant Keys & Broadcast', icon: Key, count: (Array.isArray(leaderboard) ? leaderboard.length : 0) || overviewData?.total_registered || 0 },
               { id: 'aptitude', label: 'Round 1: Aptitude', icon: BrainCircuit, count: activeTest?.questions?.length || 0 },
               { id: 'gaming', label: 'Round 2: Gaming', icon: Gamepad2, count: (Array.isArray(games) ? games.length : 0) },
@@ -1063,6 +1482,380 @@ const MindSagaControlRoomPage = () => {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PARTICIPANTS & ATTEMPTS MANAGEMENT */}
+        {activeTab === 'participants' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
+                <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
+                  <span>Total Participants</span>
+                  <Users className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
+                  {leaderboard.length || overviewData?.total_registered || 0}
+                </div>
+                <div className="text-[11px] text-zinc-500 mt-1">Registered for Mind Saga</div>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
+                <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
+                  <span>Aptitude (R1) Attempted</span>
+                  <BrainCircuit className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-2xl font-bold text-emerald-400 mt-2">
+                  {leaderboard.filter((l) => (l.attempts_used_r1 || 0) > 0).length}
+                </div>
+                <div className="text-[11px] text-zinc-500 mt-1">Candidates took test</div>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
+                <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
+                  <span>Gaming (R2) Attempted</span>
+                  <Gamepad2 className="w-4 h-4 text-purple-400" />
+                </div>
+                <div className="text-2xl font-bold text-purple-400 mt-2">
+                  {leaderboard.filter((l) => (l.attempts_used_r2 || 0) > 0).length}
+                </div>
+                <div className="text-[11px] text-zinc-500 mt-1">Played game arena</div>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs p-4">
+                <div className="text-zinc-400 text-xs font-medium flex items-center justify-between">
+                  <span>Qualified / Finalists</span>
+                  <Award className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="text-2xl font-bold text-amber-400 mt-2">
+                  {leaderboard.filter((l) => ['qualified_round_2', 'qualified_round_3', 'finalist'].includes(l.qualification_status)).length}
+                </div>
+                <div className="text-[11px] text-zinc-500 mt-1">Passed initial stages</div>
+              </div>
+            </div>
+
+            {/* Action Bar with Title, Export Options, and Bulk Tools */}
+            <div className="bg-white dark:bg-zinc-900/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-indigo-400" />
+                  Candidate Directory & Round Attempt Controller
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  View Aptitude and Gaming scores, set individual attempt limits for each round separately, or print/export official scorecards.
+                </p>
+              </div>
+
+              {/* Export Buttons Group */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="px-3.5 py-2 bg-emerald-700/20 hover:bg-emerald-700/30 text-emerald-300 border border-emerald-600/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Download CSV spreadsheet"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportHTML}
+                  className="px-3.5 py-2 bg-indigo-700/20 hover:bg-indigo-700/30 text-indigo-300 border border-indigo-600/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Download standalone HTML report with Team Mavericks watermark"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Export HTML</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintReport}
+                  className="px-3.5 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-900 dark:text-white border border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Print or Save as PDF with Team Mavericks watermark on every page"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print / PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="bg-white dark:bg-zinc-900/50 p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex flex-1 items-center gap-2 w-full sm:w-auto">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={participantSearch}
+                    onChange={(e) => setParticipantSearch(e.target.value)}
+                    placeholder="Search candidate name, email, PRN, access key..."
+                    className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-hidden focus:border-indigo-500"
+                  />
+                  {participantSearch && (
+                    <button
+                      onClick={() => setParticipantSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <select
+                  value={participantStatusFilter}
+                  onChange={(e) => setParticipantStatusFilter(e.target.value)}
+                  className="bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-hidden"
+                >
+                  <option value="all">All Stages ({leaderboard.length})</option>
+                  <option value="in_round_1">In Round 1</option>
+                  <option value="qualified_round_2">Qualified Round 2</option>
+                  <option value="qualified_round_3">Qualified Round 3</option>
+                  <option value="finalist">Grand Finalists</option>
+                  <option value="eliminated">Eliminated</option>
+                </select>
+              </div>
+
+              {/* Bulk Action Controls */}
+              {selectedRegIds.length > 0 && (
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end animate-in fade-in">
+                  <span className="text-xs text-indigo-400 font-semibold">
+                    {selectedRegIds.length} Selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkAttemptForm({
+                        max_attempts_r1: overviewData?.config?.max_attempts_r1 || 1,
+                        max_attempts_r2: overviewData?.config?.max_attempts_r2 || 1,
+                        max_attempts_r3: 1
+                      });
+                      setBulkAttemptModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Set Attempts</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPromoteModalOpen(true)}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Promote</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRegIds([])}
+                    className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs transition"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Participants Data Table */}
+            <div className="bg-white dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-zinc-300">
+                  <thead className="bg-slate-100 dark:bg-zinc-950 text-slate-600 dark:text-zinc-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-zinc-800">
+                    <tr>
+                      <th className="p-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedRegIds.length === filteredParticipants.length && filteredParticipants.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedRegIds(filteredParticipants.map((p) => p.registration_id));
+                            else setSelectedRegIds([]);
+                          }}
+                          className="rounded border-zinc-700"
+                        />
+                      </th>
+                      <th className="p-3 w-12">#</th>
+                      <th className="p-3">Candidate Details</th>
+                      <th className="p-3 text-center">Access Key</th>
+                      <th className="p-3 text-center">Round 1 (Aptitude)</th>
+                      <th className="p-3 text-center">Round 2 (Gaming)</th>
+                      <th className="p-3 text-center">Round 3 (Interview)</th>
+                      <th className="p-3 text-center">Final Score</th>
+                      <th className="p-3 text-center">Stage</th>
+                      <th className="p-3 text-right">Attempts Config</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-zinc-800/60">
+                    {filteredParticipants.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" className="text-center py-12 text-zinc-500">
+                          {participantSearch ? 'No participants match your search criteria.' : 'No participant records found.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredParticipants.map((cand, idx) => {
+                        const isSelected = selectedRegIds.includes(cand.registration_id);
+                        return (
+                          <tr
+                            key={cand.id}
+                            className={`hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition ${isSelected ? 'bg-indigo-950/20' : ''}`}
+                          >
+                            <td className="p-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedRegIds((prev) => [...prev, cand.registration_id]);
+                                  else setSelectedRegIds((prev) => prev.filter((id) => id !== cand.registration_id));
+                                }}
+                                className="rounded border-zinc-700"
+                              />
+                            </td>
+                            <td className="p-3 font-bold text-slate-700 dark:text-zinc-300">
+                              #{idx + 1}
+                            </td>
+                            <td className="p-3">
+                              <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <span>{cand.full_name}</span>
+                                {cand.prn && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400">
+                                    PRN: {cand.prn}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-zinc-400 font-mono mt-0.5">
+                                {cand.email} {cand.phone ? `• ${cand.phone}` : ''}
+                              </div>
+                            </td>
+                            <td className="p-3 text-center">
+                              <div className="inline-flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-950 px-2 py-1 rounded-lg border border-slate-200 dark:border-zinc-800">
+                                <span className="font-mono font-bold text-indigo-400 text-[11px]">
+                                  {cand.access_key || '—'}
+                                </span>
+                                {cand.access_key && (
+                                  <button
+                                    onClick={() => handleCopyLink(cand.access_key, `Access Key for ${cand.full_name}`)}
+                                    className="text-zinc-400 hover:text-white p-0.5"
+                                    title="Copy Access Key"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            {/* Round 1 Aptitude Score & Attempt */}
+                            <td className="p-3 text-center">
+                              <div className="font-bold text-slate-900 dark:text-white font-mono text-xs">
+                                {Number(cand.round1_score || 0).toFixed(1)} / {cand.round1_max || 50}
+                              </div>
+                              <div className="inline-flex items-center gap-1 mt-1">
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-500/30">
+                                  Att: {cand.attempts_used_r1 || 0} / {cand.effective_attempts_r1 || 1}
+                                </span>
+                                <button
+                                  onClick={() => handleQuickIncrementAttempt(cand, 1)}
+                                  className="p-1 rounded bg-slate-100 dark:bg-zinc-800 hover:bg-emerald-600 hover:text-white text-zinc-400 transition"
+                                  title="Grant +1 Attempt for Round 1"
+                                >
+                                  <Plus className="w-2.5 h-2.5" />
+                                </button>
+                                {(cand.attempts_used_r1 || 0) > 0 && (
+                                  <button
+                                    onClick={() => handleResetParticipantSession(cand, 1)}
+                                    className="p-1 rounded bg-slate-100 dark:bg-zinc-800 hover:bg-amber-600 hover:text-white text-zinc-400 transition"
+                                    title="Clear / Reset Round 1 Session"
+                                  >
+                                    <RotateCcw className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            {/* Round 2 Gaming Score & Attempt */}
+                            <td className="p-3 text-center">
+                              <div className="font-bold text-slate-900 dark:text-white font-mono text-xs">
+                                {Number(cand.round2_score || 0).toFixed(1)} / {cand.round2_max || 100}
+                              </div>
+                              <div className="inline-flex items-center gap-1 mt-1">
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-950/40 text-purple-400 border border-purple-500/30">
+                                  Att: {cand.attempts_used_r2 || 0} / {cand.effective_attempts_r2 || 1}
+                                </span>
+                                <button
+                                  onClick={() => handleQuickIncrementAttempt(cand, 2)}
+                                  className="p-1 rounded bg-slate-100 dark:bg-zinc-800 hover:bg-purple-600 hover:text-white text-zinc-400 transition"
+                                  title="Grant +1 Attempt for Round 2"
+                                >
+                                  <Plus className="w-2.5 h-2.5" />
+                                </button>
+                                {(cand.attempts_used_r2 || 0) > 0 && (
+                                  <button
+                                    onClick={() => handleResetParticipantSession(cand, 2)}
+                                    className="p-1 rounded bg-slate-100 dark:bg-zinc-800 hover:bg-amber-600 hover:text-white text-zinc-400 transition"
+                                    title="Clear / Reset Round 2 Session"
+                                  >
+                                    <RotateCcw className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            {/* Round 3 Interview Score */}
+                            <td className="p-3 text-center">
+                              <div className="font-bold text-slate-900 dark:text-white font-mono text-xs">
+                                {Number(cand.round3_score || 0).toFixed(1)} / {cand.round3_max || 100}
+                              </div>
+                              <div className="inline-flex items-center gap-1 mt-1">
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-950/40 text-blue-400 border border-blue-500/30">
+                                  Limit: {cand.effective_attempts_r3 || 1}
+                                </span>
+                                <button
+                                  onClick={() => handleQuickIncrementAttempt(cand, 3)}
+                                  className="p-1 rounded bg-slate-100 dark:bg-zinc-800 hover:bg-blue-600 hover:text-white text-zinc-400 transition"
+                                  title="Grant +1 Allowed Attempt for Round 3"
+                                >
+                                  <Plus className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            </td>
+                            {/* Final Weighted Score */}
+                            <td className="p-3 text-center font-bold text-indigo-400 font-mono text-sm">
+                              {Number(cand.final_weighted_score || 0).toFixed(2)}
+                            </td>
+                            {/* Qualification Status */}
+                            <td className="p-3 text-center">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                                  cand.qualification_status === 'finalist'
+                                    ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                                    : cand.qualification_status === 'qualified_round_3'
+                                    ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30'
+                                    : cand.qualification_status === 'qualified_round_2'
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/30'
+                                    : cand.qualification_status === 'eliminated'
+                                    ? 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
+                                    : 'bg-zinc-800 text-zinc-400'
+                                }`}
+                              >
+                                {(cand.qualification_status || 'in_round_1').replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            {/* Action Button */}
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAttemptModal(cand)}
+                                className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ml-auto"
+                              >
+                                <Sliders className="w-3.5 h-3.5" />
+                                <span>Set Attempts</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -1847,11 +2640,41 @@ const MindSagaControlRoomPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="px-3 py-1.5 bg-emerald-700/20 hover:bg-emerald-700/30 text-emerald-300 border border-emerald-600/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Download CSV spreadsheet"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportHTML}
+                  className="px-3 py-1.5 bg-indigo-700/20 hover:bg-indigo-700/30 text-indigo-300 border border-indigo-600/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Download HTML ledger with Team Mavericks watermark"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>HTML</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintReport}
+                  className="px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-900 dark:text-white border border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Print or Save PDF with Team Mavericks watermark on every page"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print / PDF</span>
+                </button>
+
                 <button
                   onClick={() => setPromoteModalOpen(true)}
                   disabled={selectedRegIds.length === 0}
-                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
                 >
                   <UserCheck className="w-4 h-4" /> Promote Selected ({selectedRegIds.length})
                 </button>
@@ -2557,6 +3380,285 @@ const MindSagaControlRoomPage = () => {
         </div>
       )}
 
+      {/* SINGLE PARTICIPANT ATTEMPTS CONFIGURATION MODAL */}
+      {attemptModalOpen && targetParticipant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-indigo-400" />
+                  <span>Configure Round Attempts</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Set allowed attempts separately for each Mind Saga round for <strong className="text-white">{targetParticipant.full_name}</strong>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttemptModalOpen(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Candidate Metadata Bar */}
+            <div className="bg-slate-50 dark:bg-zinc-950 p-3 rounded-xl border border-slate-200 dark:border-zinc-800 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-zinc-400">Candidate:</span>{' '}
+                <span className="font-semibold text-slate-900 dark:text-white">{targetParticipant.full_name}</span>
+              </div>
+              {targetParticipant.prn && (
+                <div>
+                  <span className="text-zinc-400">PRN:</span>{' '}
+                  <span className="font-mono text-indigo-400 font-bold">{targetParticipant.prn}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-zinc-400">Access Key:</span>{' '}
+                <span className="font-mono text-purple-400 font-bold">{targetParticipant.access_key || '—'}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveParticipantAttempts} className="space-y-4 text-xs">
+              {/* Round 1: Aptitude */}
+              <div className="bg-slate-50 dark:bg-zinc-950/70 p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit className="w-4 h-4 text-emerald-400" />
+                    <span className="font-bold text-slate-900 dark:text-white">Round 1: Aptitude Assessment</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-zinc-400">
+                    Used: <strong className="text-emerald-400">{targetParticipant.attempts_used_r1 || 0}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <label className="text-[11px] text-zinc-400 block mb-1">Max Allowed Attempts</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={attemptForm.max_attempts_r1}
+                      onChange={(e) => setAttemptForm({ ...attemptForm, max_attempts_r1: e.target.value })}
+                      className="w-full bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setAttemptForm((prev) => ({ ...prev, max_attempts_r1: (parseInt(prev.max_attempts_r1) || 1) + 1 }))}
+                      className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-lg text-[11px] font-semibold transition"
+                    >
+                      +1 Attempt
+                    </button>
+                    {(targetParticipant.attempts_used_r1 || 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleResetParticipantSession(targetParticipant, 1)}
+                        className="px-2.5 py-1 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded-lg text-[10px] font-semibold transition"
+                      >
+                        Reset Session
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Round 2: Gaming */}
+              <div className="bg-slate-50 dark:bg-zinc-950/70 p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Gamepad2 className="w-4 h-4 text-purple-400" />
+                    <span className="font-bold text-slate-900 dark:text-white">Round 2: Gaming Arena</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-zinc-400">
+                    Used: <strong className="text-purple-400">{targetParticipant.attempts_used_r2 || 0}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <label className="text-[11px] text-zinc-400 block mb-1">Max Allowed Attempts</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={attemptForm.max_attempts_r2}
+                      onChange={(e) => setAttemptForm({ ...attemptForm, max_attempts_r2: e.target.value })}
+                      className="w-full bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setAttemptForm((prev) => ({ ...prev, max_attempts_r2: (parseInt(prev.max_attempts_r2) || 1) + 1 }))}
+                      className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white rounded-lg text-[11px] font-semibold transition"
+                    >
+                      +1 Attempt
+                    </button>
+                    {(targetParticipant.attempts_used_r2 || 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleResetParticipantSession(targetParticipant, 2)}
+                        className="px-2.5 py-1 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded-lg text-[10px] font-semibold transition"
+                      >
+                        Reset Session
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Round 3: Interview */}
+              <div className="bg-slate-50 dark:bg-zinc-950/70 p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-400" />
+                    <span className="font-bold text-slate-900 dark:text-white">Round 3: Personal Interview</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-zinc-400">
+                    Panel Evaluation
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <label className="text-[11px] text-zinc-400 block mb-1">Max Allowed Attempts</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={attemptForm.max_attempts_r3}
+                      onChange={(e) => setAttemptForm({ ...attemptForm, max_attempts_r3: e.target.value })}
+                      className="w-full bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white font-mono text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setAttemptForm((prev) => ({ ...prev, max_attempts_r3: (parseInt(prev.max_attempts_r3) || 1) + 1 }))}
+                      className="px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg text-[11px] font-semibold transition"
+                    >
+                      +1 Attempt
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setAttemptModalOpen(false)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-xl font-medium text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAttempts}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-semibold text-xs shadow-md shadow-indigo-600/20"
+                >
+                  {isSavingAttempts ? 'Saving...' : 'Save Attempt Limits'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* BULK ATTEMPTS CONFIGURATION MODAL */}
+      {bulkAttemptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-indigo-400" />
+                  <span>Bulk Set Round Attempts</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Update attempt limits for <strong className="text-white">{selectedRegIds.length}</strong> selected candidate(s).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkAttemptModalOpen(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBulkAttempts} className="space-y-3 text-xs">
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1">
+                  Round 1: Aptitude Allowed Attempts
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={bulkAttemptForm.max_attempts_r1}
+                  onChange={(e) => setBulkAttemptForm({ ...bulkAttemptForm, max_attempts_r1: e.target.value })}
+                  placeholder="Leave blank to keep unchanged"
+                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1">
+                  Round 2: Gaming Arena Allowed Attempts
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={bulkAttemptForm.max_attempts_r2}
+                  onChange={(e) => setBulkAttemptForm({ ...bulkAttemptForm, max_attempts_r2: e.target.value })}
+                  placeholder="Leave blank to keep unchanged"
+                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1">
+                  Round 3: Interview Allowed Attempts
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={bulkAttemptForm.max_attempts_r3}
+                  onChange={(e) => setBulkAttemptForm({ ...bulkAttemptForm, max_attempts_r3: e.target.value })}
+                  placeholder="Leave blank to keep unchanged"
+                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setBulkAttemptModalOpen(false)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 rounded-xl font-medium text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAttempts}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-semibold text-xs shadow-md shadow-indigo-600/20"
+                >
+                  {isSavingAttempts ? 'Applying...' : 'Apply to Selected'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* INSPECT SESSION LOGS DRAWER / MODAL */}
       {selectedSessionDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
@@ -3142,6 +4244,161 @@ const MindSagaControlRoomPage = () => {
           </div>
         </div>
       )}
+
+      {/* HIDDEN PRINT / PDF REPORT CONTAINER WITH TEAM MAVERICKS WATERMARK (14% Opacity on Every Page) */}
+      <div id="mindsaga-printable-report" className="hidden print:block text-black bg-white p-6 font-sans">
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media print {
+            @page {
+              size: A4 landscape;
+              margin: 10mm 8mm;
+            }
+            body {
+              background: #ffffff !important;
+              color: #000000 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            body > * {
+              display: none !important;
+            }
+            #root, #root > * {
+              display: block !important;
+            }
+            header, nav, aside, .no-print, button {
+              display: none !important;
+            }
+            #mindsaga-printable-report {
+              display: block !important;
+              position: static !important;
+              width: 100% !important;
+            }
+            .print-watermark-fixed {
+              position: fixed !important;
+              top: 50% !important;
+              left: 50% !important;
+              transform: translate(-50%, -50%) !important;
+              width: 520px !important;
+              height: 520px !important;
+              opacity: 0.14 !important;
+              pointer-events: none !important;
+              z-index: 0 !important;
+              display: block !important;
+            }
+            .print-table thead {
+              display: table-header-group !important;
+            }
+            .print-table tr {
+              page-break-inside: avoid !important;
+            }
+          }
+        ` }} />
+
+        {/* Fixed Watermark repeating on every printed/PDF page */}
+        <div
+          className="print-watermark-fixed"
+          style={{
+            backgroundImage: `url('${MAVERICKS_LOGO_BASE64}')`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+            backgroundSize: 'contain',
+            opacity: 0.14
+          }}
+        />
+
+        <div className="relative z-10 space-y-4">
+          {/* Print Header */}
+          <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3">
+            <div className="flex items-center gap-3">
+              <img
+                src={MAVERICKS_LOGO_BASE64}
+                alt="Team Mavericks Logo"
+                className="w-14 h-14 object-contain"
+              />
+              <div>
+                <h1 className="text-xl font-black tracking-tight text-slate-950 uppercase">
+                  TEAM MAVERICKS • MIND SAGA EVALUATION LEDGER
+                </h1>
+                <p className="text-xs text-slate-700 font-medium">
+                  {overviewData?.sub_event?.name || 'Mind Saga Assessment'} • Certified Multi-Round Scorecard & Telemetry
+                </p>
+              </div>
+            </div>
+            <div className="text-right text-[11px] text-slate-600 font-mono">
+              <div><strong>Generated:</strong> {new Date().toLocaleString()}</div>
+              <div><strong>Total Candidates:</strong> {leaderboard.length}</div>
+              <div><strong>Formula:</strong> R1 ({configForm.round1_weight}%) + R2 ({configForm.round2_weight}%) + R3 ({configForm.round3_weight}%)</div>
+            </div>
+          </div>
+
+          {/* Print Table */}
+          <table className="print-table w-full border-collapse text-left text-xs bg-white/90">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-400 text-[10px] uppercase font-bold text-slate-800">
+                <th className="p-2 border border-slate-300 text-center w-8">#</th>
+                <th className="p-2 border border-slate-300">Participant &amp; Identification</th>
+                <th className="p-2 border border-slate-300">Contact</th>
+                <th className="p-2 border border-slate-300 text-center">Access Key</th>
+                <th className="p-2 border border-slate-300 text-center">Round 1 Aptitude</th>
+                <th className="p-2 border border-slate-300 text-center">Round 2 Gaming</th>
+                <th className="p-2 border border-slate-300 text-center">Round 3 Interview</th>
+                <th className="p-2 border border-slate-300 text-center font-bold">Final Weighted</th>
+                <th className="p-2 border border-slate-300 text-center">Stage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((cand, idx) => (
+                <tr key={cand.id} className="border-b border-slate-200">
+                  <td className="p-2 border border-slate-200 text-center font-bold">#{idx + 1}</td>
+                  <td className="p-2 border border-slate-200">
+                    <div className="font-bold text-slate-900">{cand.full_name}</div>
+                    <div className="text-[10px] text-slate-600 font-mono">
+                      {cand.prn ? `PRN: ${cand.prn}` : `Reg ID #${cand.registration_id}`}
+                    </div>
+                  </td>
+                  <td className="p-2 border border-slate-200 font-mono text-[11px]">
+                    <div>{cand.email}</div>
+                    <div className="text-slate-500 text-[10px]">{cand.phone || '—'}</div>
+                  </td>
+                  <td className="p-2 border border-slate-200 text-center font-mono font-bold text-slate-800 text-[11px]">
+                    {cand.access_key || '—'}
+                  </td>
+                  <td className="p-2 border border-slate-200 text-center">
+                    <span className="font-bold">{Number(cand.round1_score || 0).toFixed(1)}</span> / {cand.round1_max || 50}
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      Att: {cand.attempts_used_r1 || 0} / {cand.effective_attempts_r1 || 1}
+                    </div>
+                  </td>
+                  <td className="p-2 border border-slate-200 text-center">
+                    <span className="font-bold">{Number(cand.round2_score || 0).toFixed(1)}</span> / {cand.round2_max || 100}
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      Att: {cand.attempts_used_r2 || 0} / {cand.effective_attempts_r2 || 1}
+                    </div>
+                  </td>
+                  <td className="p-2 border border-slate-200 text-center">
+                    <span className="font-bold">{Number(cand.round3_score || 0).toFixed(1)}</span> / {cand.round3_max || 100}
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      Limit: {cand.effective_attempts_r3 || 1}
+                    </div>
+                  </td>
+                  <td className="p-2 border border-slate-200 text-center font-black text-slate-900 text-sm bg-slate-50">
+                    {Number(cand.final_weighted_score || 0).toFixed(2)}
+                  </td>
+                  <td className="p-2 border border-slate-200 text-center uppercase font-bold text-[10px]">
+                    {cand.qualification_status ? cand.qualification_status.replace(/_/g, ' ') : 'IN ROUND 1'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Print Footer */}
+          <div className="flex items-center justify-between pt-4 border-t border-slate-300 text-[10px] text-slate-500 font-mono">
+            <span>TEAM MAVERICKS ASSESSMENT PLATFORM • ALL RIGHTS RESERVED</span>
+            <span>OFFICIAL CERTIFIED SCORE REPORT • WATERMARK PROTECTED</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

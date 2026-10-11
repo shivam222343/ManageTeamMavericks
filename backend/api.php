@@ -252,6 +252,8 @@ $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctorin
 // Mind Saga Master Leaderboard, Participant Status & Qualification
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/leaderboard',               [MindSagaController::class, 'getLeaderboard']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/promote',                   [MindSagaController::class, 'promoteParticipants']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/participants/attempts',      [MindSagaController::class, 'updateParticipantAttempts']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/participants/reset-attempt',  [MindSagaController::class, 'resetParticipantAttempt']);
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/participant-status',        [MindSagaController::class, 'getParticipantStatus']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/platform-status',           [MindSagaController::class, 'togglePlatformStatus']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/active-round',              [MindSagaController::class, 'setActiveRound']);

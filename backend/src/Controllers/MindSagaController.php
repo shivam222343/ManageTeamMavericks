@@ -198,6 +198,15 @@ class MindSagaController {
             $db->exec("ALTER TABLE mind_saga_scores ADD COLUMN access_key VARCHAR(32) DEFAULT NULL");
         } catch (\Exception $e) {}
         try {
+            $db->exec("ALTER TABLE mind_saga_scores ADD COLUMN max_attempts_r1 INT DEFAULT NULL");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_scores ADD COLUMN max_attempts_r2 INT DEFAULT NULL");
+        } catch (\Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE mind_saga_scores ADD COLUMN max_attempts_r3 INT DEFAULT NULL");
+        } catch (\Exception $e) {}
+        try {
             $db->exec("ALTER TABLE mind_saga_test_sessions ADD COLUMN latest_snapshot MEDIUMTEXT DEFAULT NULL");
         } catch (\Exception $e) {}
         try {
@@ -1118,6 +1127,14 @@ class MindSagaController {
         $activeRound = (int)($config['active_round'] ?? 1);
         $maxAttemptsR1 = (int)($config['max_attempts_r1'] ?? 1);
 
+        // Check per-participant custom attempt limit for Round 1
+        $custStmtR1 = $db->prepare("SELECT max_attempts_r1 FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ?");
+        $custStmtR1->execute([$subId, $regId]);
+        $customR1 = $custStmtR1->fetchColumn();
+        if ($customR1 !== false && $customR1 !== null && $customR1 !== '') {
+            $maxAttemptsR1 = (int)$customR1;
+        }
+
         if (!in_array($userRole, ['coordinator', 'core_member', 'member', 'admin'])) {
             if ($activeRound < 1) {
                 Router::sendJson(['error' => 'Round 1: Aptitude Assessment has not been unlocked by the administrator yet.'], 403);
@@ -1908,6 +1925,14 @@ class MindSagaController {
             $regId = (int)($msStmt->fetchColumn() ?? ($userId ?: 999999));
         }
 
+        // Check per-participant custom attempt limit for Round 2
+        $custStmtR2 = $db->prepare("SELECT max_attempts_r2 FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ?");
+        $custStmtR2->execute([$subId, $regId]);
+        $customR2 = $custStmtR2->fetchColumn();
+        if ($customR2 !== false && $customR2 !== null && $customR2 !== '') {
+            $maxAttemptsR2 = (int)$customR2;
+        }
+
         // Auto-terminate any expired in-progress sessions for this participant
         $db->prepare("UPDATE mind_saga_game_sessions 
             SET status = 'time_out', completed_at = expires_at, updated_at = NOW() 
@@ -2535,20 +2560,62 @@ class MindSagaController {
         self::ensureDefaults($db, $subId);
         self::ensureParticipantKeys($db, $subId);
 
+        // Fetch sub-event default configs
+        $cfgStmt = $db->prepare("SELECT * FROM mind_saga_configs WHERE sub_event_id = ?");
+        $cfgStmt->execute([$subId]);
+        $config = $cfgStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $defR1 = (int)($config['max_attempts_r1'] ?? 1);
+        $defR2 = (int)($config['max_attempts_r2'] ?? 1);
+        $defR3 = (int)($config['max_attempts_r3'] ?? 1);
+
+        $activeGamesCountStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_configs WHERE sub_event_id = ? AND is_active = 1");
+        $activeGamesCountStmt->execute([$subId]);
+        $activeGamesTotal = max(1, (int)$activeGamesCountStmt->fetchColumn());
+
         $stmt = $db->prepare("SELECT 
             ms.*,
             er.full_name,
             er.email,
             er.phone,
-            (SELECT ts.violation_count FROM mind_saga_test_sessions ts WHERE ts.registration_id = ms.registration_id AND ts.sub_event_id = ms.sub_event_id LIMIT 1) as aptitude_violations,
-            (SELECT ts.camera_status FROM mind_saga_test_sessions ts WHERE ts.registration_id = ms.registration_id AND ts.sub_event_id = ms.sub_event_id LIMIT 1) as camera_status
+            er.prn,
+            er.attendance as registration_attendance,
+            (SELECT COUNT(*) FROM mind_saga_test_sessions ts 
+             WHERE ts.registration_id = ms.registration_id AND ts.sub_event_id = ms.sub_event_id 
+               AND ts.status IN ('submitted', 'auto_submitted', 'terminated')) as attempts_used_r1,
+            (SELECT COUNT(*) FROM mind_saga_game_sessions gs 
+             WHERE gs.registration_id = ms.registration_id AND gs.sub_event_id = ms.sub_event_id 
+               AND gs.status IN ('completed', 'auto_submitted', 'terminated', 'time_out')) as completed_game_sessions_r2,
+            (SELECT ts.violation_count FROM mind_saga_test_sessions ts WHERE ts.registration_id = ms.registration_id AND ts.sub_event_id = ms.sub_event_id ORDER BY ts.id DESC LIMIT 1) as aptitude_violations,
+            (SELECT ts.camera_status FROM mind_saga_test_sessions ts WHERE ts.registration_id = ms.registration_id AND ts.sub_event_id = ms.sub_event_id ORDER BY ts.id DESC LIMIT 1) as camera_status
             FROM mind_saga_scores ms
             JOIN event_registrations er ON ms.registration_id = er.id
             WHERE ms.sub_event_id = ?
             ORDER BY ms.final_weighted_score DESC, ms.round1_score DESC, ms.round2_score DESC
         ");
         $stmt->execute([$subId]);
-        $scores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $scores = array_map(function($row) use ($defR1, $defR2, $defR3, $activeGamesTotal) {
+            $usedR1 = (int)($row['attempts_used_r1'] ?? 0);
+            $rawGameSess = (int)($row['completed_game_sessions_r2'] ?? 0);
+            $usedR2 = ($rawGameSess > 0) ? (int)ceil($rawGameSess / $activeGamesTotal) : 0;
+            $usedR3 = 0;
+
+            $effR1 = ($row['max_attempts_r1'] !== null && $row['max_attempts_r1'] !== '') ? (int)$row['max_attempts_r1'] : $defR1;
+            $effR2 = ($row['max_attempts_r2'] !== null && $row['max_attempts_r2'] !== '') ? (int)$row['max_attempts_r2'] : $defR2;
+            $effR3 = ($row['max_attempts_r3'] !== null && $row['max_attempts_r3'] !== '') ? (int)$row['max_attempts_r3'] : $defR3;
+
+            $row['attempts_used_r1'] = $usedR1;
+            $row['attempts_used_r2'] = $usedR2;
+            $row['attempts_used_r3'] = $usedR3;
+            $row['effective_attempts_r1'] = $effR1;
+            $row['effective_attempts_r2'] = $effR2;
+            $row['effective_attempts_r3'] = $effR3;
+            $row['default_attempts_r1'] = $defR1;
+            $row['default_attempts_r2'] = $defR2;
+            $row['default_attempts_r3'] = $defR3;
+            return $row;
+        }, $rows);
 
         Router::sendJson($scores);
     }
@@ -2590,6 +2657,156 @@ class MindSagaController {
             'updated_count' => $count,
             'target_status' => $targetStatus,
             'message' => "Successfully updated {$count} participant(s) to {$targetStatus}."
+        ]);
+    }
+
+    /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/participants/attempts
+     * Update attempt allowances for specific participants per round (R1, R2, R3).
+     */
+    public static function updateParticipantAttempts(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $regIds = $body['registration_ids'] ?? [];
+        if (isset($body['registration_id']) && !in_array($body['registration_id'], $regIds)) {
+            $regIds[] = $body['registration_id'];
+        }
+
+        if (empty($regIds)) {
+            Router::sendJson(['error' => 'No participants specified.'], 400);
+            return;
+        }
+
+        $r1 = isset($body['max_attempts_r1']) && $body['max_attempts_r1'] !== '' ? (int)$body['max_attempts_r1'] : (array_key_exists('max_attempts_r1', $body) && $body['max_attempts_r1'] === null ? null : 'NO_CHANGE');
+        $r2 = isset($body['max_attempts_r2']) && $body['max_attempts_r2'] !== '' ? (int)$body['max_attempts_r2'] : (array_key_exists('max_attempts_r2', $body) && $body['max_attempts_r2'] === null ? null : 'NO_CHANGE');
+        $r3 = isset($body['max_attempts_r3']) && $body['max_attempts_r3'] !== '' ? (int)$body['max_attempts_r3'] : (array_key_exists('max_attempts_r3', $body) && $body['max_attempts_r3'] === null ? null : 'NO_CHANGE');
+
+        // Also support single round update payload: { round: 1, attempts: 3 }
+        if (isset($body['round']) && array_key_exists('attempts', $body)) {
+            $round = (int)$body['round'];
+            $att = ($body['attempts'] !== '' && $body['attempts'] !== null) ? (int)$body['attempts'] : null;
+            if ($round === 1) $r1 = $att;
+            if ($round === 2) $r2 = $att;
+            if ($round === 3) $r3 = $att;
+        }
+
+        $count = 0;
+        foreach ($regIds as $regId) {
+            $regId = (int)$regId;
+            $updates = [];
+            $vals = [];
+
+            if ($r1 !== 'NO_CHANGE') {
+                $updates[] = "max_attempts_r1 = ?";
+                $vals[] = $r1;
+            }
+            if ($r2 !== 'NO_CHANGE') {
+                $updates[] = "max_attempts_r2 = ?";
+                $vals[] = $r2;
+            }
+            if ($r3 !== 'NO_CHANGE') {
+                $updates[] = "max_attempts_r3 = ?";
+                $vals[] = $r3;
+            }
+
+            if (!empty($updates)) {
+                $vals[] = $subId;
+                $vals[] = $regId;
+                $sql = "UPDATE mind_saga_scores SET " . implode(", ", $updates) . ", updated_at = NOW() WHERE sub_event_id = ? AND registration_id = ?";
+                $stmt = $db->prepare($sql);
+                $stmt->execute($vals);
+                $count++;
+            }
+        }
+
+        Router::sendJson([
+            'success' => true,
+            'updated_count' => $count,
+            'message' => "Successfully updated attempt allowances for {$count} participant(s)."
+        ]);
+    }
+
+    /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/participants/reset-attempt
+     * Reset a participant's attempt for Round 1, 2, or 3.
+     * Actions:
+     * - 'grant_extra': increments allowed attempts by 1
+     * - 'clear_session': deletes test/game session so candidate starts afresh
+     */
+    public static function resetParticipantAttempt(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $regId = (int)($body['registration_id'] ?? 0);
+        $round = (int)($body['round'] ?? 1); // 1 = Aptitude, 2 = Gaming, 3 = Interview
+        $action = $body['action'] ?? 'grant_extra';
+
+        if ($regId === 0) {
+            Router::sendJson(['error' => 'Participant registration ID is required.'], 400);
+            return;
+        }
+
+        $scoreStmt = $db->prepare("SELECT * FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ?");
+        $scoreStmt->execute([$subId, $regId]);
+        $scoreRow = $scoreStmt->fetch(PDO::FETCH_ASSOC);
+
+        $cfgStmt = $db->prepare("SELECT * FROM mind_saga_configs WHERE sub_event_id = ?");
+        $cfgStmt->execute([$subId]);
+        $cfg = $cfgStmt->fetch(PDO::FETCH_ASSOC) ?: ['max_attempts_r1' => 1, 'max_attempts_r2' => 1, 'max_attempts_r3' => 1];
+
+        if ($round === 1) {
+            if ($action === 'clear_session') {
+                $sessIds = $db->prepare("SELECT id FROM mind_saga_test_sessions WHERE sub_event_id = ? AND registration_id = ?");
+                $sessIds->execute([$subId, $regId]);
+                $ids = $sessIds->fetchAll(PDO::FETCH_COLUMN);
+                if (!empty($ids)) {
+                    $in = implode(',', array_map('intval', $ids));
+                    $db->exec("DELETE FROM mind_saga_test_answers WHERE session_id IN ({$in})");
+                    $db->exec("DELETE FROM mind_saga_proctor_events WHERE session_id IN ({$in})");
+                }
+                $db->prepare("DELETE FROM mind_saga_test_sessions WHERE sub_event_id = ? AND registration_id = ?")->execute([$subId, $regId]);
+                $db->prepare("UPDATE mind_saga_scores SET round1_score = 0.00, updated_at = NOW() WHERE sub_event_id = ? AND registration_id = ?")->execute([$subId, $regId]);
+            } else {
+                $usedStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_test_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('submitted', 'auto_submitted', 'terminated')");
+                $usedStmt->execute([$subId, $regId]);
+                $used = (int)$usedStmt->fetchColumn();
+                $currentMax = ($scoreRow && $scoreRow['max_attempts_r1'] !== null && $scoreRow['max_attempts_r1'] !== '') ? (int)$scoreRow['max_attempts_r1'] : (int)($cfg['max_attempts_r1'] ?? 1);
+                $newMax = max($used + 1, $currentMax + 1);
+                $db->prepare("UPDATE mind_saga_scores SET max_attempts_r1 = ?, updated_at = NOW() WHERE sub_event_id = ? AND registration_id = ?")->execute([$newMax, $subId, $regId]);
+            }
+        } else if ($round === 2) {
+            if ($action === 'clear_session') {
+                $sessIds = $db->prepare("SELECT id FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ?");
+                $sessIds->execute([$subId, $regId]);
+                $ids = $sessIds->fetchAll(PDO::FETCH_COLUMN);
+                if (!empty($ids)) {
+                    $in = implode(',', array_map('intval', $ids));
+                    $db->exec("DELETE FROM mind_saga_proctor_events WHERE session_id IN ({$in})");
+                }
+                $db->prepare("DELETE FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ?")->execute([$subId, $regId]);
+                $db->prepare("UPDATE mind_saga_scores SET round2_score = 0.00, updated_at = NOW() WHERE sub_event_id = ? AND registration_id = ?")->execute([$subId, $regId]);
+            } else {
+                $usedStmt = $db->prepare("SELECT COUNT(*) FROM mind_saga_game_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('completed', 'auto_submitted', 'terminated', 'time_out')");
+                $usedStmt->execute([$subId, $regId]);
+                $used = (int)$usedStmt->fetchColumn();
+                $currentMax = ($scoreRow && $scoreRow['max_attempts_r2'] !== null && $scoreRow['max_attempts_r2'] !== '') ? (int)$scoreRow['max_attempts_r2'] : (int)($cfg['max_attempts_r2'] ?? 1);
+                $newMax = max($used + 1, $currentMax + 1);
+                $db->prepare("UPDATE mind_saga_scores SET max_attempts_r2 = ?, updated_at = NOW() WHERE sub_event_id = ? AND registration_id = ?")->execute([$newMax, $subId, $regId]);
+            }
+        } else if ($round === 3) {
+            $currentMax = ($scoreRow && $scoreRow['max_attempts_r3'] !== null && $scoreRow['max_attempts_r3'] !== '') ? (int)$scoreRow['max_attempts_r3'] : (int)($cfg['max_attempts_r3'] ?? 1);
+            $newMax = $currentMax + 1;
+            $db->prepare("UPDATE mind_saga_scores SET max_attempts_r3 = ?, updated_at = NOW() WHERE sub_event_id = ? AND registration_id = ?")->execute([$newMax, $subId, $regId]);
+        }
+
+        Router::sendJson([
+            'success' => true,
+            'message' => "Attempt successfully updated for Round {$round}."
         ]);
     }
 
@@ -2712,7 +2929,17 @@ class MindSagaController {
 
         $activeRound = (int)($config['active_round'] ?? 1);
         $maxAttemptsR1 = (int)($config['max_attempts_r1'] ?? 1);
+        if ($scoreRecord && $scoreRecord['max_attempts_r1'] !== null && $scoreRecord['max_attempts_r1'] !== '') {
+            $maxAttemptsR1 = (int)$scoreRecord['max_attempts_r1'];
+        }
         $maxAttemptsR2 = (int)($config['max_attempts_r2'] ?? 1);
+        if ($scoreRecord && $scoreRecord['max_attempts_r2'] !== null && $scoreRecord['max_attempts_r2'] !== '') {
+            $maxAttemptsR2 = (int)$scoreRecord['max_attempts_r2'];
+        }
+        $maxAttemptsR3 = (int)($config['max_attempts_r3'] ?? 1);
+        if ($scoreRecord && $scoreRecord['max_attempts_r3'] !== null && $scoreRecord['max_attempts_r3'] !== '') {
+            $maxAttemptsR3 = (int)$scoreRecord['max_attempts_r3'];
+        }
 
         Router::sendJson([
             'participant' => $reg,
@@ -2726,6 +2953,8 @@ class MindSagaController {
             'max_attempts_r1' => $maxAttemptsR1,
             'attempts_used_r2' => $attemptsUsedR2,
             'max_attempts_r2' => $maxAttemptsR2,
+            'attempts_used_r3' => 0,
+            'max_attempts_r3' => $maxAttemptsR3,
             'round1_aptitude' => [
                 'test' => $activeTest,
                 'questions_count' => $qCount,
