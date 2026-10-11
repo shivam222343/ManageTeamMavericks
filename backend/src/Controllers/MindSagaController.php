@@ -3442,9 +3442,39 @@ class MindSagaController {
             $targetC = rand(0, $n - 1);
             $correctSymbol = $solution[$targetR][$targetC];
 
-            // 6. Clues grid is complete except the single target hole
+            // 6. Create clues grid: start with solution, mark target as '?'
             $cluesGrid = $solution;
-            $cluesGrid[$targetR][$targetC] = null; // null represents the single '?'
+            $cluesGrid[$targetR][$targetC] = '?';
+
+            // 7. Randomly remove non-target cells to make them EMPTY (null)
+            // 3x3: 4-5 empty cells; 4x4: 7-9 empty cells; 5x5: 12-14 empty cells
+            $targetEmpty = $n === 3 ? rand(4, 5) : ($n === 4 ? rand(7, 9) : rand(12, 14));
+            $nonTargetCells = [];
+            for ($r = 0; $r < $n; $r++) {
+                for ($c = 0; $c < $n; $c++) {
+                    if ($r !== $targetR || $c !== $targetC) {
+                        $nonTargetCells[] = [$r, $c];
+                    }
+                }
+            }
+            shuffle($nonTargetCells);
+
+            $emptyCount = 0;
+            foreach ($nonTargetCells as $cell) {
+                if ($emptyCount >= $targetEmpty) break;
+                $r = $cell[0];
+                $c = $cell[1];
+                $saved = $cluesGrid[$r][$c];
+                $cluesGrid[$r][$c] = null; // empty
+
+                // Check if target is still uniquely deducible
+                $candidates = self::deduceTargetCandidates($n, $symbols, $cluesGrid, $targetR, $targetC);
+                if (count($candidates) === 1 && $candidates[0] === $correctSymbol) {
+                    $emptyCount++;
+                } else {
+                    $cluesGrid[$r][$c] = $saved; // restore clue
+                }
+            }
 
             $puzzles[] = [
                 'id' => 'p' . $i,
@@ -3459,6 +3489,87 @@ class MindSagaController {
         }
 
         return $puzzles;
+    }
+
+    /**
+     * Helper to verify target cell candidate deduction in Latin Square
+     */
+    private static function deduceTargetCandidates(int $n, array $symbols, array $grid, int $tr, int $tc): array {
+        $candidates = [];
+        for ($r = 0; $r < $n; $r++) {
+            for ($c = 0; $c < $n; $c++) {
+                if ($grid[$r][$c] !== null && $grid[$r][$c] !== '?') {
+                    $candidates[$r][$c] = [$grid[$r][$c]];
+                } else {
+                    $candidates[$r][$c] = $symbols;
+                }
+            }
+        }
+
+        $changed = true;
+        $steps = 0;
+        while ($changed && $steps < 15) {
+            $changed = false;
+            $steps++;
+
+            // Row and column elimination
+            for ($r = 0; $r < $n; $r++) {
+                for ($c = 0; $c < $n; $c++) {
+                    if (count($candidates[$r][$c]) > 1) {
+                        $fixed = [];
+                        for ($c2 = 0; $c2 < $n; $c2++) {
+                            if ($c2 !== $c && count($candidates[$r][$c2]) === 1) {
+                                $fixed[] = $candidates[$r][$c2][0];
+                            }
+                        }
+                        for ($r2 = 0; $r2 < $n; $r2++) {
+                            if ($r2 !== $r && count($candidates[$r2][$c]) === 1) {
+                                $fixed[] = $candidates[$r2][$c][0];
+                            }
+                        }
+                        $fixed = array_unique($fixed);
+                        $before = count($candidates[$r][$c]);
+                        $candidates[$r][$c] = array_values(array_diff($candidates[$r][$c], $fixed));
+                        if (count($candidates[$r][$c]) < $before) {
+                            $changed = true;
+                        }
+                    }
+                }
+            }
+
+            // Hidden singles
+            for ($r = 0; $r < $n; $r++) {
+                foreach ($symbols as $sym) {
+                    $cols = [];
+                    for ($c = 0; $c < $n; $c++) {
+                        if (in_array($sym, $candidates[$r][$c])) $cols[] = $c;
+                    }
+                    if (count($cols) === 1 && count($candidates[$r][$cols[0]]) > 1) {
+                        $candidates[$r][$cols[0]] = [$sym];
+                        $changed = true;
+                    }
+                }
+            }
+
+            for ($c = 0; $c < $n; $c++) {
+                foreach ($symbols as $sym) {
+                    $rows = [];
+                    for ($r = 0; $r < $n; $r++) {
+                        if (in_array($sym, $candidates[$r][$c])) $rows[] = $r;
+                    }
+                    if (count($rows) === 1 && count($candidates[$rows[0]][$c]) > 1) {
+                        $candidates[$rows[0]][$c] = [$sym];
+                        $changed = true;
+                    }
+                }
+            }
+
+            if (count($candidates[$tr][$tc]) === 1) {
+                break;
+            }
+        }
+
+        return $candidates[$tr][$tc];
     }
 
     /**
