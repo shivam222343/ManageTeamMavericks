@@ -36,6 +36,8 @@ import {
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import MotionChallengeGame from './components/MotionChallengeGame';
+import SwitchChallengeGame from './components/SwitchChallengeGame';
+import DeductiveChallengeGame from './components/DeductiveChallengeGame';
 import './MindSagaTheme.css';
 
 const MindSagaGamingArenaPage = () => {
@@ -541,8 +543,8 @@ const MindSagaGamingArenaPage = () => {
       setIsTransitioning(false);
       setGameResult(null);
 
-      const isMotion = (data.game_key === 'motion_challenge' || gameConfig?.game_key === 'motion_challenge');
-      setIsTimerRunning(!isMotion); // Motion Challenge timer starts only when candidate clicks Play!
+      const isCustomGame = (data.game_key === 'motion_challenge' || gameConfig?.game_key === 'motion_challenge' || data.game_key === 'switch_challenge' || gameConfig?.game_key === 'switch_challenge');
+      setIsTimerRunning(!isCustomGame); // Timer starts when candidate begins game
 
       if (data.game_key === 'deductive_logic' || gameConfig?.game_key === 'deductive_logic') {
         const pList = data.puzzle_data || [];
@@ -552,6 +554,8 @@ const MindSagaGamingArenaPage = () => {
           setUserGrid(JSON.parse(JSON.stringify(pList[0].clues_grid)));
         }
       } else if (data.game_key === 'motion_challenge' || gameConfig?.game_key === 'motion_challenge') {
+        setMotionGameData(data.puzzle_data);
+      } else if (data.game_key === 'switch_challenge' || gameConfig?.game_key === 'switch_challenge') {
         setMotionGameData(data.puzzle_data);
       }
 
@@ -1170,102 +1174,26 @@ const MindSagaGamingArenaPage = () => {
           </div>
         )}
 
-        {/* ACTIVE GAME 1: DEDUCTIVE LOGIC (4x4 Latin Square Shape Deduction) */}
+        {/* ACTIVE GAME 1: DEDUCTIVE LOGIC (Latin Square Symbol Deduction) */}
         {isPlaying && currentGameKey === 'deductive_logic' && (
-          <div className="mindsaga-card p-5 sm:p-7 space-y-6 rounded-none">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
-              <div>
-                <span className="mindsaga-hud-badge border-purple-500/30 text-purple-600 dark:text-purple-300">
-                  Puzzle {activePuzzleIndex + 1}/{puzzles.length || 1}
-                </span>
-                <h3 className="text-base font-bold font-mono uppercase mt-1 text-slate-900 dark:text-white">
-                  Symbol Matrix Deduction
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  No repeating symbols in any row or column.
-                </p>
-              </div>
-            </div>
-
-            {/* 4x4 Grid Layout */}
-            <div className="flex flex-col items-center justify-center p-2 sm:p-4">
-              <div className={`grid grid-cols-4 gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-none border-2 shadow-2xl ${
-                isDark ? 'bg-zinc-950 border-white/15' : 'bg-slate-100 border-slate-300'
-              }`}>
-                {userGrid.map((row, r) =>
-                  row.map((cell, c) => {
-                    const isSelected = selectedCell?.r === r && selectedCell?.c === c;
-                    const isClue = puzzles[activePuzzleIndex]?.clues_grid?.[r]?.[c] !== null && puzzles[activePuzzleIndex]?.clues_grid?.[r]?.[c] !== undefined;
-                    const symbolInfo = cell ? symbolComponents[cell] : null;
-                    const Icon = symbolInfo?.icon;
-
-                    return (
-                      <button
-                        key={`${r}-${c}`}
-                        type="button"
-                        onClick={() => setSelectedCell({ r, c })}
-                        className={`w-14 h-14 sm:w-20 sm:h-20 rounded-none border-2 flex items-center justify-center transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-purple-500 bg-purple-950/40 ring-4 ring-purple-500/30 scale-105 z-10'
-                            : isClue
-                            ? isDark
-                              ? 'border-white/10 bg-zinc-900/90 shadow-inner'
-                              : 'border-slate-300 bg-slate-200/80 shadow-inner'
-                            : isDark
-                            ? 'border-white/10 bg-zinc-950 hover:border-white/20'
-                            : 'border-slate-200 bg-white hover:border-indigo-300'
-                        }`}
-                      >
-                        {symbolInfo && Icon ? (
-                          <div className={`p-1.5 sm:p-2 rounded-none ${symbolInfo.bg} ${symbolInfo.color}`}>
-                            <Icon className="w-6 h-6 sm:w-8 sm:h-8 stroke-[2.5]" />
-                          </div>
-                        ) : (
-                          <span className="text-xs font-mono text-zinc-500">?</span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Symbol Palette Selector */}
-            <div className={`p-4 rounded-none border flex flex-col items-center gap-3 ${
-              isDark ? 'bg-zinc-950 border-white/10' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-400">
-                Select Symbol for Slot:
-              </span>
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-                {Object.keys(symbolComponents).map((key) => {
-                  const item = symbolComponents[key];
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => handlePlaceSymbol(key)}
-                      disabled={!selectedCell}
-                      className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-none border flex items-center gap-2 font-bold text-xs transition disabled:opacity-30 cursor-pointer ${item.bg} ${item.color} hover:scale-105`}
-                    >
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={handleClearCell}
-                  disabled={!selectedCell}
-                  className={`px-3 py-2 sm:py-2.5 rounded-none text-xs font-semibold border transition cursor-pointer ${
-                    isDark ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-white/10' : 'bg-slate-200 hover:bg-slate-300 text-slate-700 border-slate-300'
-                  }`}
-                  title="Clear Cell"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <DeductiveChallengeGame
+            gameData={motionGameData}
+            isDark={isDark}
+            sessionToken={sessionToken}
+            subEventId={subEventId}
+            initialScore={score}
+            onStartTimer={() => setIsTimerRunning(true)}
+            onScoreUpdate={(newScore) => setScore(newScore)}
+            onGameComplete={(result) => {
+              if (result?.score !== undefined) {
+                setScore(result.score);
+              }
+              if (result?.movesLog) {
+                setMovesLog((prev) => [...prev, ...result.movesLog]);
+              }
+              handleCompleteCurrentGame();
+            }}
+          />
         )}
 
         {/* ACTIVE GAME 2: MOTION CHALLENGE (Path Creation & Block Sliding) */}
@@ -1292,6 +1220,24 @@ const MindSagaGamingArenaPage = () => {
               } catch (e) {}
             }}
             onGameComplete={() => {
+              handleCompleteCurrentGame();
+            }}
+          />
+        )}
+
+        {/* ACTIVE GAME 3: SWITCH CHALLENGE (Power of Logical Thinking) */}
+        {isPlaying && currentGameKey === 'switch_challenge' && (
+          <SwitchChallengeGame
+            puzzleData={motionGameData}
+            isDark={isDark}
+            onScoreUpdate={(newScore) => setScore(newScore)}
+            onComplete={(result) => {
+              if (result?.score !== undefined) {
+                setScore(result.score);
+              }
+              if (result?.movesLog) {
+                setMovesLog((prev) => [...prev, ...result.movesLog]);
+              }
               handleCompleteCurrentGame();
             }}
           />

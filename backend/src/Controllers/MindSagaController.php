@@ -138,10 +138,15 @@ class MindSagaController {
             rules_json JSON DEFAULT NULL,
             challenge_config_json JSON DEFAULT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
+            display_order INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_ms_game_sub (sub_event_id, game_key)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        try {
+            $db->exec("ALTER TABLE mind_saga_game_configs ADD COLUMN display_order INT NOT NULL DEFAULT 0");
+        } catch (\Exception $e) {}
 
         // 6. Gaming Sessions
         $db->exec("CREATE TABLE IF NOT EXISTS mind_saga_game_sessions (
@@ -425,7 +430,7 @@ class MindSagaController {
         $tests = $testStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Round 2 Gaming stats
-        $gameStmt = $db->prepare("SELECT g.*, (SELECT COUNT(*) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id) as total_attempts, (SELECT AVG(score) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id AND s.status = 'completed') as avg_score FROM mind_saga_game_configs g WHERE sub_event_id = ?");
+        $gameStmt = $db->prepare("SELECT g.*, (SELECT COUNT(*) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id) as total_attempts, (SELECT AVG(score) FROM mind_saga_game_sessions s WHERE s.game_config_id = g.id AND s.status = 'completed') as avg_score FROM mind_saga_game_configs g WHERE sub_event_id = ? ORDER BY g.display_order ASC, g.id ASC");
         $gameStmt->execute([$subId]);
         $games = $gameStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1598,7 +1603,7 @@ class MindSagaController {
 
         self::ensureDefaults($db, $subId);
 
-        $stmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? ORDER BY id ASC");
+        $stmt = $db->prepare("SELECT * FROM mind_saga_game_configs WHERE sub_event_id = ? ORDER BY display_order ASC, id ASC");
         $stmt->execute([$subId]);
         $games = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1620,13 +1625,13 @@ class MindSagaController {
         $subId = (int)$params['subId'];
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
-        $gameKey = in_array($body['game_key'] ?? '', ['deductive_logic', 'motion_challenge']) ? $body['game_key'] : 'deductive_logic';
-        $title = trim($body['title'] ?? ($gameKey === 'deductive_logic' ? 'Deductive Symbol Matrix Deduction' : 'Motion Matrix Reflex Challenge'));
+        $gameKey = in_array($body['game_key'] ?? '', ['deductive_logic', 'motion_challenge', 'switch_challenge']) ? $body['game_key'] : 'deductive_logic';
+        $title = trim($body['title'] ?? ($gameKey === 'deductive_logic' ? 'Deductive Symbol Matrix Deduction' : ($gameKey === 'switch_challenge' ? 'Switch Challenge: Power of Logical Thinking' : 'Motion Matrix Reflex Challenge')));
         $difficulty = in_array($body['difficulty'] ?? '', ['easy', 'medium', 'hard']) ? $body['difficulty'] : 'medium';
         $durationSeconds = max(30, (int)($body['duration_seconds'] ?? 180));
         $maxScore = max(10, (int)($body['max_score'] ?? 100));
         $rulesJson = $body['rules_json'] ?? [
-            'objective' => $gameKey === 'deductive_logic' ? 'Complete the 4x4 Latin Square logic puzzle.' : 'Track matrix targets and achieve high combo locks.'
+            'objective' => $gameKey === 'deductive_logic' ? 'Complete the 4x4 Latin Square logic puzzle.' : ($gameKey === 'switch_challenge' ? 'Find the correct switch code mapping input symbols to output symbols.' : 'Track matrix targets and achieve high combo locks.')
         ];
 
         $stmt = $db->prepare("INSERT INTO mind_saga_game_configs (sub_event_id, game_key, title, difficulty, duration_seconds, max_score, rules_json, is_active)
@@ -1663,7 +1668,7 @@ class MindSagaController {
         }
 
         $title = isset($body['title']) ? trim($body['title']) : $game['title'];
-        $gameKey = isset($body['game_key']) && in_array($body['game_key'], ['deductive_logic', 'motion_challenge']) ? $body['game_key'] : $game['game_key'];
+        $gameKey = isset($body['game_key']) && in_array($body['game_key'], ['deductive_logic', 'motion_challenge', 'switch_challenge']) ? $body['game_key'] : $game['game_key'];
         $difficulty = isset($body['difficulty']) && in_array($body['difficulty'], ['easy', 'medium', 'hard']) ? $body['difficulty'] : $game['difficulty'];
         $durationSeconds = isset($body['duration_seconds']) ? max(30, (int)$body['duration_seconds']) : (int)$game['duration_seconds'];
         $maxScore = isset($body['max_score']) ? max(10, (int)$body['max_score']) : (int)$game['max_score'];
@@ -1828,6 +1833,8 @@ class MindSagaController {
             $puzzleData = self::generateLatinSquarePuzzles($difficulty);
         } else if ($gameKey === 'motion_challenge') {
             $puzzleData = self::generateMotionChallengeSequence($difficulty);
+        } else if ($gameKey === 'switch_challenge') {
+            $puzzleData = self::generateSwitchChallengeSequence($difficulty);
         }
 
         $duration = (int)$game['duration_seconds'];
@@ -3256,6 +3263,89 @@ class MindSagaController {
     }
 
     /**
+     * Generate progressive procedural puzzles for Switch Challenge (Power of Logical Thinking).
+     */
+    public static function generateSwitchChallengeSequence(string $difficulty = 'medium'): array {
+        $allSymbols = ['circle', 'square', 'percent', 'plus', 'cross', 'triangle', 'star', 'diamond'];
+
+        $levelConfigs = [
+            ['level' => 1, 'count' => 4, 'time' => 25, 'diff' => 'easy', 'title' => 'Level 1: 4-Symbol Switch Warmup'],
+            ['level' => 2, 'count' => 4, 'time' => 25, 'diff' => 'easy', 'title' => 'Level 2: 4-Symbol Cross Mapping'],
+            ['level' => 3, 'count' => 4, 'time' => 25, 'diff' => 'easy', 'title' => 'Level 3: 4-Symbol Sequence Shift'],
+            ['level' => 4, 'count' => 4, 'time' => 25, 'diff' => 'easy', 'title' => 'Level 4: 4-Symbol Speed Test'],
+            ['level' => 5, 'count' => 5, 'time' => 25, 'diff' => 'medium', 'title' => 'Level 5: 5-Symbol Pentagram Switch'],
+            ['level' => 6, 'count' => 5, 'time' => 25, 'diff' => 'medium', 'title' => 'Level 6: 5-Symbol Inverted Order'],
+            ['level' => 7, 'count' => 5, 'time' => 25, 'diff' => 'medium', 'title' => 'Level 7: 5-Symbol Complex Permutation'],
+            ['level' => 8, 'count' => 5, 'time' => 25, 'diff' => 'medium', 'title' => 'Level 8: 5-Symbol Dual Shift'],
+            ['level' => 9, 'count' => 6, 'time' => 20, 'diff' => 'hard', 'title' => 'Level 9: 6-Symbol Hex Matrix Switch'],
+            ['level' => 10, 'count' => 6, 'time' => 20, 'diff' => 'hard', 'title' => 'Level 10: 6-Symbol Rapid Reaction'],
+            ['level' => 11, 'count' => 6, 'time' => 20, 'diff' => 'hard', 'title' => 'Level 11: 6-Symbol Expert Scramble'],
+            ['level' => 12, 'count' => 6, 'time' => 20, 'diff' => 'hard', 'title' => 'Level 12: Master Championship Switch']
+        ];
+
+        $levels = [];
+
+        foreach ($levelConfigs as $cfg) {
+            $n = $cfg['count'];
+            $pool = $allSymbols;
+            shuffle($pool);
+            $inputSymbols = array_slice($pool, 0, $n);
+
+            $indices = range(1, $n);
+            $tries = 0;
+            do {
+                shuffle($indices);
+                $tries++;
+            } while ($indices === range(1, $n) && $tries < 20);
+
+            $outputSymbols = [];
+            foreach ($indices as $idx) {
+                $outputSymbols[] = $inputSymbols[$idx - 1];
+            }
+
+            $correctCode = implode('', $indices);
+
+            $options = [$correctCode];
+            $attempts = 0;
+            while (count($options) < 4 && $attempts < 60) {
+                $attempts++;
+                $distractorIndices = $indices;
+                if ($attempts % 2 === 1) {
+                    $i1 = rand(0, $n - 1);
+                    $i2 = ($i1 + rand(1, $n - 1)) % $n;
+                    $tmp = $distractorIndices[$i1];
+                    $distractorIndices[$i1] = $distractorIndices[$i2];
+                    $distractorIndices[$i2] = $tmp;
+                } else {
+                    shuffle($distractorIndices);
+                }
+                $distractorCode = implode('', $distractorIndices);
+                if (!in_array($distractorCode, $options)) {
+                    $options[] = $distractorCode;
+                }
+            }
+
+            shuffle($options);
+
+            $levels[] = [
+                'level' => $cfg['level'],
+                'title' => $cfg['title'],
+                'difficulty' => $cfg['diff'],
+                'symbol_count' => $n,
+                'time_limit' => $cfg['time'],
+                'points_award' => 3,
+                'penalty_deduct' => 1,
+                'input_symbols' => $inputSymbols,
+                'output_symbols' => $outputSymbols,
+                'correct_code' => $correctCode,
+                'options' => $options
+            ];
+        }
+
+        return $levels;
+    }
+
+    /**
      * POST /events/{id}/sub-events/{subId}/mind-saga/games/reorder
      */
     public static function reorderGames(array $params): void {
@@ -3266,9 +3356,9 @@ class MindSagaController {
         $gameIds = $body['game_ids'] ?? [];
 
         if (is_array($gameIds)) {
-            $stmt = $db->prepare("UPDATE mind_saga_game_configs SET id = id, updated_at = NOW() WHERE id = ? AND sub_event_id = ?");
-            foreach ($gameIds as $gId) {
-                $stmt->execute([(int)$gId, $subId]);
+            $stmt = $db->prepare("UPDATE mind_saga_game_configs SET display_order = ?, updated_at = NOW() WHERE id = ? AND sub_event_id = ?");
+            foreach ($gameIds as $idx => $gId) {
+                $stmt->execute([$idx + 1, (int)$gId, $subId]);
             }
         }
 
