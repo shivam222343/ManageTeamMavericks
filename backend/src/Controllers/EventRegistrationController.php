@@ -1291,6 +1291,90 @@ class EventRegistrationController {
     }
 
     /**
+     * POST /api.php/event-registrations/bulk-delete
+     * Admin: Delete multiple participant registrations with complete cascading cleanup
+     */
+    public function bulkDelete(array $params = []): void {
+        AuthMiddleware::requireAuth();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $ids = array_filter(array_map('intval', $body['registration_ids'] ?? []));
+
+        if (empty($ids)) {
+            Router::sendJson(['error' => 'No registration IDs provided for bulk deletion'], 400);
+            return;
+        }
+
+        $db = Database::getConnection();
+        $inClause = implode(',', array_fill(0, count($ids), '?'));
+
+        // Look up all registrations to clean up files and user accounts
+        $stmt = $db->prepare("SELECT id, user_id, email FROM event_registrations WHERE id IN ({$inClause})");
+        $stmt->execute($ids);
+        $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($records)) {
+            Router::sendJson(['message' => 'No matching registrations found to delete', 'deleted_count' => 0]);
+            return;
+        }
+
+        // Clean up files
+        try {
+            $fStmt = $db->prepare("SELECT file_path FROM event_registration_files WHERE registration_id IN ({$inClause})");
+            $fStmt->execute($ids);
+            $files = $fStmt->fetchAll(PDO::FETCH_ASSOC);
+            $uploadDir = dirname(__DIR__, 2) . '/uploads';
+            foreach ($files as $f) {
+                if (!empty($f['file_path'])) {
+                    $cleaned = ltrim(str_replace('/uploads/', '', $f['file_path']), '/');
+                    $fullPath = $uploadDir . '/' . $cleaned;
+                    if (file_exists($fullPath) && is_file($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+            }
+        } catch (\Exception $e) {}
+
+        // Delete from associated tables
+        try {
+            $db->prepare("DELETE FROM event_registration_files WHERE registration_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM event_registration_answers WHERE registration_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM event_registration_sub_events WHERE registration_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM event_attendance WHERE registration_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM sub_event_evaluations WHERE participant_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM sub_event_group_members WHERE registration_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM mind_saga_scores WHERE registration_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM mind_saga_test_sessions WHERE registration_id IN ({$inClause})")->execute($ids);
+            $db->prepare("DELETE FROM mind_saga_game_sessions WHERE registration_id IN ({$inClause})")->execute($ids);
+        } catch (\Exception $e) {}
+
+        // Delete primary records
+        $delStmt = $db->prepare("DELETE FROM event_registrations WHERE id IN ({$inClause})");
+        $delStmt->execute($ids);
+        $deletedCount = $delStmt->rowCount();
+
+        // Clean up participant users if no remaining registrations
+        try {
+            foreach ($records as $r) {
+                $uid = $r['user_id'] ?? null;
+                $em = $r['email'] ?? '';
+                if ($uid || $em) {
+                    $remStmt = $db->prepare("SELECT COUNT(*) FROM event_registrations WHERE (user_id = ? OR email = ?)");
+                    $remStmt->execute([$uid ?: 0, $em]);
+                    if ((int)$remStmt->fetchColumn() === 0) {
+                        $db->prepare("DELETE FROM users WHERE role = 'participant' AND (id = ? OR email = ?)")->execute([$uid ?: 0, $em]);
+                    }
+                }
+            }
+        } catch (\Exception $e) {}
+
+        Router::sendJson([
+            'success' => true,
+            'message' => "Successfully deleted {$deletedCount} registration(s).",
+            'deleted_count' => $deletedCount
+        ]);
+    }
+
+    /**
      * GET /api.php/events/slug/{slug}/form
      * Public: get the form structure for a public event (by slug)
      */

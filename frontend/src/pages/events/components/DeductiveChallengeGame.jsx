@@ -92,12 +92,12 @@ const SYMBOLS = {
 
 const ALL_SYMBOL_KEYS = ['plus', 'square', 'circle', 'triangle', 'diamond'];
 
-// Algorithm: Generate guaranteed valid Latin Square with single random '?' hole
+// Algorithm: Generate guaranteed valid Latin Square with SOME cells filled, SOME cells empty, and ONE '?' target hole
 export const generateSingleHoleLatinSquare = (level) => {
   let n = 3;
-  if (level > 15) {
+  if (level > 35) {
     n = 5;
-  } else if (level > 5) {
+  } else if (level > 15) {
     n = 4;
   }
 
@@ -141,9 +141,106 @@ export const generateSingleHoleLatinSquare = (level) => {
   const targetC = Math.floor(Math.random() * n);
   const correctSymbol = solution[targetR][targetC];
 
-  // 6. Clues grid contains only 1 null for '?'
-  const cluesGrid = solution.map((row) => [...row]);
-  cluesGrid[targetR][targetC] = null;
+  // 6. Build clues grid: Some cells filled, some empty, and 1 '?' target
+  // Initialize grid with all empty (null)
+  const cluesGrid = Array.from({ length: n }, () => Array(n).fill(null));
+
+  if (n === 3) {
+    // 3x3 Special Progressive Balancing: NEVER reveal 2 cells in target row or target col!
+    const otherRowCols = [0, 1, 2].filter((c) => c !== targetC);
+    const otherColRows = [0, 1, 2].filter((r) => r !== targetR);
+
+    if (level <= 3) {
+      // Level 1-3: Intro - 1 clue in target row, 1 clue in target col (1 empty in row, 1 empty in col), 1 background clue
+      const pickC = otherRowCols[Math.floor(Math.random() * otherRowCols.length)];
+      cluesGrid[targetR][pickC] = solution[targetR][pickC];
+
+      const pickR = otherColRows[Math.floor(Math.random() * otherColRows.length)];
+      cluesGrid[pickR][targetC] = solution[pickR][targetC];
+
+      // 1 background clue in opposite cell
+      const bgR = otherColRows.find((r) => r !== pickR) || otherColRows[0];
+      const bgC = otherRowCols.find((c) => c !== pickC) || otherRowCols[0];
+      cluesGrid[bgR][bgC] = solution[bgR][bgC];
+    } else if (level <= 8) {
+      // Level 4-8: Medium - Only 1 direct clue (either in target row OR col, not both!), plus 2 strategic background clues
+      const revealInRow = Math.random() > 0.5;
+      if (revealInRow) {
+        const pickC = otherRowCols[Math.floor(Math.random() * otherRowCols.length)];
+        cluesGrid[targetR][pickC] = solution[targetR][pickC];
+      } else {
+        const pickR = otherColRows[Math.floor(Math.random() * otherColRows.length)];
+        cluesGrid[pickR][targetC] = solution[pickR][targetC];
+      }
+      // Reveal 2 background clues outside target row and col
+      const bgCells = [];
+      for (const r of otherColRows) {
+        for (const c of otherRowCols) {
+          bgCells.push({ r, c });
+        }
+      }
+      bgCells.sort(() => Math.random() - 0.5);
+      for (let i = 0; i < 2; i++) {
+        cluesGrid[bgCells[i].r][bgCells[i].c] = solution[bgCells[i].r][bgCells[i].c];
+      }
+    } else {
+      // Level 9-15: Hard - Zero direct clues in target row AND zero direct clues in target col!
+      // Must deduce from clues in the remaining 2x2 grid quadrant!
+      const bgCells = [];
+      for (const r of otherColRows) {
+        for (const c of otherRowCols) {
+          bgCells.push({ r, c });
+        }
+      }
+      bgCells.sort(() => Math.random() - 0.5);
+      // Reveal 3 of the 4 background cells
+      for (let i = 0; i < 3; i++) {
+        cluesGrid[bgCells[i].r][bgCells[i].c] = solution[bgCells[i].r][bgCells[i].c];
+      }
+    }
+  } else {
+    // 4x4 and 5x5 grids
+    const otherSymbols = shuffledSymbols.filter((s) => s !== correctSymbol);
+    const rowCount = Math.min(n - 2, Math.ceil(otherSymbols.length / 2));
+    const rowSymbolsToKeep = otherSymbols.slice(0, rowCount);
+    const colSymbolsToKeep = otherSymbols.slice(rowCount, rowCount + Math.min(n - 2, otherSymbols.length - rowCount));
+
+    // Place row clues (never full row)
+    for (let c = 0; c < n; c++) {
+      if (c === targetC) continue;
+      if (rowSymbolsToKeep.includes(solution[targetR][c])) {
+        cluesGrid[targetR][c] = solution[targetR][c];
+      }
+    }
+
+    // Place col clues (never full col)
+    for (let r = 0; r < n; r++) {
+      if (r === targetR) continue;
+      if (colSymbolsToKeep.includes(solution[r][targetC])) {
+        cluesGrid[r][targetC] = solution[r][targetC];
+      }
+    }
+
+    // Place background clues
+    const backgroundCells = [];
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (r !== targetR && c !== targetC) {
+          backgroundCells.push({ r, c });
+        }
+      }
+    }
+    backgroundCells.sort(() => Math.random() - 0.5);
+
+    const bgRevealCount = n === 4 ? (level <= 25 ? 4 : 3) : (level <= 45 ? 8 : 6);
+    for (let i = 0; i < Math.min(bgRevealCount, backgroundCells.length); i++) {
+      const { r, c } = backgroundCells[i];
+      cluesGrid[r][c] = solution[r][c];
+    }
+  }
+
+  // Explicitly mark target hole as '?'
+  cluesGrid[targetR][targetC] = '?';
 
   return {
     id: `p_${level}_${Math.random().toString(36).substring(2, 7)}`,
@@ -156,6 +253,8 @@ export const generateSingleHoleLatinSquare = (level) => {
     solution
   };
 };
+
+export const generateDeductivePuzzle = generateSingleHoleLatinSquare;
 
 export default function DeductiveChallengeGame({
   gameData = [],
@@ -173,18 +272,22 @@ export default function DeductiveChallengeGame({
   const [score, setScore] = useState(initialScore);
   const isTransitioningRef = useRef(false);
 
-  // Initialize puzzles from server or generator
+  // Initialize puzzles from server or generator (60+ progressive challenges)
   useEffect(() => {
     let initialList = [];
     if (Array.isArray(gameData) && gameData.length > 0) {
-      // Validate if server puzzles have single-hole structure
+      // Use server puzzles if valid, else fallback to 60+ generated levels
       initialList = gameData.map((p, idx) => {
         if (p.grid_size && p.correct_symbol && p.clues_grid) return p;
         return generateSingleHoleLatinSquare(idx + 1);
       });
+      // Ensure at least 60 levels
+      while (initialList.length < 60) {
+        initialList.push(generateSingleHoleLatinSquare(initialList.length + 1));
+      }
     } else {
-      // Generate initial pool of 35 progressive challenges
-      for (let i = 1; i <= 35; i++) {
+      // Generate initial pool of 60 progressive challenges (50+ levels)
+      for (let i = 1; i <= 60; i++) {
         initialList.push(generateSingleHoleLatinSquare(i));
       }
     }
@@ -317,34 +420,26 @@ export default function DeductiveChallengeGame({
               </ul>
             </div>
 
-            {/* Thumbnail Preview Mini Matrix */}
+            {/* Thumbnail Preview Mini Matrix (Showing empty cells, clues, and '?') */}
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl bg-white p-2 border-2 border-zinc-400 shadow-md grid grid-cols-3 gap-1 shrink-0 items-center justify-center">
               <div className="w-full h-full flex items-center justify-center border border-zinc-200">
                 <SquareIcon className="w-4 h-4 text-red-500" />
               </div>
-              <div className="w-full h-full flex items-center justify-center border border-zinc-200">
-                <PlusIcon className="w-4 h-4 text-blue-500" />
-              </div>
+              <div className="w-full h-full flex items-center justify-center border border-dashed border-zinc-300 bg-zinc-50" />
               <div className="w-full h-full flex items-center justify-center border border-zinc-200">
                 <CircleIcon className="w-4 h-4 text-emerald-500" />
               </div>
 
-              <div className="w-full h-full flex items-center justify-center border border-zinc-200">
-                <CircleIcon className="w-4 h-4 text-emerald-500" />
-              </div>
+              <div className="w-full h-full flex items-center justify-center border border-dashed border-zinc-300 bg-zinc-50" />
               <div className="w-full h-full flex items-center justify-center border border-zinc-200 bg-red-500/10">
                 <SquareIcon className="w-4 h-4 text-red-500" />
               </div>
-              <div className="w-full h-full flex items-center justify-center border border-zinc-200">
-                <PlusIcon className="w-4 h-4 text-blue-500" />
-              </div>
+              <div className="w-full h-full flex items-center justify-center border border-dashed border-zinc-300 bg-zinc-50" />
 
               <div className="w-full h-full flex items-center justify-center border border-zinc-200">
                 <PlusIcon className="w-4 h-4 text-blue-500" />
               </div>
-              <div className="w-full h-full flex items-center justify-center border border-zinc-200">
-                <CircleIcon className="w-4 h-4 text-emerald-500" />
-              </div>
+              <div className="w-full h-full flex items-center justify-center border border-dashed border-zinc-300 bg-zinc-50" />
               <div className="w-full h-full flex items-center justify-center border-2 border-amber-500 bg-amber-500/10 text-amber-600 font-black font-mono text-xs">
                 ?
               </div>
@@ -407,8 +502,13 @@ export default function DeductiveChallengeGame({
         >
           {cluesGrid.map((row, r) =>
             row.map((cellKey, c) => {
-              const isTargetHole = cellKey === null || cellKey === undefined;
-              const symbolObj = cellKey ? SYMBOLS[cellKey] : null;
+              const isTargetHole =
+                cellKey === '?' ||
+                (currentPuzzle?.target_pos &&
+                  r === currentPuzzle.target_pos.r &&
+                  c === currentPuzzle.target_pos.c);
+              const isEmptyCell = !isTargetHole && (!cellKey || cellKey === null || cellKey === '');
+              const symbolObj = cellKey && cellKey !== '?' ? SYMBOLS[cellKey] : null;
               const IconComp = symbolObj?.icon;
 
               if (isTargetHole) {
@@ -450,7 +550,17 @@ export default function DeductiveChallengeGame({
                 );
               }
 
-              // Normal Clue Cell
+              if (isEmptyCell) {
+                // Empty Grid Cell (Unfilled slot in the deductive matrix)
+                return (
+                  <div
+                    key={`empty-${r}-${c}`}
+                    className="w-14 h-14 sm:w-20 sm:h-20 rounded-xl border border-dashed border-zinc-700/50 bg-zinc-950/40 flex items-center justify-center transition-all shadow-inner"
+                  />
+                );
+              }
+
+              // Normal Clue Cell with Symbol
               return (
                 <div
                   key={`cell-${r}-${c}`}

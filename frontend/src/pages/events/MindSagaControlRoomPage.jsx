@@ -38,6 +38,7 @@ import {
   X,
   Sliders,
   ChevronRight,
+  ChevronDown,
   ExternalLink,
   Lock,
   UserCheck,
@@ -53,7 +54,14 @@ import {
   Printer,
   FileSpreadsheet,
   FileText,
-  RotateCcw
+  RotateCcw,
+  Star,
+  StarOff,
+  History,
+  SortAsc,
+  SortDesc,
+  ListFilter,
+  Trophy
 } from 'lucide-react';
 import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
@@ -151,6 +159,26 @@ const MindSagaControlRoomPage = () => {
   });
   const [isSavingAttempts, setIsSavingAttempts] = useState(false);
 
+  // Score History Modal State
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyParticipant, setHistoryParticipant] = useState(null);
+  const [historyData, setHistoryData] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Export Options Modal State
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState('csv'); // 'csv' | 'html' | 'print'
+  const [exportSortBy, setExportSortBy] = useState('final_weighted_score'); // 'final_weighted_score' | 'round1_score' | 'round2_score' | 'round3_score' | 'name'
+  const [exportSortDir, setExportSortDir] = useState('desc'); // 'desc' | 'asc'
+  const [exportScoreMode, setExportScoreMode] = useState('current'); // 'current' (max score saved) | 'attempt_1' | 'attempt_last'
+
+  // Shortlist State
+  const [shortlistMode, setShortlistMode] = useState(false);
+  const [shortlistedIds, setShortlistedIds] = useState([]); // IDs currently shortlisted (local tracking from leaderboard)
+  const [shortlistModalOpen, setShortlistModalOpen] = useState(false);
+  const [isSavingShortlist, setIsSavingShortlist] = useState(false);
+
+
   // Gaming Pipeline State & Modal
   const [gameModalOpen, setGameModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState(null);
@@ -242,11 +270,73 @@ const MindSagaControlRoomPage = () => {
       const res = await axios.get(`/events/${eventId}/sub-events/${subEventId}/mind-saga/leaderboard`);
       const data = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.leaderboard) ? res.data.leaderboard : []);
       setLeaderboard(data);
+      // Sync shortlisted IDs from server
+      setShortlistedIds(data.filter((d) => Number(d.is_shortlisted) === 1).map((d) => d.registration_id));
     } catch (err) {
       console.error('Failed to fetch leaderboard:', err);
       setLeaderboard([]);
     }
   }, [eventId, subEventId]);
+
+  // Open History Modal for a participant
+  const handleOpenHistory = async (cand) => {
+    setHistoryParticipant(cand);
+    setHistoryModalOpen(true);
+    setHistoryLoading(true);
+    setHistoryData(null);
+    try {
+      const res = await axios.get(`/events/${eventId}/sub-events/${subEventId}/mind-saga/participant-history?registration_id=${cand.registration_id}`);
+      setHistoryData(res.data);
+    } catch (err) {
+      toast.error('Failed to load attempt history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Toggle a participant in/out of local shortlist selection
+  const handleToggleShortlist = (regId) => {
+    setShortlistedIds((prev) =>
+      prev.includes(regId) ? prev.filter((id) => id !== regId) : [...prev, regId]
+    );
+  };
+
+  // Save shortlist to backend
+  const handleSaveShortlist = async () => {
+    setIsSavingShortlist(true);
+    try {
+      const res = await axios.post(`/events/${eventId}/sub-events/${subEventId}/mind-saga/shortlist`, {
+        registration_ids: shortlistedIds,
+        action: 'set'
+      });
+      toast.success(res.data.message || `Shortlisted ${shortlistedIds.length} participant(s)!`, { icon: '⭐' });
+      setShortlistModalOpen(false);
+      setShortlistMode(false);
+      fetchLeaderboard();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save shortlist');
+    } finally {
+      setIsSavingShortlist(false);
+    }
+  };
+
+  // Get sorted leaderboard for export
+  const getSortedLeaderboardForExport = () => {
+    const sorted = [...leaderboard].sort((a, b) => {
+      let aVal, bVal;
+      if (exportSortBy === 'name') {
+        aVal = (a.full_name || '').toLowerCase();
+        bVal = (b.full_name || '').toLowerCase();
+        return exportSortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      aVal = Number(a[exportSortBy] || 0);
+      bVal = Number(b[exportSortBy] || 0);
+      return exportSortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+    return sorted;
+  };
+
+
 
   // Fetch specific test details & questions
   const loadTestDetail = async (testId) => {
@@ -675,9 +765,10 @@ const MindSagaControlRoomPage = () => {
     }
   };
 
-  // Export CSV
-  const handleExportCSV = () => {
-    if (!leaderboard || leaderboard.length === 0) {
+  // Export CSV (uses sorted leaderboard from export options)
+  const handleExportCSV = (sortedData) => {
+    const data = sortedData || getSortedLeaderboardForExport();
+    if (!data || data.length === 0) {
       toast.error('No participant records to export.');
       return;
     }
@@ -689,6 +780,7 @@ const MindSagaControlRoomPage = () => {
       'Email Address',
       'Phone',
       'Access Key',
+      'Shortlisted for R2',
       'Round 1 Aptitude Score',
       'Round 1 Max',
       'R1 Attempts Used',
@@ -703,13 +795,14 @@ const MindSagaControlRoomPage = () => {
       'Qualification Status'
     ];
 
-    const rows = leaderboard.map((cand, idx) => [
+    const rows = data.map((cand, idx) => [
       idx + 1,
       `"${(cand.full_name || '').replace(/"/g, '""')}"`,
       `"${(cand.prn || '').replace(/"/g, '""')}"`,
       `"${(cand.email || '').replace(/"/g, '""')}"`,
       `"${(cand.phone || '').replace(/"/g, '""')}"`,
       `"${(cand.access_key || '').replace(/"/g, '""')}"`,
+      Number(cand.is_shortlisted) === 1 ? 'YES' : 'NO',
       Number(cand.round1_score || 0).toFixed(2),
       Number(cand.round1_max || 50).toFixed(2),
       cand.attempts_used_r1 ?? 0,
@@ -736,17 +829,19 @@ const MindSagaControlRoomPage = () => {
     toast.success('CSV score sheet exported successfully!');
   };
 
-  // Export HTML with Team Mavericks Logo Background Watermark (14% Opacity on every page)
-  const handleExportHTML = () => {
-    if (!leaderboard || leaderboard.length === 0) {
+  // Export HTML with Team Mavericks Logo Background Watermark (40% Opacity)
+  const handleExportHTML = (sortedData) => {
+    const data = sortedData || getSortedLeaderboardForExport();
+    if (!data || data.length === 0) {
       toast.error('No participant records to export.');
       return;
     }
 
     const title = `${overviewData?.sub_event?.name || 'Mind Saga'} - Participant Score & Attempts Ledger`;
     const genDate = new Date().toLocaleString();
+    const sortLabel = { final_weighted_score: 'Final Score', round1_score: 'R1 Score', round2_score: 'R2 Score', round3_score: 'R3 Score', name: 'Name' }[exportSortBy] || 'Final Score';
 
-    const tableRows = leaderboard.map((cand, idx) => `
+    const tableRows = data.map((cand, idx) => `
       <tr>
         <td style="text-align:center;font-weight:bold;">#${idx + 1}</td>
         <td>
@@ -756,8 +851,13 @@ const MindSagaControlRoomPage = () => {
         <td style="font-family:monospace;font-size:11px;color:#334155;">
           ${cand.email || ''}<br><span style="color:#64748b;">${cand.phone || ''}</span>
         </td>
-        <td style="text-align:center;font-family:monospace;font-weight:700;color:#4f46e5;background:#f8fafc;border-radius:6px;">
+        <td style="text-align:center;font-family:monospace;font-weight:700;color:#4f46e5;border-radius:6px;">
           ${cand.access_key || '—'}
+        </td>
+        <td style="text-align:center;">
+          ${Number(cand.is_shortlisted) === 1
+            ? '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;background:#fef08a;color:#854d0e;border:1px solid #ca8a04;">⭐ Shortlisted</span>'
+            : '<span style="font-size:10px;color:#94a3b8;">—</span>'}
         </td>
         <td style="text-align:center;">
           <span style="font-weight:700;color:#0f172a;">${Number(cand.round1_score || 0).toFixed(2)}</span> / ${cand.round1_max || 50}
@@ -769,9 +869,8 @@ const MindSagaControlRoomPage = () => {
         </td>
         <td style="text-align:center;">
           <span style="font-weight:700;color:#0f172a;">${Number(cand.round3_score || 0).toFixed(2)}</span> / ${cand.round3_max || 100}
-          <div style="font-size:10px;color:#64748b;">Att: ${cand.attempts_used_r3 || 0} / ${cand.effective_attempts_r3 || 1}</div>
         </td>
-        <td style="text-align:center;font-weight:800;color:#4338ca;font-size:13px;background:#eef2ff;">
+        <td style="text-align:center;font-weight:800;color:#4338ca;font-size:13px;">
           ${Number(cand.final_weighted_score || 0).toFixed(2)}
         </td>
         <td style="text-align:center;">
@@ -802,19 +901,19 @@ const MindSagaControlRoomPage = () => {
       position: relative;
       min-height: 100vh;
     }
-    /* Fixed background watermark with 14% opacity repeating on every page */
+    /* Fixed background watermark with 40% opacity repeating on every page */
     .watermark-layer {
       position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 520px;
-      height: 520px;
+      width: 480px;
+      height: 480px;
       background-image: url('${MAVERICKS_LOGO_BASE64}');
       background-repeat: no-repeat;
       background-position: center;
       background-size: contain;
-      opacity: 0.14;
+      opacity: 0.40;
       pointer-events: none;
       z-index: 0;
     }
@@ -850,7 +949,7 @@ const MindSagaControlRoomPage = () => {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
-      background: rgba(255, 255, 255, 0.94);
+      background: transparent;
       margin-top: 10px;
     }
     thead {
@@ -860,7 +959,7 @@ const MindSagaControlRoomPage = () => {
       page-break-inside: avoid;
     }
     th {
-      background: #f8fafc;
+      background: rgba(248,250,252,0.85);
       color: #334155;
       font-size: 10px;
       font-weight: 700;
@@ -874,7 +973,9 @@ const MindSagaControlRoomPage = () => {
       padding: 8px;
       border: 1px solid #e2e8f0;
       vertical-align: middle;
+      background: transparent;
     }
+    tr:nth-child(even) td { background: rgba(248,250,252,0.5); }
     .footer {
       margin-top: 24px;
       border-top: 1px solid #e2e8f0;
@@ -900,11 +1001,11 @@ const MindSagaControlRoomPage = () => {
     <div class="header">
       <div>
         <h1 class="brand-title">TEAM MAVERICKS • MIND SAGA</h1>
-        <p class="brand-sub">${title} | Multi-Round Evaluation & Telemetry Report</p>
+        <p class="brand-sub">${title} | Sorted by: ${sortLabel} (${exportSortDir === 'desc' ? 'High → Low' : 'Low → High'})</p>
       </div>
       <div class="meta-box">
         <div><strong>Generated:</strong> ${genDate}</div>
-        <div><strong>Candidates Count:</strong> ${leaderboard.length}</div>
+        <div><strong>Candidates Count:</strong> ${data.length}</div>
         <div><strong>Weights:</strong> R1 (${configForm.round1_weight}%) | R2 (${configForm.round2_weight}%) | R3 (${configForm.round3_weight}%)</div>
       </div>
     </div>
@@ -916,6 +1017,7 @@ const MindSagaControlRoomPage = () => {
           <th>Participant & ID</th>
           <th>Contact & Email</th>
           <th style="text-align:center;">Access Key</th>
+          <th style="text-align:center;">Shortlisted</th>
           <th style="text-align:center;">R1 Aptitude (Score & Att.)</th>
           <th style="text-align:center;">R2 Gaming (Score & Att.)</th>
           <th style="text-align:center;">R3 Interview</th>
@@ -944,10 +1046,10 @@ const MindSagaControlRoomPage = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('HTML score ledger downloaded with Team Mavericks watermark!');
+    toast.success('HTML score ledger downloaded with 40% Team Mavericks watermark!');
   };
 
-  // Print / PDF Trigger
+  // Print / PDF Trigger (uses sorted data)
   const handlePrintReport = () => {
     if (!leaderboard || leaderboard.length === 0) {
       toast.error('No participant records to print.');
@@ -955,6 +1057,20 @@ const MindSagaControlRoomPage = () => {
     }
     window.print();
   };
+
+  // Unified export handler - dispatches based on format choice from export modal
+  const handleExportWithOptions = () => {
+    const sortedData = getSortedLeaderboardForExport();
+    if (exportFormat === 'csv') {
+      handleExportCSV(sortedData);
+    } else if (exportFormat === 'html') {
+      handleExportHTML(sortedData);
+    } else if (exportFormat === 'print') {
+      handlePrintReport();
+    }
+    setExportModalOpen(false);
+  };
+
 
   const [sendingEmails, setSendingEmails] = useState(false);
   const [regeneratingKeys, setRegeneratingKeys] = useState(false);
@@ -2643,33 +2759,38 @@ const MindSagaControlRoomPage = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleExportCSV}
+                  onClick={() => setExportModalOpen(true)}
                   className="px-3 py-1.5 bg-emerald-700/20 hover:bg-emerald-700/30 text-emerald-300 border border-emerald-600/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                  title="Download CSV spreadsheet"
+                  title="Export scores with sort options"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>CSV</span>
+                  <ListFilter className="w-3.5 h-3.5" />
+                  <span>Export Options</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={handleExportHTML}
-                  className="px-3 py-1.5 bg-indigo-700/20 hover:bg-indigo-700/30 text-indigo-300 border border-indigo-600/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                  title="Download HTML ledger with Team Mavericks watermark"
+                  onClick={() => { setShortlistMode(!shortlistMode); }}
+                  className={`px-3 py-1.5 border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                    shortlistMode
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
+                  }`}
+                  title="Toggle shortlist mode to star participants for Round 2"
                 >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>HTML</span>
+                  <Star className="w-3.5 h-3.5" />
+                  <span>{shortlistMode ? 'Shortlist Mode ON' : 'Shortlist R1→R2'}</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handlePrintReport}
-                  className="px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-900 dark:text-white border border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                  title="Print or Save PDF with Team Mavericks watermark on every page"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print / PDF</span>
-                </button>
+                {shortlistMode && (
+                  <button
+                    type="button"
+                    onClick={() => setShortlistModalOpen(true)}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white border border-amber-500 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Save Shortlist ({shortlistedIds.length})
+                  </button>
+                )}
 
                 <button
                   onClick={() => setPromoteModalOpen(true)}
@@ -2680,6 +2801,18 @@ const MindSagaControlRoomPage = () => {
                 </button>
               </div>
             </div>
+
+            {/* Shortlist Mode Info Bar */}
+            {shortlistMode && (
+              <div className="bg-amber-900/20 border border-amber-500/30 rounded-2xl p-3 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-amber-300">
+                  <Star className="w-4 h-4" />
+                  <span className="font-semibold">Shortlist Mode Active</span>
+                  <span className="text-amber-400/70">— Click the ★ star icon on rows to toggle shortlist. Shortlisted participants will get max_attempts_r2=1 for Round 2; others get 0.</span>
+                </div>
+                <span className="text-amber-400 font-bold">{shortlistedIds.length} selected</span>
+              </div>
+            )}
 
             {/* Leaderboard Table */}
             <div className="bg-white dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
@@ -2700,25 +2833,30 @@ const MindSagaControlRoomPage = () => {
                       </th>
                       <th className="p-3">Rank</th>
                       <th className="p-3">Participant</th>
-                      <th className="p-3 text-center">R1: Aptitude (30%)</th>
-                      <th className="p-3 text-center">R2: Gaming (30%)</th>
-                      <th className="p-3 text-center">R3: Interview (40%)</th>
+                      {shortlistMode && <th className="p-3 text-center text-amber-400">Shortlist</th>}
+                      <th className="p-3 text-center">R1: Aptitude ({configForm.round1_weight}%)</th>
+                      <th className="p-3 text-center">R2: Gaming ({configForm.round2_weight}%)</th>
+                      <th className="p-3 text-center">R3: Interview ({configForm.round3_weight}%)</th>
                       <th className="p-3 text-center font-bold text-indigo-400">Final Weighted Score</th>
                       <th className="p-3 text-center">Qualification Status</th>
+                      <th className="p-3 text-center">History</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-zinc-800/60">
                     {leaderboard.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="text-center py-10 text-zinc-500">
+                        <td colSpan="10" className="text-center py-10 text-zinc-500">
                           No evaluation scores recorded yet.
                         </td>
                       </tr>
                     ) : (
                       leaderboard.map((item, idx) => {
                         const isSelected = selectedRegIds.includes(item.registration_id);
+                        const isShortlisted = shortlistedIds.includes(item.registration_id);
                         return (
-                          <tr key={item.id} className={`hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition ${isSelected ? 'bg-indigo-950/20' : ''}`}>
+                          <tr key={item.id} className={`hover:bg-slate-50 dark:hover:bg-zinc-900/50 transition ${
+                            isSelected ? 'bg-indigo-950/20' : isShortlisted ? 'bg-amber-950/10' : ''
+                          }`}>
                             <td className="p-3">
                               <input
                                 type="checkbox"
@@ -2732,20 +2870,53 @@ const MindSagaControlRoomPage = () => {
                             </td>
                             <td className="p-3 font-bold text-white">#{idx + 1}</td>
                             <td className="p-3">
-                              <div className="font-semibold text-slate-900 dark:text-white">{item.full_name}</div>
+                              <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                {item.full_name}
+                                {Number(item.is_shortlisted) === 1 && !shortlistMode && (
+                                  <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold">⭐ Shortlisted</span>
+                                )}
+                              </div>
                               <div className="text-[11px] text-zinc-500 font-mono">{item.email}</div>
                             </td>
-                            <td className="p-3 text-center font-mono">
-                              {item.round1_score} / {item.round1_max}
+                            {shortlistMode && (
+                              <td className="p-3 text-center">
+                                <button
+                                  onClick={() => handleToggleShortlist(item.registration_id)}
+                                  className={`p-1.5 rounded-lg transition ${
+                                    isShortlisted
+                                      ? 'text-amber-400 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30'
+                                      : 'text-zinc-500 bg-zinc-800 border border-zinc-700 hover:text-amber-400 hover:border-amber-500/40'
+                                  }`}
+                                  title={isShortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
+                                >
+                                  <Star className="w-4 h-4" fill={isShortlisted ? 'currentColor' : 'none'} />
+                                </button>
+                              </td>
+                            )}
+                            <td className="p-3 text-center">
+                              <div className="font-bold text-slate-900 dark:text-white font-mono text-xs">
+                                {Number(item.round1_score || 0).toFixed(1)}
+                                <span className="text-zinc-400 font-normal"> / {item.round1_max || 50}</span>
+                              </div>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 mt-0.5 inline-block">
+                                Att: {item.attempts_used_r1 || 0} / {item.effective_attempts_r1 || 1}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <div className="font-bold text-slate-900 dark:text-white font-mono text-xs">
+                                {Number(item.round2_score || 0).toFixed(1)}
+                                <span className="text-zinc-400 font-normal"> / {item.round2_max || 100}</span>
+                              </div>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-950/40 text-purple-400 border border-purple-500/30 mt-0.5 inline-block">
+                                Att: {item.attempts_used_r2 || 0} / {item.effective_attempts_r2 || 1}
+                              </span>
                             </td>
                             <td className="p-3 text-center font-mono">
-                              {item.round2_score} / {item.round2_max}
-                            </td>
-                            <td className="p-3 text-center font-mono">
-                              {item.round3_score} / {item.round3_max}
+                              {Number(item.round3_score || 0).toFixed(1)}
+                              <span className="text-zinc-400"> / {item.round3_max || 100}</span>
                             </td>
                             <td className="p-3 text-center font-bold text-indigo-400 text-sm font-mono">
-                              {Number(item.final_weighted_score).toFixed(2)}
+                              <div>{Number(item.final_weighted_score || 0).toFixed(2)}</div>
                             </td>
                             <td className="p-3 text-center">
                               <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider ${item.qualification_status === 'finalist'
@@ -2758,6 +2929,17 @@ const MindSagaControlRoomPage = () => {
                                 }`}>
                                 {item.qualification_status.replace(/_/g, ' ')}
                               </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenHistory(item)}
+                                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-indigo-300 hover:text-indigo-200 border border-zinc-700 hover:border-indigo-500/50 rounded-lg text-[11px] font-semibold flex items-center gap-1 mx-auto transition cursor-pointer"
+                                title="View attempt score history"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>History</span>
+                              </button>
                             </td>
                           </tr>
                         );
@@ -4239,6 +4421,477 @@ const MindSagaControlRoomPage = () => {
               >
                 <Ban className="w-4 h-4" />
                 <span>Confirm Block &amp; Terminate</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1. EXPORT OPTIONS & WATERMARK CONFIGURATION MODAL */}
+      {exportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3.5 border-b border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">Export Scores &amp; Telemetry Ledger</h3>
+                  <p className="text-[11px] text-zinc-400">Export official results with sorting, attempt modes &amp; Team Mavericks watermark.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setExportModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Export Format Selector */}
+              <div>
+                <label className="text-zinc-300 font-semibold block mb-1.5">Export Format</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'csv', label: 'CSV Spreadsheet', icon: FileSpreadsheet, desc: 'Excel / CSV raw data' },
+                    { id: 'html', label: 'HTML Ledger', icon: FileText, desc: '40% watermark report' },
+                    { id: 'print', label: 'Print / PDF', icon: Printer, desc: 'Certified A4 Landscape' }
+                  ].map((fmt) => {
+                    const Icon = fmt.icon;
+                    return (
+                      <button
+                        key={fmt.id}
+                        type="button"
+                        onClick={() => setExportFormat(fmt.id)}
+                        className={`p-3 rounded-2xl border text-left transition ${
+                          exportFormat === fmt.id
+                            ? 'bg-emerald-950/40 border-emerald-500 text-emerald-300'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 mb-1 text-emerald-400" />
+                        <span className="font-bold block">{fmt.label}</span>
+                        <span className="text-[10px] text-zinc-500 block">{fmt.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Attempt Score Consideration Mode */}
+              <div className="p-3 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-2">
+                <label className="text-zinc-300 font-semibold block flex items-center justify-between">
+                  <span>Score Consideration in Export</span>
+                  <span className="text-[10px] text-amber-400 font-semibold">Multi-Attempt Mode</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExportScoreMode('current')}
+                    className={`p-2.5 rounded-xl border text-left transition ${
+                      exportScoreMode === 'current'
+                        ? 'bg-indigo-950/40 border-indigo-500 text-indigo-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-bold text-xs block">Highest Score in All Attempts</span>
+                    <span className="text-[10px] text-zinc-500 block">Best performance across attempts</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportScoreMode('attempt_1')}
+                    className={`p-2.5 rounded-xl border text-left transition ${
+                      exportScoreMode === 'attempt_1'
+                        ? 'bg-indigo-950/40 border-indigo-500 text-indigo-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-bold text-xs block">First Attempt Score</span>
+                    <span className="text-[10px] text-zinc-500 block">Original baseline trial score</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sort By & Direction Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-300 font-semibold block mb-1">Sort Metric</label>
+                  <select
+                    value={exportSortBy}
+                    onChange={(e) => setExportSortBy(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs font-semibold"
+                  >
+                    <option value="final_weighted_score">Final Weighted Score</option>
+                    <option value="round1_score">Round 1 (Aptitude) Score</option>
+                    <option value="round2_score">Round 2 (Gaming) Score</option>
+                    <option value="round3_score">Round 3 (Interview) Score</option>
+                    <option value="name">Participant Name (A-Z)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 font-semibold block mb-1">Sort Direction</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setExportSortDir('desc')}
+                      className={`py-2 px-2.5 rounded-xl border font-bold text-xs text-center transition ${
+                        exportSortDir === 'desc'
+                          ? 'bg-indigo-600 border-indigo-500 text-white'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      High → Low
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExportSortDir('asc')}
+                      className={`py-2 px-2.5 rounded-xl border font-bold text-xs text-center transition ${
+                        exportSortDir === 'asc'
+                          ? 'bg-indigo-600 border-indigo-500 text-white'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Low → High
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Watermark Notice */}
+              <div className="p-3 rounded-2xl bg-indigo-950/30 border border-indigo-500/20 text-[11px] text-indigo-300 space-y-1">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Team Mavericks Protection &amp; Watermark</span>
+                </div>
+                <p className="text-indigo-400/80 leading-relaxed">
+                  Exported HTML and PDF reports include an official certified background watermark of the Team Mavericks crest with high resolution.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setExportModalOpen(false)}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExportWithOptions}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/25 flex items-center gap-2 cursor-pointer transition"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Now ({exportFormat.toUpperCase()})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. ATTEMPT HISTORY DETAIL MODAL (Shows all attempts for each participant with individual scores) */}
+      {historyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3.5 border-b border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    Attempt History: {historyParticipant?.full_name}
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">
+                    {historyParticipant?.email} • PRN: {historyParticipant?.prn || 'N/A'} • Key: {historyParticipant?.access_key}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setHistoryModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {historyLoading ? (
+              <div className="py-12 text-center text-zinc-400 text-xs">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-400" />
+                <span>Loading attempt telemetry records...</span>
+              </div>
+            ) : (
+              <div className="space-y-5 text-xs">
+                {/* Max Score Summary Header */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                    <span className="text-[10px] text-zinc-400 block">Round 1 (Aptitude) Max</span>
+                    <span className="text-base font-bold text-emerald-400 font-mono">
+                      {historyData?.max_aptitude_score ?? historyParticipant?.round1_score ?? 0} pts
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block">
+                      {historyData?.aptitude_sessions?.length || 0} attempt(s) taken
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                    <span className="text-[10px] text-zinc-400 block">Round 2 (Gaming) Max</span>
+                    <span className="text-base font-bold text-purple-400 font-mono">
+                      {historyParticipant?.round2_score ?? 0} pts
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block">
+                      {historyData?.game_sessions?.length || 0} challenge run(s)
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                    <span className="text-[10px] text-zinc-400 block">Final Authoritative</span>
+                    <span className="text-base font-bold text-indigo-400 font-mono">
+                      {Number(historyParticipant?.final_weighted_score || 0).toFixed(2)}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block uppercase font-semibold">
+                      {historyParticipant?.qualification_status?.replace(/_/g, ' ') || 'Round 1'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Round 1 Attempts Table */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
+                      <BrainCircuit className="w-4 h-4 text-emerald-400" />
+                      <span>Round 1: Cognitive Aptitude Attempts</span>
+                    </h4>
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      Allowed: {historyParticipant?.effective_attempts_r1 || 1}
+                    </span>
+                  </div>
+
+                  {(!historyData?.aptitude_sessions || historyData.aptitude_sessions.length === 0) ? (
+                    <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 text-center text-zinc-500">
+                      No aptitude test attempts recorded yet.
+                    </div>
+                  ) : (
+                    <div className="border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-950">
+                      <table className="w-full text-left">
+                        <thead className="bg-zinc-900/80 text-[10px] uppercase text-zinc-400 font-bold border-b border-zinc-800">
+                          <tr>
+                            <th className="p-2.5">Attempt</th>
+                            <th className="p-2.5">Date &amp; Time</th>
+                            <th className="p-2.5 text-center">Score</th>
+                            <th className="p-2.5 text-center">Percentage</th>
+                            <th className="p-2.5 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/60">
+                          {historyData.aptitude_sessions.map((sess, idx) => {
+                            const isMax = Number(sess.total_score) === Number(historyData.max_aptitude_score) && Number(sess.total_score) > 0;
+                            return (
+                              <tr key={sess.id} className="hover:bg-zinc-900/40">
+                                <td className="p-2.5 font-bold font-mono">
+                                  Attempt #{idx + 1}
+                                  {isMax && (
+                                    <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                      ⭐ Best
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-zinc-400 text-[11px] font-mono">
+                                  {sess.submitted_at ? new Date(sess.submitted_at).toLocaleString() : (sess.started_at ? new Date(sess.started_at).toLocaleString() : '—')}
+                                </td>
+                                <td className="p-2.5 text-center font-bold text-white font-mono">
+                                  {Number(sess.total_score || 0).toFixed(1)} / {sess.max_possible_score || 40}
+                                </td>
+                                <td className="p-2.5 text-center font-mono text-zinc-300">
+                                  {Number(sess.percentage || 0).toFixed(1)}%
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                    sess.status === 'submitted'
+                                      ? 'bg-emerald-500/20 text-emerald-300'
+                                      : sess.status === 'terminated'
+                                      ? 'bg-red-500/20 text-red-300'
+                                      : 'bg-zinc-800 text-zinc-400'
+                                  }`}>
+                                    {sess.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Round 2 Game Sessions Table */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-zinc-200 text-xs flex items-center gap-1.5">
+                      <Gamepad2 className="w-4 h-4 text-purple-400" />
+                      <span>Round 2: Gaming Arena Challenge Runs</span>
+                    </h4>
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      Allowed: {historyParticipant?.effective_attempts_r2 || 1}
+                    </span>
+                  </div>
+
+                  {(!historyData?.game_sessions || historyData.game_sessions.length === 0) ? (
+                    <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 text-center text-zinc-500">
+                      No gaming arena sessions recorded yet.
+                    </div>
+                  ) : (
+                    <div className="border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-950">
+                      <table className="w-full text-left">
+                        <thead className="bg-zinc-900/80 text-[10px] uppercase text-zinc-400 font-bold border-b border-zinc-800">
+                          <tr>
+                            <th className="p-2.5">Challenge Title</th>
+                            <th className="p-2.5">Date &amp; Time</th>
+                            <th className="p-2.5 text-center">Score</th>
+                            <th className="p-2.5 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/60">
+                          {historyData.game_sessions.map((gs) => (
+                            <tr key={gs.id} className="hover:bg-zinc-900/40">
+                              <td className="p-2.5 font-bold text-white">
+                                <div>{gs.game_title || gs.game_key}</div>
+                                <div className="text-[10px] text-zinc-500 font-mono">{gs.game_key}</div>
+                              </td>
+                              <td className="p-2.5 text-zinc-400 text-[11px] font-mono">
+                                {gs.completed_at ? new Date(gs.completed_at).toLocaleString() : (gs.started_at ? new Date(gs.started_at).toLocaleString() : '—')}
+                              </td>
+                              <td className="p-2.5 text-center font-bold text-purple-400 font-mono">
+                                {Number(gs.score || 0)} / {gs.max_score || 100}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                  gs.status === 'completed'
+                                    ? 'bg-emerald-500/20 text-emerald-300'
+                                    : 'bg-zinc-800 text-zinc-400'
+                                }`}>
+                                  {gs.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(false)}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. SHORTLIST CONFIRMATION MODAL (R1 -> R2 Progression Gate) */}
+      {shortlistModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-amber-500/50 rounded-3xl w-full max-w-lg p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <Star className="w-6 h-6 fill-amber-400 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Confirm Shortlist for Round 2 ({shortlistedIds.length} Selected)
+                </h3>
+                <p className="text-[11px] text-zinc-400">
+                  Authoritatively set round advancement and attempt allowances.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-amber-950/20 border border-amber-500/30 text-amber-300 space-y-2">
+                <p className="font-semibold text-amber-200">
+                  Eligibility &amp; Attempt Rules:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-amber-300/80 text-[11px]">
+                  <li><strong>Shortlisted candidates ({shortlistedIds.length}):</strong> Automatically granted <strong>1 attempt</strong> for Round 2 (Gaming Arena).</li>
+                  <li><strong>Non-shortlisted candidates:</strong> Round 2 attempts will be set to <strong>0</strong> (cannot access or play Round 2).</li>
+                  <li>Only candidates passing Round 1 will be able to start the Gaming Arena.</li>
+                </ul>
+              </div>
+
+              {/* Quick Select Buttons */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <span className="text-zinc-400">Quick selection:</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const top10 = [...leaderboard].sort((a,b) => Number(b.round1_score || 0) - Number(a.round1_score || 0)).slice(0, 10).map((p) => p.registration_id);
+                      setShortlistedIds(top10);
+                    }}
+                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[10px] font-semibold"
+                  >
+                    Top 10 R1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const top20 = [...leaderboard].sort((a,b) => Number(b.round1_score || 0) - Number(a.round1_score || 0)).slice(0, 20).map((p) => p.registration_id);
+                      setShortlistedIds(top20);
+                    }}
+                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[10px] font-semibold"
+                  >
+                    Top 20 R1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShortlistedIds(leaderboard.map((p) => p.registration_id))}
+                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[10px] font-semibold"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShortlistedIds([])}
+                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-rose-300 rounded-lg text-[10px] font-semibold"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setShortlistModalOpen(false)}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveShortlist}
+                disabled={isSavingShortlist}
+                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/25 flex items-center gap-2 cursor-pointer transition"
+              >
+                {isSavingShortlist ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                <span>Confirm &amp; Save Shortlist ({shortlistedIds.length})</span>
               </button>
             </div>
           </div>

@@ -471,7 +471,11 @@ const PublicEventsPage = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className={`w-full ${
+              filteredEvents.length === 1
+                ? 'max-w-4xl mx-auto'
+                : 'grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto'
+            }`}>
               {filteredEvents.map((ev, idx) => {
                 const eventFee = parseFloat(ev.registration_fee || 0) > 0
                   ? parseFloat(ev.registration_fee)
@@ -483,7 +487,7 @@ const PublicEventsPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="h-full flex flex-col"
+                    className="h-full flex flex-col w-full"
                   >
                     <ElectricBorder
                       color={isDark ? '#38bdf8' : '#1e40af'}
@@ -497,30 +501,46 @@ const PublicEventsPage = () => {
                           isDark ? 'bg-[#0E172A] border-[#1E293B]' : 'bg-white border-slate-200'
                         }`}
                       >
-                        {/* Banner / Cover */}
-                        <div className="relative h-48 w-full bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden shrink-0">
+                        {/* Banner / Cover - Wider viewport & object-contain with ambient backdrop glow to show full banner */}
+                        <div className="relative w-full aspect-[21/9] sm:aspect-[24/8] md:aspect-[3.6/1] min-h-[160px] max-h-[320px] bg-gradient-to-br from-zinc-900 to-zinc-950 overflow-hidden shrink-0 flex items-center justify-center">
                           {ev.cover_image_url || ev.banner_url ? (
-                            <img
-                              src={(() => {
-                                const raw = ev.cover_image_url || ev.banner_url;
-                                if (!raw) return '';
-                                if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-                                const clean = raw.startsWith('/') ? raw : `/${raw}`;
-                                return `${BASE_URL}${clean}`;
-                              })()}
-                              alt={ev.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              onError={(e) => {
-                                const raw = ev.cover_image_url || ev.banner_url;
-                                if (raw && !e.currentTarget.dataset.fallbackTried) {
-                                  e.currentTarget.dataset.fallbackTried = 'true';
-                                  e.currentTarget.src = raw;
-                                  return;
-                                }
-                                e.target.onerror = null;
-                                e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200';
-                              }}
-                            />
+                            <div className="w-full h-full relative flex items-center justify-center overflow-hidden">
+                              {/* Ambient blurred glow to fill background smoothly */}
+                              <img
+                                src={(() => {
+                                  const raw = ev.cover_image_url || ev.banner_url;
+                                  if (!raw) return '';
+                                  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+                                  const clean = raw.startsWith('/') ? raw : `/${raw}`;
+                                  return `${BASE_URL}${clean}`;
+                                })()}
+                                alt=""
+                                aria-hidden="true"
+                                className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-125 pointer-events-none"
+                              />
+                              {/* Full Crisp Banner Image (100% visible, zero edge clipping) */}
+                              <img
+                                src={(() => {
+                                  const raw = ev.cover_image_url || ev.banner_url;
+                                  if (!raw) return '';
+                                  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+                                  const clean = raw.startsWith('/') ? raw : `/${raw}`;
+                                  return `${BASE_URL}${clean}`;
+                                })()}
+                                alt={ev.name}
+                                className="relative z-10 w-full h-full object-contain object-center group-hover:scale-[1.01] transition-transform duration-500"
+                                onError={(e) => {
+                                  const raw = ev.cover_image_url || ev.banner_url;
+                                  if (raw && !e.currentTarget.dataset.fallbackTried) {
+                                    e.currentTarget.dataset.fallbackTried = 'true';
+                                    e.currentTarget.src = raw;
+                                    return;
+                                  }
+                                  e.target.onerror = null;
+                                  e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200';
+                                }}
+                              />
+                            </div>
                           ) : (
                             <div className="w-full h-full flex items-center justify-center p-6 bg-gradient-to-tr from-blue-900/40 via-indigo-950/40 to-zinc-900">
                               <span className="font-black text-2xl tracking-tighter text-white/30 text-center uppercase">
@@ -530,7 +550,7 @@ const PublicEventsPage = () => {
                           )}
 
                           {/* Badges */}
-                          <div className="absolute top-4 left-4 flex gap-2">
+                          <div className="absolute top-4 left-4 flex gap-2 z-20">
                             <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/10">
                               {ev.mode}
                             </span>
@@ -541,7 +561,7 @@ const PublicEventsPage = () => {
                             )}
                           </div>
 
-                          <div className="absolute top-4 right-4">
+                          <div className="absolute top-4 right-4 z-20">
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-lg">
                               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                               Reg Open
@@ -550,40 +570,42 @@ const PublicEventsPage = () => {
                         </div>
 
                         {/* Body */}
-                        <div className="p-6 flex-1 flex flex-col justify-between">
+                        <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between">
                           <div>
-                            <h3 className="text-xl font-black text-zinc-900 dark:text-white tracking-tight group-hover:text-primary-blue transition-colors">
-                              {ev.name}
-                            </h3>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight group-hover:text-primary-blue transition-colors">
+                                {ev.name}
+                              </h3>
+                              {ev.start_date && (
+                                <span className="font-mono text-xs text-primary-blue font-bold px-3 py-1 rounded-xl bg-blue-500/10 border border-blue-500/20 w-fit">
+                                  {formatDate(ev.start_date)}
+                                </span>
+                              )}
+                            </div>
+
                             {ev.description && (
-                              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                              <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                                 {ev.description}
                               </p>
                             )}
 
-                            <div className="mt-5 space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-                              {ev.start_date && (
-                                <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                  <Calendar size={14} className="text-primary-blue shrink-0" />
-                                  <span>{formatDate(ev.start_date)}</span>
-                                </div>
-                              )}
+                            <div className="mt-5 flex flex-wrap items-center gap-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 font-medium">
                               {ev.location && (
-                                <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                <div className="flex items-center gap-2">
                                   <MapPin size={14} className="text-rose-500 shrink-0" />
-                                  <span className="truncate">{ev.location}</span>
+                                  <span>{ev.location}</span>
                                 </div>
                               )}
                               {ev.organizer_name && (
-                                <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                <div className="flex items-center gap-2">
                                   <Users size={14} className="text-indigo-400 shrink-0" />
-                                  <span className="truncate">By {ev.organizer_name}</span>
+                                  <span>By {ev.organizer_name}</span>
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <div className="mt-6 pt-4">
+                          <div className="mt-6 pt-4 flex sm:justify-end">
                             <SpecularButton
                               size="md"
                               radius={16}
@@ -592,7 +614,7 @@ const PublicEventsPage = () => {
                               baseColor={isDark ? '#27272a' : '#d4d4d8'}
                               tint={isDark ? '#000000' : '#ffffff'}
                               tintOpacity={isDark ? 0.3 : 0.8}
-                              className="w-full"
+                              className="w-full sm:w-auto sm:min-w-[220px]"
                               onClick={() => navigate(`/events/${ev.slug}`)}
                             >
                               <span>Register for Event</span>

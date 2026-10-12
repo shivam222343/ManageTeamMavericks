@@ -552,13 +552,9 @@ const MindSagaGamingArenaPage = () => {
       setIsTransitioning(false);
       setGameResult(null);
 
-      const isSelfTimed = (
-        data.game_key === 'motion_challenge' ||
-        data.game_key === 'switch_challenge' ||
-        gameConfig?.game_key === 'motion_challenge' ||
-        gameConfig?.game_key === 'switch_challenge'
-      );
-      setIsTimerRunning(!isSelfTimed); // Self-timed challenges start when participant clicks Play!
+      // All challenge games have an intro/splash screen with a "Start Challenge / Play" button.
+      // Timer MUST NOT start until the participant explicitly clicks Play (via onStartTimer).
+      setIsTimerRunning(false);
 
       if (data.game_key === 'deductive_logic' || gameConfig?.game_key === 'deductive_logic') {
         const pList = data.puzzle_data || [];
@@ -1256,7 +1252,9 @@ const MindSagaGamingArenaPage = () => {
               } catch (e) {}
             }}
             onGameComplete={() => {
-              handleCompleteCurrentGame();
+              if (remainingSeconds <= 0) {
+                handleCompleteCurrentGame();
+              }
             }}
           />
         )}
@@ -1286,7 +1284,9 @@ const MindSagaGamingArenaPage = () => {
               } catch (e) {}
             }}
             onGameComplete={() => {
-              handleCompleteCurrentGame();
+              if (remainingSeconds <= 0) {
+                handleCompleteCurrentGame();
+              }
             }}
           />
         )}

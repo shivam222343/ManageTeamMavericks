@@ -207,6 +207,9 @@ class MindSagaController {
             $db->exec("ALTER TABLE mind_saga_scores ADD COLUMN max_attempts_r3 INT DEFAULT NULL");
         } catch (\Exception $e) {}
         try {
+            $db->exec("ALTER TABLE mind_saga_scores ADD COLUMN is_shortlisted TINYINT(1) NOT NULL DEFAULT 0");
+        } catch (\Exception $e) {}
+        try {
             $db->exec("ALTER TABLE mind_saga_test_sessions ADD COLUMN latest_snapshot MEDIUMTEXT DEFAULT NULL");
         } catch (\Exception $e) {}
         try {
@@ -1716,9 +1719,19 @@ class MindSagaController {
         }
 
         if ($roundType === 'round1') {
-            $db->prepare("UPDATE mind_saga_scores SET round1_score = ?, round1_max = ?, updated_at = NOW() WHERE id = ?")->execute([$score, $maxScore, $rowId]);
+            // Pick MAX score across all aptitude test sessions for this participant
+            $maxStmt = $db->prepare("SELECT MAX(total_score) FROM mind_saga_test_sessions WHERE sub_event_id = ? AND registration_id = ? AND status IN ('submitted', 'auto_submitted', 'terminated')");
+            $maxStmt->execute([$subEventId, $regId]);
+            $maxApt = $maxStmt->fetchColumn();
+            $effectiveScore = ($maxApt !== false && $maxApt !== null) ? max((float)$maxApt, (float)$score) : (float)$score;
+            $db->prepare("UPDATE mind_saga_scores SET round1_score = ?, round1_max = ?, updated_at = NOW() WHERE id = ?")->execute([$effectiveScore, $maxScore, $rowId]);
         } else if ($roundType === 'round2') {
-            $db->prepare("UPDATE mind_saga_scores SET round2_score = ?, round2_max = ?, updated_at = NOW() WHERE id = ?")->execute([$score, $maxScore, $rowId]);
+            // Pick MAX score across runs
+            $curStmt = $db->prepare("SELECT round2_score FROM mind_saga_scores WHERE id = ?");
+            $curStmt->execute([$rowId]);
+            $curR2 = (float)($curStmt->fetchColumn() ?: 0);
+            $effectiveScore = max($curR2, (float)$score);
+            $db->prepare("UPDATE mind_saga_scores SET round2_score = ?, round2_max = ?, updated_at = NOW() WHERE id = ?")->execute([$effectiveScore, $maxScore, $rowId]);
         } else if ($roundType === 'round3') {
             $db->prepare("UPDATE mind_saga_scores SET round3_score = ?, round3_max = ?, updated_at = NOW() WHERE id = ?")->execute([$score, $maxScore, $rowId]);
         }
@@ -2730,6 +2743,91 @@ class MindSagaController {
     }
 
     /**
+     * POST /events/{id}/sub-events/{subId}/mind-saga/shortlist
+     * Shortlist selected participants from Round 1 for Round 2.
+     * - Sets is_shortlisted = 1 for listed IDs, 0 for all others in sub-event.
+     * - If shortlisted: sets max_attempts_r2 = 1; if not: sets max_attempts_r2 = 0.
+     */
+    public static function shortlistParticipants(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $regIds = array_map('intval', $body['registration_ids'] ?? []);
+        $action = $body['action'] ?? 'set'; // 'set' = replace all, 'add' = add to existing
+
+        if ($action === 'set') {
+            // First reset all: is_shortlisted = 0, max_attempts_r2 = 0
+            $db->prepare("UPDATE mind_saga_scores SET is_shortlisted = 0, max_attempts_r2 = 0, updated_at = NOW() WHERE sub_event_id = ?")->execute([$subId]);
+        }
+
+        $count = 0;
+        if (!empty($regIds)) {
+            $placeholders = implode(',', array_fill(0, count($regIds), '?'));
+            // Mark shortlisted: is_shortlisted = 1, max_attempts_r2 = 1
+            $stmt = $db->prepare("UPDATE mind_saga_scores SET is_shortlisted = 1, max_attempts_r2 = 1, updated_at = NOW() WHERE sub_event_id = ? AND registration_id IN ({$placeholders})");
+            $stmt->execute(array_merge([$subId], $regIds));
+            $count = $stmt->rowCount();
+        }
+
+        Router::sendJson([
+            'success' => true,
+            'shortlisted_count' => $count,
+            'message' => "Shortlisted {$count} participant(s). All others set to 0 Round 2 attempts."
+        ]);
+    }
+
+    /**
+     * GET /events/{id}/sub-events/{subId}/mind-saga/participant-history?registration_id=X
+     * Returns all aptitude test attempt sessions and game sessions for a single participant.
+     */
+    public static function getParticipantHistory(array $params): void {
+        AuthMiddleware::authenticate(['coordinator', 'core_member', 'member']);
+        $db = Database::getConnection();
+        $subId = (int)$params['subId'];
+        $regId = (int)($_GET['registration_id'] ?? 0);
+
+        if (!$regId) {
+            Router::sendJson(['error' => 'registration_id is required'], 400);
+            return;
+        }
+
+        // All aptitude test sessions (each attempt)
+        $sessStmt = $db->prepare("SELECT id, session_token, started_at, expires_at, status, total_score, max_possible_score, percentage, violation_count, submitted_at FROM mind_saga_test_sessions WHERE sub_event_id = ? AND registration_id = ? ORDER BY id ASC");
+        $sessStmt->execute([$subId, $regId]);
+        $aptitudeSessions = $sessStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // All game sessions (each attempt)
+        $gSessStmt = $db->prepare("SELECT gs.id, gs.game_config_id, gs.session_token, gs.started_at, gs.expires_at, gs.status, gs.score, gs.max_score, gs.completed_at, gc.game_key, gc.title as game_title FROM mind_saga_game_sessions gs JOIN mind_saga_game_configs gc ON gs.game_config_id = gc.id WHERE gs.sub_event_id = ? AND gs.registration_id = ? ORDER BY gs.id ASC");
+        $gSessStmt->execute([$subId, $regId]);
+        $gameSessions = $gSessStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Current master score record
+        $scoreStmt = $db->prepare("SELECT * FROM mind_saga_scores WHERE sub_event_id = ? AND registration_id = ?");
+        $scoreStmt->execute([$subId, $regId]);
+        $score = $scoreStmt->fetch(PDO::FETCH_ASSOC);
+
+        // Compute max aptitude score across attempts
+        $maxAptScore = 0;
+        $maxAptPercent = 0;
+        foreach ($aptitudeSessions as $s) {
+            if ((float)$s['total_score'] > $maxAptScore) {
+                $maxAptScore = (float)$s['total_score'];
+                $maxAptPercent = (float)$s['percentage'];
+            }
+        }
+
+        Router::sendJson([
+            'aptitude_sessions' => $aptitudeSessions,
+            'game_sessions' => $gameSessions,
+            'score' => $score,
+            'max_aptitude_score' => $maxAptScore,
+            'max_aptitude_percent' => $maxAptPercent
+        ]);
+    }
+
+    /**
      * POST /events/{id}/sub-events/{subId}/mind-saga/participants/reset-attempt
      * Reset a participant's attempt for Round 1, 2, or 3.
      * Actions:
@@ -3595,6 +3693,123 @@ class MindSagaController {
             ]
         ];
 
+        // Procedurally append levels 11 through 60 (50+ progressive levels)
+        $colorKeys = array_keys($colors);
+        for ($lvl = 11; $lvl <= 60; $lvl++) {
+            $gRows = 3;
+            $gCols = 3;
+            $bCount = 3;
+            $obsCount = 1;
+            $optMoves = 4;
+            $maxMoves = 10;
+            $diff = 'easy';
+
+            if ($lvl > 50) {
+                $gRows = 5;
+                $gCols = 5;
+                $bCount = min(8, 6 + ($lvl % 3));
+                $obsCount = 3;
+                $optMoves = 14 + ($lvl % 5);
+                $maxMoves = 28 + ($lvl % 5);
+                $diff = 'expert';
+            } else if ($lvl > 35) {
+                $gRows = 5;
+                $gCols = 5;
+                $bCount = min(7, 5 + ($lvl % 3));
+                $obsCount = $lvl > 43 ? 3 : 2;
+                $optMoves = 9 + ($lvl % 5);
+                $maxMoves = 18 + ($lvl % 5);
+                $diff = 'hard';
+            } else if ($lvl > 15) {
+                $gRows = 4;
+                $gCols = 4;
+                $bCount = min(5, 3 + ($lvl % 3));
+                $obsCount = $lvl > 25 ? 2 : 1;
+                $optMoves = 5 + ($lvl % 4);
+                $maxMoves = 13 + ($lvl % 4);
+                $diff = 'medium';
+            } else {
+                $gRows = 3;
+                $gCols = 3;
+                $bCount = 3;
+                $obsCount = 1;
+                $optMoves = 4;
+                $maxMoves = 10;
+                $diff = 'easy';
+            }
+
+            $orientation = ($lvl - 1) % 4;
+            if ($orientation === 0) {
+                $bPos = ['r' => 0, 'c' => 0];
+                $hPos = ['r' => $gRows - 1, 'c' => $gCols - 1];
+            } else if ($orientation === 1) {
+                $bPos = ['r' => $gRows - 1, 'c' => 0];
+                $hPos = ['r' => 0, 'c' => $gCols - 1];
+            } else if ($orientation === 2) {
+                $bPos = ['r' => 0, 'c' => $gCols - 1];
+                $hPos = ['r' => $gRows - 1, 'c' => 0];
+            } else {
+                $bPos = ['r' => (int)floor($gRows / 2), 'c' => 0];
+                $hPos = ['r' => (int)floor($gRows / 2), 'c' => $gCols - 1];
+            }
+
+            $obs = [];
+            $candObs = [];
+            for ($r = 1; $r < $gRows - 1; $r++) {
+                for ($c = 1; $c < $gCols - 1; $c++) {
+                    if (($r === $bPos['r'] && $c === $bPos['c']) || ($r === $hPos['r'] && $c === $hPos['c'])) continue;
+                    $candObs[] = ['r' => $r, 'c' => $c];
+                }
+            }
+            shuffle($candObs);
+            for ($o = 0; $o < min($obsCount, count($candObs)); $o++) {
+                $obs[] = ['r' => $candObs[$o]['r'], 'c' => $candObs[$o]['c'], 'label' => 'X'];
+            }
+
+            $candBlocks = [];
+            for ($r = 0; $r < $gRows; $r++) {
+                for ($c = 0; $c < $gCols; $c++) {
+                    if (($r === $bPos['r'] && $c === $bPos['c']) || ($r === $hPos['r'] && $c === $hPos['c'])) continue;
+                    $isBlocked = false;
+                    foreach ($obs as $ob) {
+                        if ($ob['r'] === $r && $ob['c'] === $c) { $isBlocked = true; break; }
+                    }
+                    if (!$isBlocked) $candBlocks[] = ['r' => $r, 'c' => $c];
+                }
+            }
+            shuffle($candBlocks);
+
+            $blks = [];
+            $actualBCount = min($bCount, max(1, count($candBlocks) - 2));
+            for ($b = 0; $b < $actualBCount; $b++) {
+                $cKey = $colorKeys[$b % count($colorKeys)];
+                $blks[] = [
+                    'id' => 'b' . ($b + 1),
+                    'r' => $candBlocks[$b]['r'],
+                    'c' => $candBlocks[$b]['c'],
+                    'color' => $colors[$cKey],
+                    'colorName' => $cKey,
+                    'isFixed' => false
+                ];
+            }
+
+            $levels[] = [
+                'level' => $lvl,
+                'title' => "Level {$lvl}: {$gRows}x{$gCols} Spatial Labyrinth",
+                'difficulty' => $diff,
+                'grid_rows' => $gRows,
+                'grid_cols' => $gCols,
+                'ball' => $bPos,
+                'hole' => $hPos,
+                'blocks' => $blks,
+                'obstacles' => $obs,
+                'optimal_moves' => $optMoves,
+                'max_moves' => $maxMoves,
+                'points_award' => 4,
+                'penalty_deduct' => 1
+            ];
+        }
+
         return [
             'game_key' => 'motion_challenge',
             'title' => 'MOTION CHALLENGE',
@@ -3609,20 +3824,20 @@ class MindSagaController {
     }
 
     /**
-     * Generate Latin Square deductive logic puzzles with single question mark (?) and increasing difficulty.
-     * Starts at 3x3 (levels 1-5), progresses to 4x4 (levels 6-15), then 5x5 (levels 16-35).
+     * Generate Latin Square deductive logic puzzles with empty cells, filled clues, single '?' and increasing difficulty.
+     * Starts at 3x3 (levels 1-15), progresses to 4x4 (levels 16-35), then 5x5 (levels 36-60).
      */
     public static function generateLatinSquarePuzzles(string $difficulty = 'medium'): array {
         $allSymbols = ['plus', 'square', 'circle', 'triangle', 'diamond'];
         $puzzles = [];
-        $puzzleCount = 35;
+        $puzzleCount = 60;
 
         for ($i = 1; $i <= $puzzleCount; $i++) {
-            // Increasing level: 3x3 for first 5, 4x4 for next 10, 5x5 for remaining
+            // Increasing level: 3x3 for first 15, 4x4 for next 20, 5x5 for remaining
             $n = 3;
-            if ($i > 15) {
+            if ($i > 35) {
                 $n = 5;
-            } else if ($i > 5) {
+            } else if ($i > 15) {
                 $n = 4;
             }
 
@@ -3671,9 +3886,109 @@ class MindSagaController {
             $targetC = rand(0, $n - 1);
             $correctSymbol = $solution[$targetR][$targetC];
 
-            // 6. Clues grid is complete except the single target hole
-            $cluesGrid = $solution;
-            $cluesGrid[$targetR][$targetC] = null; // null represents the single '?'
+            // 6. Build clues grid: some cells filled, some cells empty, 1 '?' target
+            $cluesGrid = [];
+            for ($r = 0; $r < $n; $r++) {
+                $cluesGrid[$r] = array_fill(0, $n, null);
+            }
+
+            if ($n === 3) {
+                // 3x3 Special Progressive Balancing: NEVER reveal 2 cells in target row or target col!
+                $otherRowCols = array_values(array_filter([0, 1, 2], fn($c) => $c !== $targetC));
+                $otherColRows = array_values(array_filter([0, 1, 2], fn($r) => $r !== $targetR));
+
+                if ($i <= 3) {
+                    // Level 1-3: Intro - 1 clue in target row, 1 clue in target col, 1 background clue
+                    $pickC = $otherRowCols[array_rand($otherRowCols)];
+                    $cluesGrid[$targetR][$pickC] = $solution[$targetR][$pickC];
+
+                    $pickR = $otherColRows[array_rand($otherColRows)];
+                    $cluesGrid[$pickR][$targetC] = $solution[$pickR][$targetC];
+
+                    $bgR = $otherColRows[0] === $pickR ? $otherColRows[1] : $otherColRows[0];
+                    $bgC = $otherRowCols[0] === $pickC ? $otherRowCols[1] : $otherRowCols[0];
+                    $cluesGrid[$bgR][$bgC] = $solution[$bgR][$bgC];
+                } else if ($i <= 8) {
+                    // Level 4-8: Medium - Only 1 direct clue (either in row OR col, not both!), plus 2 background clues
+                    $revealInRow = (rand(0, 1) === 1);
+                    if ($revealInRow) {
+                        $pickC = $otherRowCols[array_rand($otherRowCols)];
+                        $cluesGrid[$targetR][$pickC] = $solution[$targetR][$pickC];
+                    } else {
+                        $pickR = $otherColRows[array_rand($otherColRows)];
+                        $cluesGrid[$pickR][$targetC] = $solution[$pickR][$targetC];
+                    }
+
+                    $bgCells = [];
+                    foreach ($otherColRows as $r) {
+                        foreach ($otherRowCols as $c) {
+                            $bgCells[] = ['r' => $r, 'c' => $c];
+                        }
+                    }
+                    shuffle($bgCells);
+                    for ($b = 0; $b < 2; $b++) {
+                        $cluesGrid[$bgCells[$b]['r']][$bgCells[$b]['c']] = $solution[$bgCells[$b]['r']][$bgCells[$b]['c']];
+                    }
+                } else {
+                    // Level 9-15: Hard - Zero direct clues in target row AND zero in target col!
+                    $bgCells = [];
+                    foreach ($otherColRows as $r) {
+                        foreach ($otherRowCols as $c) {
+                            $bgCells[] = ['r' => $r, 'c' => $c];
+                        }
+                    }
+                    shuffle($bgCells);
+                    for ($b = 0; $b < 3; $b++) {
+                        $cluesGrid[$bgCells[$b]['r']][$bgCells[$b]['c']] = $solution[$bgCells[$b]['r']][$bgCells[$b]['c']];
+                    }
+                }
+            } else {
+                // 4x4 and 5x5 grids
+                $otherSymbols = array_values(array_filter($symbols, function($s) use ($correctSymbol) {
+                    return $s !== $correctSymbol;
+                }));
+                shuffle($otherSymbols);
+
+                $rowCount = (int)min($n - 2, ceil(count($otherSymbols) / 2));
+                $rowSymbolsToKeep = array_slice($otherSymbols, 0, $rowCount);
+                $colSymbolsToKeep = array_slice($otherSymbols, $rowCount, min($n - 2, count($otherSymbols) - $rowCount));
+
+                // Place row clues
+                for ($c = 0; $c < $n; $c++) {
+                    if ($c === $targetC) continue;
+                    if (in_array($solution[$targetR][$c], $rowSymbolsToKeep)) {
+                        $cluesGrid[$targetR][$c] = $solution[$targetR][$c];
+                    }
+                }
+
+                // Place col clues
+                for ($r = 0; $r < $n; $r++) {
+                    if ($r === $targetR) continue;
+                    if (in_array($solution[$r][$targetC], $colSymbolsToKeep)) {
+                        $cluesGrid[$r][$targetC] = $solution[$r][$targetC];
+                    }
+                }
+
+                // Place background clues
+                $bgCells = [];
+                for ($r = 0; $r < $n; $r++) {
+                    for ($c = 0; $c < $n; $c++) {
+                        if ($r !== $targetR && $c !== $targetC) {
+                            $bgCells[] = ['r' => $r, 'c' => $c];
+                        }
+                    }
+                }
+                shuffle($bgCells);
+
+                $bgCount = $n === 4 ? ($i <= 25 ? 4 : 3) : ($i <= 45 ? 8 : 6);
+                for ($b = 0; $b < min($bgCount, count($bgCells)); $b++) {
+                    $cell = $bgCells[$b];
+                    $cluesGrid[$cell['r']][$cell['c']] = $solution[$cell['r']][$cell['c']];
+                }
+            }
+
+            // Explicitly mark target hole as '?'
+            $cluesGrid[$targetR][$targetC] = '?';
 
             $puzzles[] = [
                 'id' => 'p' . $i,
@@ -3873,6 +4188,127 @@ class MindSagaController {
                 'options' => ['615234', '165234', '612534', '651234']
             ]
         ];
+
+        // Procedurally append levels 13 through 60 (50+ progressive levels)
+        $allSymbols = ['triangle', 'square', 'circle', 'plus', 'cross', 'percent'];
+        for ($lvl = 13; $lvl <= 60; $lvl++) {
+            $mode = 'single';
+            $count = 4;
+            $timeLimit = 25;
+
+            if ($lvl > 55) {
+                $mode = 'dual';
+                $count = 6;
+                $timeLimit = 18;
+            } else if ($lvl > 45) {
+                $mode = 'single';
+                $count = 6;
+                $timeLimit = 20;
+            } else if ($lvl > 35) {
+                $mode = 'dual';
+                $count = 5;
+                $timeLimit = 22;
+            } else if ($lvl > 25) {
+                $mode = 'single';
+                $count = 5;
+                $timeLimit = 22;
+            } else if ($lvl > 15) {
+                $mode = 'dual';
+                $count = 4;
+                $timeLimit = 25;
+            } else {
+                $mode = 'single';
+                $count = 4;
+                $timeLimit = 25;
+            }
+
+            $syms = array_slice($allSymbols, 0, $count);
+            shuffle($syms);
+            $input = $syms;
+
+            // Generate non-identity permutation of 1..count
+            $base = range(1, $count);
+            $perm = $base;
+            shuffle($perm);
+            if ($perm === $base) {
+                $tmp = $perm[0];
+                $perm[0] = $perm[1];
+                $perm[1] = $tmp;
+            }
+
+            $apply = function($sList, $p) {
+                $out = [];
+                foreach ($p as $idx) {
+                    $out[] = $sList[$idx - 1];
+                }
+                return $out;
+            };
+
+            $inter = null;
+            $correct = '';
+            $output = [];
+
+            if ($mode === 'single') {
+                $correct = implode('', $perm);
+                $output = $apply($input, $perm);
+            } else {
+                $perm2 = $base;
+                shuffle($perm2);
+                if ($perm2 === $base) {
+                    $tmp = $perm2[0];
+                    $perm2[0] = $perm2[1];
+                    $perm2[1] = $tmp;
+                }
+                $inter = implode('', $perm);
+                $correct = implode('', $perm2);
+                $interSymbols = $apply($input, $perm);
+                $output = $apply($interSymbols, $perm2);
+            }
+
+            // Distractors
+            $distractors = [];
+            $digits = str_split($correct);
+            
+            // D1: swap first two
+            $d1 = $digits;
+            $t = $d1[0]; $d1[0] = $d1[1]; $d1[1] = $t;
+            $d1S = implode('', $d1);
+            if ($d1S !== $correct) $distractors[$d1S] = true;
+
+            // D2: swap last two
+            $d2 = $digits;
+            $t = $d2[$count - 1]; $d2[$count - 1] = $d2[$count - 2]; $d2[$count - 2] = $t;
+            $d2S = implode('', $d2);
+            if ($d2S !== $correct) $distractors[$d2S] = true;
+
+            // D3: cycle shift
+            $d3 = array_merge([$digits[$count - 1]], array_slice($digits, 0, $count - 1));
+            $d3S = implode('', $d3);
+            if ($d3S !== $correct) $distractors[$d3S] = true;
+
+            while (count($distractors) < 3) {
+                $pAlt = $base;
+                shuffle($pAlt);
+                $altS = implode('', $pAlt);
+                if ($altS !== $correct) $distractors[$altS] = true;
+            }
+
+            $opts = array_merge([$correct], array_slice(array_keys($distractors), 0, 3));
+            shuffle($opts);
+
+            $levelConfigs[] = [
+                'level' => $lvl,
+                'title' => "Level {$lvl}: {$count}-Symbol " . ($mode === 'dual' ? 'Dual' : 'Single') . " Switch",
+                'mode' => $mode,
+                'count' => $count,
+                'time' => $timeLimit,
+                'input' => $input,
+                'intermediate' => $inter,
+                'output' => $output,
+                'correct' => $correct,
+                'options' => $opts
+            ];
+        }
 
         $levels = [];
         foreach ($levelConfigs as $cfg) {

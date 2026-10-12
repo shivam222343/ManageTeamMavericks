@@ -174,6 +174,7 @@ $router->addRoute('GET',    '/events/slug/{slug}/form',            [EventRegistr
 $router->addRoute('GET',    '/event-registrations/{id}',           [EventRegistrationController::class, 'get']);
 $router->addRoute('PATCH',  '/event-registrations/{id}/status',    [EventRegistrationController::class, 'updateStatus']);
 $router->addRoute('DELETE', '/event-registrations/{id}',           [EventRegistrationController::class, 'delete']);
+$router->addRoute('POST',   '/event-registrations/bulk-delete',    [EventRegistrationController::class, 'bulkDelete']);
 
 // --- EVENT SUB-EVENTS ROUTES ---
 $router->addRoute('GET',    '/events/{id}/sub-events',                 [EventSubEventController::class, 'list']);
@@ -252,6 +253,8 @@ $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/proctorin
 // Mind Saga Master Leaderboard, Participant Status & Qualification
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/leaderboard',               [MindSagaController::class, 'getLeaderboard']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/promote',                   [MindSagaController::class, 'promoteParticipants']);
+$router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/shortlist',                 [MindSagaController::class, 'shortlistParticipants']);
+$router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/participant-history',       [MindSagaController::class, 'getParticipantHistory']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/participants/attempts',      [MindSagaController::class, 'updateParticipantAttempts']);
 $router->addRoute('POST',   '/events/{id}/sub-events/{subId}/mind-saga/participants/reset-attempt',  [MindSagaController::class, 'resetParticipantAttempt']);
 $router->addRoute('GET',    '/events/{id}/sub-events/{subId}/mind-saga/participant-status',        [MindSagaController::class, 'getParticipantStatus']);

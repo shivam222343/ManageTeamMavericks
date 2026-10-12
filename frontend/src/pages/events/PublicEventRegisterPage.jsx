@@ -41,10 +41,11 @@ import {
   Square,
   Lock
 } from 'lucide-react';
-import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
+import { BASE_URL } from '../../config/api';
 import Footer from '../../components/layout/Footer';
 import ElectricBorder from '../../components/ui/ElectricBorder';
+import MajorLoader from '../../components/ui/MajorLoader';
 import { FLAGSHIP_EVENTS_DATA } from './PublicEventsPage';
 
 const DEFAULT_EVENT_INFO = {
@@ -1955,80 +1956,119 @@ const PublicEventRegisterPage = () => {
                       </span>
                     </div>
 
-                    {/* Razorpay Gateway Mode */}
-                    {event?.payment_method === 'razorpay' ? (
-                      <div className={`p-6 rounded-2xl border space-y-5 ${isDark ? 'bg-[#070C18] border-[#1E293B]' : 'bg-slate-50 border-slate-200'}`}>
-                        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="text-blue-600 dark:text-blue-400" size={18} />
-                            <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                              Razorpay Checkout Gateway
-                            </span>
-                          </div>
-                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-400 font-mono">
-                            Instant Verification
-                          </span>
-                        </div>
+                    {/* Payment Mode Selection / Display */}
+                    {(() => {
+                      const hasAdminQr = Boolean(event?.qr_code_url);
+                      const isPureRazorpay = event?.payment_method === 'razorpay' && !hasAdminQr;
 
-                        <div className="text-center py-6 px-4 border border-dashed border-blue-500/30 rounded-xl bg-blue-50/50 dark:bg-blue-500/5 space-y-3">
-                          <CreditCard size={32} className="mx-auto text-blue-600 dark:text-blue-400 opacity-90" />
-                          <div>
-                            <h5 className="text-sm font-black text-zinc-900 dark:text-white">Ready for Razorpay Payment</h5>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-sm mx-auto font-medium">
-                              Click "Submit Registration" below to finalize your registration and proceed with the automated Razorpay payment.
-                            </p>
-                          </div>
-                          <div className="flex items-center justify-center gap-3 text-[11px] text-slate-600 dark:text-slate-400 pt-2 font-mono font-semibold">
-                            <span>UPI</span> • <span>Cards</span> • <span>Net Banking</span> • <span>Wallets</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Manual UPI / QR Code Mode */
-                      <div className={`p-6 rounded-2xl border space-y-5 ${isDark ? 'bg-[#070C18] border-[#1E293B]' : 'bg-slate-50 border-slate-200'}`}>
-                        {/* Custom Instructions if provided */}
-                        {event?.payment_instructions && (
-                          <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25 text-blue-700 dark:text-blue-400 text-xs">
-                            <Info size={18} className="shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
-                            <p className="whitespace-pre-line text-blue-950 dark:text-blue-200 leading-relaxed font-semibold">
-                              {event.payment_instructions}
-                            </p>
-                          </div>
-                        )}
+                      const resolveMediaUrl = (path) => {
+                        if (!path) return '';
+                        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) return path;
+                        const cleanBase = (BASE_URL || window.location.origin).replace(/\/+$/, '');
+                        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+                        return `${cleanBase}${cleanPath}`;
+                      };
 
-                        {/* QR Code & Payment Info Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center pb-4 border-b border-slate-200 dark:border-slate-800">
-                          {/* QR Code Display */}
-                          <div className="text-center space-y-2">
-                            <div className="inline-block p-3 rounded-2xl bg-white border border-slate-200 shadow-md">
-                              <img
-                                src={
-                                  event?.qr_code_url
-                                    ? (event.qr_code_url.startsWith('http') ? event.qr_code_url : `http://localhost:8000${event.qr_code_url}`)
-                                    : `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=upi://pay?pa=teammavericks@okaxis&pn=Team%20Mavericks&am=${effectiveFee.toFixed(0)}&cu=INR`
-                                }
-                                alt="Payment QR Code"
-                                className="w-36 h-36 object-contain rounded-lg mx-auto"
-                              />
+                      if (isPureRazorpay) {
+                        return (
+                          <div className={`p-6 rounded-2xl border space-y-5 ${isDark ? 'bg-[#070C18] border-[#1E293B]' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+                              <div className="flex items-center gap-2">
+                                <CreditCard className="text-blue-600 dark:text-blue-400" size={18} />
+                                <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                                  Razorpay Checkout Gateway
+                                </span>
+                              </div>
+                              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-400 font-mono">
+                                Instant Verification
+                              </span>
                             </div>
-                            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 font-extrabold">
-                              Scan with any UPI App (GPay / PhonePe / Paytm)
-                            </p>
-                          </div>
 
-                          {/* Payment Summary */}
-                          <div className="space-y-3 text-xs">
-                            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1 shadow-sm">
-                              <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">UPI ID</span>
-                              <p className="font-bold font-mono text-zinc-950 dark:text-zinc-100 text-sm">teammavericks@okaxis</p>
-                            </div>
-                            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1 shadow-sm">
-                              <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Payable Amount</span>
-                              <p className="font-bold text-emerald-600 dark:text-emerald-400 text-base font-mono">₹{effectiveFee.toFixed(2)}</p>
+                            <div className="text-center py-6 px-4 border border-dashed border-blue-500/30 rounded-xl bg-blue-50/50 dark:bg-blue-500/5 space-y-3">
+                              <CreditCard size={32} className="mx-auto text-blue-600 dark:text-blue-400 opacity-90" />
+                              <div>
+                                <h5 className="text-sm font-black text-zinc-900 dark:text-white">Ready for Razorpay Payment</h5>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-sm mx-auto font-medium">
+                                  Click "Submit Registration" below to finalize your registration and proceed with the automated Razorpay payment.
+                                </p>
+                              </div>
+                              <div className="flex items-center justify-center gap-3 text-[11px] text-slate-600 dark:text-slate-400 pt-2 font-mono font-semibold">
+                                <span>UPI</span> • <span>Cards</span> • <span>Net Banking</span> • <span>Wallets</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        );
+                      }
 
+                      return (
+                        /* Manual UPI / Admin Uploaded QR Code Mode */
+                        <div className={`p-6 rounded-2xl border space-y-5 ${isDark ? 'bg-[#070C18] border-[#1E293B]' : 'bg-slate-50 border-slate-200'}`}>
+                          {/* Custom Instructions if provided */}
+                          {event?.payment_instructions && (
+                            <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25 text-blue-700 dark:text-blue-400 text-xs">
+                              <Info size={18} className="shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+                              <p className="whitespace-pre-line text-blue-950 dark:text-blue-200 leading-relaxed font-semibold">
+                                {event.payment_instructions}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* QR Code & Payment Info Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center pb-4 border-b border-slate-200 dark:border-slate-800">
+                            {/* QR Code Display */}
+                            <div className="text-center space-y-2.5">
+                              <div className="inline-block p-3 rounded-2xl bg-white border border-slate-200 shadow-md">
+                                <img
+                                  src={
+                                    event?.qr_code_url
+                                      ? resolveMediaUrl(event.qr_code_url)
+                                      : `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`upi://pay?pa=teammavericks@okaxis&pn=Team%20Mavericks&am=${effectiveFee.toFixed(0)}&cu=INR`)}`
+                                  }
+                                  onError={(e) => {
+                                    if (event?.qr_code_url && !e.target.dataset.triedFallback) {
+                                      e.target.dataset.triedFallback = '1';
+                                      const path = event.qr_code_url.startsWith('/') ? event.qr_code_url : `/${event.qr_code_url}`;
+                                      e.target.src = `http://localhost:8000${path}`;
+                                    } else {
+                                      e.target.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`upi://pay?pa=teammavericks@okaxis&pn=Team%20Mavericks&am=${effectiveFee.toFixed(0)}&cu=INR`)}`;
+                                    }
+                                  }}
+                                  alt="Payment QR Code"
+                                  className="w-40 h-40 object-contain rounded-lg mx-auto"
+                                />
+                              </div>
+                              <p className="text-[10px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 font-extrabold">
+                                Scan with any UPI App (GPay / PhonePe / Paytm)
+                              </p>
+                              {event?.qr_code_url && (
+                                <a
+                                  href={resolveMediaUrl(event.qr_code_url)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] text-blue-500 hover:text-blue-600 font-semibold"
+                                >
+                                  Open QR Full Size
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Payment Summary */}
+                            <div className="space-y-3 text-xs">
+                              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1 shadow-sm">
+                                <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Payment Mode</span>
+                                <p className="font-bold font-mono text-zinc-950 dark:text-zinc-100 text-sm">Direct UPI Transfer</p>
+                              </div>
+                              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1 shadow-sm">
+                                <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 font-black tracking-wider block">Payable Amount</span>
+                                <p className="font-bold text-emerald-600 dark:text-emerald-400 text-base font-mono">₹{effectiveFee.toFixed(2)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {!(event?.payment_method === 'razorpay' && !event?.qr_code_url) && (
+                      <div className="space-y-4">
                         {/* Transaction ID Input */}
                         <div>
                           <label className="block text-xs font-black uppercase tracking-wider mb-2 text-slate-800 dark:text-slate-200">

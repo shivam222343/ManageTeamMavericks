@@ -195,189 +195,143 @@ const SymbolIcon = ({ symbol, size = 'md' }) => {
   }
 };
 
-// Handcrafted 12 progressive rounds matching Image 1 and Image 2
-const defaultLevels = [
-  // Level 1: 4 symbols single switch (Image 1 reference)
-  {
-    level: 1,
-    title: 'Level 1: 4-Symbol Single Switch',
-    mode: 'single',
-    symbol_count: 4,
-    time_limit: 25,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['triangle', 'square', 'circle', 'plus'],
-    intermediate_code: null,
-    output_symbols: ['circle', 'triangle', 'plus', 'square'],
-    correct_code: '3142',
-    options: ['2413', '3142', '4321', '1432']
-  },
-  // Level 2: 4 symbols single switch
-  {
-    level: 2,
-    title: 'Level 2: 4-Symbol Sequence Shift',
-    mode: 'single',
-    symbol_count: 4,
-    time_limit: 25,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['square', 'plus', 'circle', 'triangle'],
-    intermediate_code: null,
-    output_symbols: ['triangle', 'circle', 'plus', 'square'],
-    correct_code: '4321',
-    options: ['4321', '3421', '4231', '3412']
-  },
-  // Level 3: 4 symbols single switch
-  {
-    level: 3,
-    title: 'Level 3: 4-Symbol Cross Matrix',
-    mode: 'single',
-    symbol_count: 4,
-    time_limit: 25,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['percent', 'circle', 'square', 'plus'],
-    intermediate_code: null,
-    output_symbols: ['square', 'percent', 'plus', 'circle'],
-    correct_code: '3142',
-    options: ['3142', '1342', '3412', '3124']
-  },
-  // Level 4: 4 symbols dual switch (First double switch!)
-  {
-    level: 4,
-    title: 'Level 4: 4-Symbol Dual-Stage Pipeline',
-    mode: 'dual',
-    symbol_count: 4,
-    time_limit: 25,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['circle', 'triangle', 'square', 'plus'],
-    intermediate_code: '2413',
-    output_symbols: ['square', 'triangle', 'plus', 'circle'],
-    correct_code: '4123',
-    options: ['4123', '2413', '3142', '4231']
-  },
-  // Level 5: 5 symbols single switch
-  {
-    level: 5,
-    title: 'Level 5: 5-Symbol Pentagram Switch',
-    mode: 'single',
-    symbol_count: 5,
-    time_limit: 25,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['circle', 'square', 'percent', 'plus', 'cross'],
-    intermediate_code: null,
-    output_symbols: ['cross', 'percent', 'circle', 'plus', 'square'],
-    correct_code: '53142',
-    options: ['53142', '51342', '43152', '53412']
-  },
-  // Level 6: 5 symbols dual switch
-  {
-    level: 6,
-    title: 'Level 6: 5-Symbol Dual Permutation',
-    mode: 'dual',
-    symbol_count: 5,
-    time_limit: 25,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['triangle', 'cross', 'circle', 'square', 'plus'],
-    intermediate_code: '31524',
-    output_symbols: ['plus', 'square', 'triangle', 'cross', 'circle'],
-    correct_code: '35241',
-    options: ['35241', '53241', '35421', '25341']
-  },
-  // Level 7: 6 symbols single switch
-  {
-    level: 7,
-    title: 'Level 7: 6-Symbol Hex Matrix Switch',
-    mode: 'single',
-    symbol_count: 6,
-    time_limit: 22,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['triangle', 'square', 'circle', 'plus', 'cross', 'percent'],
-    intermediate_code: null,
-    output_symbols: ['plus', 'percent', 'triangle', 'square', 'cross', 'circle'],
-    correct_code: '461253',
-    options: ['461253', '641253', '462153', '416253']
-  },
-  // Level 8: 6 symbols dual switch (Image 2 reference)
-  {
-    level: 8,
-    title: 'Level 8: 6-Symbol Dual Transformation',
-    mode: 'dual',
-    symbol_count: 6,
-    time_limit: 25,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['circle', 'square', 'percent', 'plus', 'cross', 'triangle'],
-    intermediate_code: '426315',
-    output_symbols: ['circle', 'cross', 'triangle', 'plus', 'percent', 'square'],
-    correct_code: '563142',
-    options: ['542361', '624153', '415362', '563142']
-  },
-  // Level 9: 6 symbols dual switch
-  {
-    level: 9,
-    title: 'Level 9: 6-Symbol Advanced Dual Switch',
-    mode: 'dual',
-    symbol_count: 6,
-    time_limit: 20,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['square', 'triangle', 'plus', 'cross', 'circle', 'percent'],
-    intermediate_code: '314625',
-    output_symbols: ['circle', 'plus', 'percent', 'triangle', 'square', 'cross'],
-    correct_code: '614523',
-    options: ['614523', '164523', '615423', '641523']
-  },
-  // Level 10: 6 symbols dual switch
-  {
-    level: 10,
-    title: 'Level 10: 6-Symbol Inversion Switch',
-    mode: 'dual',
-    symbol_count: 6,
-    time_limit: 20,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['percent', 'cross', 'plus', 'triangle', 'square', 'circle'],
-    intermediate_code: '526134',
-    output_symbols: ['triangle', 'plus', 'cross', 'circle', 'square', 'percent'],
-    correct_code: '652314',
-    options: ['652314', '562314', '653214', '652134']
-  },
-  // Level 11: 6 symbols dual switch
-  {
-    level: 11,
-    title: 'Level 11: 6-Symbol Expert Scramble',
-    mode: 'dual',
-    symbol_count: 6,
-    time_limit: 20,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['circle', 'plus', 'square', 'cross', 'triangle', 'percent'],
-    intermediate_code: '241635',
-    output_symbols: ['square', 'circle', 'triangle', 'cross', 'percent', 'plus'],
-    correct_code: '536241',
-    options: ['536241', '356241', '532641', '536421']
-  },
-  // Level 12: Master Championship Switch
-  {
-    level: 12,
-    title: 'Level 12: Master Championship Switch',
-    mode: 'dual',
-    symbol_count: 6,
-    time_limit: 18,
-    points_award: 3,
-    penalty_deduct: 1,
-    input_symbols: ['triangle', 'percent', 'cross', 'circle', 'plus', 'square'],
-    intermediate_code: '416325',
-    output_symbols: ['plus', 'circle', 'percent', 'triangle', 'square', 'cross'],
-    correct_code: '615234',
-    options: ['615234', '165234', '612534', '651234']
+// Procedural Progressive Switch Challenge Generator (60+ levels with increasing complexity)
+const ALL_SWITCH_SYMBOLS = ['triangle', 'square', 'circle', 'plus', 'cross', 'percent'];
+
+export const generateSwitchLevel = (level) => {
+  let mode = 'single';
+  let count = 4;
+  let time_limit = 25;
+  let difficulty = 'easy';
+
+  if (level > 55) {
+    mode = 'dual';
+    count = 6;
+    time_limit = 18;
+    difficulty = 'expert';
+  } else if (level > 45) {
+    mode = 'single';
+    count = 6;
+    time_limit = 20;
+    difficulty = 'hard';
+  } else if (level > 35) {
+    mode = 'dual';
+    count = 5;
+    time_limit = 22;
+    difficulty = 'hard';
+  } else if (level > 25) {
+    mode = 'single';
+    count = 5;
+    time_limit = 22;
+    difficulty = 'medium';
+  } else if (level > 15) {
+    mode = 'dual';
+    count = 4;
+    time_limit = 25;
+    difficulty = 'medium';
+  } else {
+    mode = 'single';
+    count = 4;
+    time_limit = 25;
+    difficulty = 'easy';
   }
-];
+
+  // Pick count distinct symbols from ALL_SWITCH_SYMBOLS
+  const selectedSymbols = ALL_SWITCH_SYMBOLS.slice(0, count);
+  // Pseudo-random shuffle based on level
+  const input_symbols = [...selectedSymbols].sort((a, b) => {
+    return ((a.charCodeAt(0) * 7 + level * 13) % 23) - ((b.charCodeAt(0) * 7 + level * 13) % 23);
+  });
+
+  // Helper to generate a non-identity permutation of [1...count]
+  const generatePerm = (seedOffset = 0) => {
+    const base = Array.from({ length: count }, (_, i) => i + 1);
+    const perm = [...base].sort((a, b) => {
+      return ((a * 17 + level * 29 + seedOffset * 37) % 31) - ((b * 17 + level * 29 + seedOffset * 37) % 31);
+    });
+    // Ensure not identical to base
+    if (perm.every((v, i) => v === base[i])) {
+      const tmp = perm[0];
+      perm[0] = perm[1];
+      perm[1] = tmp;
+    }
+    return perm;
+  };
+
+  const applyPerm = (symbols, perm) => {
+    return perm.map((idx) => symbols[idx - 1]);
+  };
+
+  let intermediate_code = null;
+  let correct_code = '';
+  let output_symbols = [];
+
+  if (mode === 'single') {
+    const perm = generatePerm(1);
+    correct_code = perm.join('');
+    output_symbols = applyPerm(input_symbols, perm);
+  } else {
+    // Dual switch: Input -> Op1 (intermediate_code) -> Intermediate -> Op2 (correct_code) -> Output
+    const perm1 = generatePerm(1);
+    const perm2 = generatePerm(2);
+    intermediate_code = perm1.join('');
+    correct_code = perm2.join('');
+    const intermediateSymbols = applyPerm(input_symbols, perm1);
+    output_symbols = applyPerm(intermediateSymbols, perm2);
+  }
+
+  // Generate 3 distinct plausible distractors
+  const distractors = new Set();
+  const digits = correct_code.split('');
+
+  // Distractor 1: Swap first two digits
+  const d1 = [...digits];
+  const t1 = d1[0]; d1[0] = d1[1]; d1[1] = t1;
+  const d1Str = d1.join('');
+  if (d1Str !== correct_code) distractors.add(d1Str);
+
+  // Distractor 2: Swap last two digits
+  const d2 = [...digits];
+  const t2 = d2[count - 1]; d2[count - 1] = d2[count - 2]; d2[count - 2] = t2;
+  const d2Str = d2.join('');
+  if (d2Str !== correct_code) distractors.add(d2Str);
+
+  // Distractor 3: Cycle shift
+  const d3 = [digits[count - 1], ...digits.slice(0, count - 1)].join('');
+  if (d3 !== correct_code) distractors.add(d3);
+
+  // Fill up to 3 distractors with other random permutations if needed
+  let attempt = 3;
+  while (distractors.size < 3 && attempt < 10) {
+    const alt = generatePerm(attempt).join('');
+    if (alt !== correct_code) distractors.add(alt);
+    attempt++;
+  }
+
+  const optionsList = [correct_code, ...Array.from(distractors).slice(0, 3)];
+  // Shuffle options deterministically
+  const options = optionsList.sort((a, b) => {
+    return ((a.charCodeAt(0) * 11 + level * 19) % 29) - ((b.charCodeAt(0) * 11 + level * 19) % 29);
+  });
+
+  return {
+    level,
+    title: `Level ${level}: ${count}-Symbol ${mode === 'dual' ? 'Dual' : 'Single'} Switch`,
+    mode,
+    symbol_count: count,
+    time_limit,
+    points_award: 3,
+    penalty_deduct: 1,
+    input_symbols,
+    intermediate_code,
+    output_symbols,
+    correct_code,
+    options
+  };
+};
+
+// 60 progressive default levels (50+ levels)
+const defaultLevels = Array.from({ length: 60 }, (_, i) => generateSwitchLevel(i + 1));
 
 const SwitchChallengeGame = ({
   gameData = null,
@@ -393,9 +347,31 @@ const SwitchChallengeGame = ({
   initialScore = 0,
   maxTournamentScore = 100
 }) => {
-  // Determine levels list
-  const incoming = puzzleData || gameData?.levels || (Array.isArray(gameData) ? gameData : null);
-  const levels = Array.isArray(incoming) && incoming.length > 0 ? incoming : defaultLevels;
+  // Determine levels list (ensure at least 60 levels)
+  const [levelsList, setLevelsList] = useState(() => {
+    const incoming = puzzleData || gameData?.levels || (Array.isArray(gameData) ? gameData : null);
+    if (Array.isArray(incoming) && incoming.length > 0) {
+      const list = [...incoming];
+      while (list.length < 60) {
+        list.push(generateSwitchLevel(list.length + 1));
+      }
+      return list;
+    }
+    return defaultLevels;
+  });
+
+  useEffect(() => {
+    const incoming = puzzleData || gameData?.levels || (Array.isArray(gameData) ? gameData : null);
+    if (Array.isArray(incoming) && incoming.length > 0) {
+      const list = [...incoming];
+      while (list.length < 60) {
+        list.push(generateSwitchLevel(list.length + 1));
+      }
+      setLevelsList(list);
+    }
+  }, [puzzleData, gameData]);
+
+  const levels = levelsList;
 
   // Game flow state
   const [hasStarted, setHasStarted] = useState(false);
@@ -568,24 +544,18 @@ const SwitchChallengeGame = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hasStarted, showHowToPlay, isGameOver, feedbackStatus, currentLevel]);
 
-  // Advance level
+  // Advance level (continues generating challenges until tournament timer ends)
   const advanceToNextLevel = (currentCalculatedScore) => {
-    if (currentLevelIdx + 1 < levels.length) {
+    if (currentLevelIdx + 1 < levelsList.length) {
       setCurrentLevelIdx((prev) => prev + 1);
     } else {
-      // Tournament round finished!
-      setIsGameOver(true);
-      if (timerRef.current) clearInterval(timerRef.current);
-      const summary = {
-        score: currentCalculatedScore,
-        maxScore: maxTournamentScore,
-        correctCount: correctCount + (feedbackStatus === 'correct' ? 1 : 0),
-        wrongCount,
-        maxStreak,
-        movesLog
-      };
-      if (onComplete) onComplete(summary);
-      if (onGameComplete) onGameComplete(summary);
+      // Completed all defined levels: continuous challenge generation at master level!
+      // DO NOT end game before timer ends!
+      const nextLvlNum = levelsList.length + 1;
+      const newLvl = generateSwitchLevel(nextLvlNum);
+      setLevelsList((prev) => [...prev, newLvl]);
+      setCurrentLevelIdx((prev) => prev + 1);
+      toast.success(`🔥 Level ${nextLvlNum} Unlocked! Keep playing!`, { duration: 1200 });
     }
   };
 

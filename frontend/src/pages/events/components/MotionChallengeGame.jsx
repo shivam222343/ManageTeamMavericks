@@ -121,113 +121,146 @@ class SoundFX {
 
 const soundManager = new SoundFX();
 
-// Fallback progressive levels
-const defaultLevels = [
-  {
-    level: 1,
-    title: 'Level 1: Basic Path Clearance',
-    difficulty: 'easy',
-    grid_rows: 3,
-    grid_cols: 3,
-    ball: { r: 0, c: 0 },
-    hole: { r: 0, c: 2 },
-    blocks: [
-      { id: 'b1', r: 0, c: 1, color: '#06B6D4', colorName: 'cyan', isFixed: false },
-      { id: 'b2', r: 2, c: 1, color: '#A855F7', colorName: 'purple', isFixed: false }
-    ],
-    obstacles: [],
-    optimal_moves: 3,
-    max_moves: 8,
-    points_award: 4,
-    penalty_deduct: 1
-  },
-  {
-    level: 2,
-    title: 'Level 2: Dual Axis Sliding',
-    difficulty: 'easy',
-    grid_rows: 3,
-    grid_cols: 3,
-    ball: { r: 2, c: 0 },
-    hole: { r: 0, c: 2 },
-    blocks: [
-      { id: 'b1', r: 1, c: 0, color: '#3B82F6', colorName: 'blue', isFixed: false },
-      { id: 'b2', r: 0, c: 1, color: '#10B981', colorName: 'emerald', isFixed: false },
-      { id: 'b3', r: 1, c: 2, color: '#F59E0B', colorName: 'amber', isFixed: false }
-    ],
-    obstacles: [],
-    optimal_moves: 4,
-    max_moves: 10,
-    points_award: 4,
-    penalty_deduct: 1
-  },
-  {
-    level: 3,
-    title: 'Level 3: Fixed Obstacle Labyrinth',
-    difficulty: 'medium',
-    grid_rows: 4,
-    grid_cols: 4,
-    ball: { r: 0, c: 0 },
-    hole: { r: 3, c: 3 },
-    blocks: [
-      { id: 'b1', r: 0, c: 1, color: '#06B6D4', colorName: 'cyan', isFixed: false },
-      { id: 'b2', r: 1, c: 2, color: '#A855F7', colorName: 'purple', isFixed: false },
-      { id: 'b3', r: 2, c: 3, color: '#EC4899', colorName: 'pink', isFixed: false }
-    ],
-    obstacles: [
-      { r: 1, c: 1 },
-      { r: 2, c: 2 }
-    ],
-    optimal_moves: 5,
-    max_moves: 12,
-    points_award: 4,
-    penalty_deduct: 1
-  },
-  {
-    level: 4,
-    title: 'Level 4: Multi-Block Coordination',
-    difficulty: 'medium',
-    grid_rows: 4,
-    grid_cols: 4,
-    ball: { r: 0, c: 3 },
-    hole: { r: 3, c: 0 },
-    blocks: [
-      { id: 'b1', r: 0, c: 2, color: '#3B82F6', colorName: 'blue', isFixed: false },
-      { id: 'b2', r: 1, c: 3, color: '#10B981', colorName: 'emerald', isFixed: false },
-      { id: 'b3', r: 2, c: 1, color: '#F59E0B', colorName: 'amber', isFixed: false },
-      { id: 'b4', r: 3, c: 1, color: '#8B5CF6', colorName: 'violet', isFixed: false }
-    ],
-    obstacles: [
-      { r: 1, c: 1 }
-    ],
-    optimal_moves: 6,
-    max_moves: 14,
-    points_award: 4,
-    penalty_deduct: 1
-  },
-  {
-    level: 5,
-    title: 'Level 5: Master Spatial Nexus',
-    difficulty: 'hard',
-    grid_rows: 5,
-    grid_cols: 5,
-    ball: { r: 0, c: 0 },
-    hole: { r: 4, c: 4 },
-    blocks: [
-      { id: 'b1', r: 0, c: 2, color: '#06B6D4', colorName: 'cyan', isFixed: false },
-      { id: 'b2', r: 2, c: 0, color: '#A855F7', colorName: 'purple', isFixed: false },
-      { id: 'b3', r: 2, c: 4, color: '#EC4899', colorName: 'pink', isFixed: false },
-      { id: 'b4', r: 4, c: 2, color: '#3B82F6', colorName: 'blue', isFixed: false }
-    ],
-    obstacles: [
-      { r: 1, c: 1 },
-      { r: 3, c: 3 }
-    ],
-    optimal_moves: 7,
-    max_moves: 16,
-    points_award: 4,
-    penalty_deduct: 1
-  }
+const MOTION_COLORS = [
+  { color: '#06B6D4', colorName: 'cyan' },
+  { color: '#A855F7', colorName: 'purple' },
+  { color: '#EC4899', colorName: 'pink' },
+  { color: '#3B82F6', colorName: 'blue' },
+  { color: '#F59E0B', colorName: 'amber' },
+  { color: '#10B981', colorName: 'emerald' },
+  { color: '#F97316', colorName: 'orange' },
+  { color: '#8B5CF6', colorName: 'violet' },
+  { color: '#F43F5E', colorName: 'rose' },
+  { color: '#84CC16', colorName: 'lime' }
 ];
+
+export const generateMotionLevel = (level) => {
+  let grid_rows = 3;
+  let grid_cols = 3;
+  let blockCount = 2;
+  let obstacleCount = 0;
+  let optimal_moves = 3;
+  let max_moves = 8;
+  let difficulty = 'easy';
+
+  if (level > 50) {
+    grid_rows = 5;
+    grid_cols = 5;
+    blockCount = Math.min(8, 6 + (level % 3));
+    obstacleCount = 3;
+    optimal_moves = 14 + (level % 5);
+    max_moves = 28 + (level % 5);
+    difficulty = 'expert';
+  } else if (level > 35) {
+    grid_rows = 5;
+    grid_cols = 5;
+    blockCount = Math.min(7, 5 + (level % 3));
+    obstacleCount = level > 43 ? 3 : 2;
+    optimal_moves = 9 + (level % 5);
+    max_moves = 18 + (level % 5);
+    difficulty = 'hard';
+  } else if (level > 15) {
+    grid_rows = 4;
+    grid_cols = 4;
+    blockCount = Math.min(5, 3 + (level % 3));
+    obstacleCount = level > 25 ? 2 : 1;
+    optimal_moves = 5 + (level % 4);
+    max_moves = 13 + (level % 4);
+    difficulty = 'medium';
+  } else {
+    grid_rows = 3;
+    grid_cols = 3;
+    blockCount = level > 10 ? 3 : (level > 5 ? 3 : 2);
+    obstacleCount = level > 10 ? 1 : 0;
+    optimal_moves = 3 + Math.floor(level / 5);
+    max_moves = 8 + Math.floor(level / 4);
+    difficulty = 'easy';
+  }
+
+  // Vary corner & edge configurations across levels
+  const orientation = (level - 1) % 4;
+  let ball, hole;
+  if (orientation === 0) {
+    ball = { r: 0, c: 0 };
+    hole = { r: grid_rows - 1, c: grid_cols - 1 };
+  } else if (orientation === 1) {
+    ball = { r: grid_rows - 1, c: 0 };
+    hole = { r: 0, c: grid_cols - 1 };
+  } else if (orientation === 2) {
+    ball = { r: 0, c: grid_cols - 1 };
+    hole = { r: grid_rows - 1, c: 0 };
+  } else {
+    ball = { r: Math.floor(grid_rows / 2), c: 0 };
+    hole = { r: Math.floor(grid_rows / 2), c: grid_cols - 1 };
+  }
+
+  // Safe interior obstacles that keep corridors navigable
+  const obstacles = [];
+  const candidateObstacles = [];
+  for (let r = 1; r < grid_rows - 1; r++) {
+    for (let c = 1; c < grid_cols - 1; c++) {
+      if ((r === ball.r && c === ball.c) || (r === hole.r && c === hole.c)) continue;
+      candidateObstacles.push({ r, c });
+    }
+  }
+  candidateObstacles.sort((a, b) => ((a.r * 7 + a.c * 13 + level * 17) % 31) - ((b.r * 7 + b.c * 13 + level * 17) % 31));
+  for (let i = 0; i < Math.min(obstacleCount, candidateObstacles.length); i++) {
+    obstacles.push({ r: candidateObstacles[i].r, c: candidateObstacles[i].c, label: 'X' });
+  }
+
+  // Movable blocks placement
+  const blocks = [];
+  const candidateBlockCells = [];
+  for (let r = 0; r < grid_rows; r++) {
+    for (let c = 0; c < grid_cols; c++) {
+      if ((r === ball.r && c === ball.c) || (r === hole.r && c === hole.c)) continue;
+      if (obstacles.some(o => o.r === r && o.c === c)) continue;
+      candidateBlockCells.push({ r, c });
+    }
+  }
+
+  candidateBlockCells.sort((a, b) => {
+    const aOnLine = (a.r === ball.r || a.c === ball.c || a.r === hole.r || a.c === hole.c) ? 1 : 0;
+    const bOnLine = (b.r === ball.r || b.c === ball.c || b.r === hole.r || b.c === hole.c) ? 1 : 0;
+    if (aOnLine !== bOnLine) return bOnLine - aOnLine;
+    return ((a.r * 11 + a.c * 19 + level * 23) % 29) - ((b.r * 11 + b.c * 19 + level * 23) % 29);
+  });
+
+  const maxPossibleBlocks = Math.max(1, candidateBlockCells.length - 2);
+  const actualBlockCount = Math.min(blockCount, maxPossibleBlocks);
+
+  for (let i = 0; i < actualBlockCount; i++) {
+    const pos = candidateBlockCells[i];
+    const colObj = MOTION_COLORS[i % MOTION_COLORS.length];
+    blocks.push({
+      id: `b${i + 1}`,
+      r: pos.r,
+      c: pos.c,
+      color: colObj.color,
+      colorName: colObj.colorName,
+      isFixed: false
+    });
+  }
+
+  return {
+    level,
+    title: `Level ${level}: ${grid_rows}×${grid_cols} Spatial Labyrinth`,
+    difficulty,
+    grid_rows,
+    grid_cols,
+    ball,
+    hole,
+    blocks,
+    obstacles,
+    optimal_moves,
+    max_moves,
+    points_award: 4,
+    penalty_deduct: 1
+  };
+};
+
+// 60 progressive default levels (50+ levels)
+const defaultLevels = Array.from({ length: 60 }, (_, i) => generateMotionLevel(i + 1));
 
 const MotionChallengeGame = ({
   gameData,
@@ -240,8 +273,29 @@ const MotionChallengeGame = ({
   subEventId,
   initialScore = 0
 }) => {
-  // Extract levels from gameData or use defaultLevels
-  const levels = (gameData?.levels && gameData.levels.length > 0) ? gameData.levels : defaultLevels;
+  // Extract levels from gameData or use defaultLevels (ensure at least 60 levels)
+  const [levelsList, setLevelsList] = useState(() => {
+    if (gameData?.levels && Array.isArray(gameData.levels) && gameData.levels.length > 0) {
+      const list = [...gameData.levels];
+      while (list.length < 60) {
+        list.push(generateMotionLevel(list.length + 1));
+      }
+      return list;
+    }
+    return defaultLevels;
+  });
+
+  useEffect(() => {
+    if (gameData?.levels && Array.isArray(gameData.levels) && gameData.levels.length > 0) {
+      const list = [...gameData.levels];
+      while (list.length < 60) {
+        list.push(generateMotionLevel(list.length + 1));
+      }
+      setLevelsList(list);
+    }
+  }, [gameData]);
+
+  const levels = levelsList;
 
   // Game Engine State
   const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
@@ -428,15 +482,17 @@ const MotionChallengeGame = ({
       });
     }
 
-    // Auto advance to next challenge after a short pause
+    // Auto advance to next challenge after a short pause (continues till timer ends)
     setTimeout(() => {
-      if (currentLevelIndex + 1 < levels.length) {
+      if (currentLevelIndex + 1 < levelsList.length) {
         setCurrentLevelIndex((prev) => prev + 1);
       } else {
-        toast.success('🏆 All Motion Challenges Completed!', { icon: '🎉' });
-        if (onGameComplete) {
-          onGameComplete();
-        }
+        // All defined levels completed: generate more challenges dynamically at that level!
+        const nextLvlNum = levelsList.length + 1;
+        const newChallenge = generateMotionLevel(nextLvlNum);
+        setLevelsList((prev) => [...prev, newChallenge]);
+        setCurrentLevelIndex((prev) => prev + 1);
+        toast.success(`🎯 Level ${nextLvlNum} Unlocked! Keep racking up points!`, { icon: '🔥' });
       }
     }, 900);
   };
@@ -596,10 +652,15 @@ const MotionChallengeGame = ({
 
   // Skip Level Handler (-1 Mark penalty)
   const handleSkipLevel = () => {
-    if (currentLevelIndex + 1 < levels.length) {
-      const nextScore = Math.max(0, gameScore - 1);
-      setGameScore(nextScore);
-      toast('Level Skipped (-1 Mark)', { icon: '⏩' });
+    const nextScore = Math.max(0, gameScore - 1);
+    setGameScore(nextScore);
+    toast('Level Skipped (-1 Mark)', { icon: '⏩' });
+    if (currentLevelIndex + 1 < levelsList.length) {
+      setCurrentLevelIndex((prev) => prev + 1);
+    } else {
+      const nextLvlNum = levelsList.length + 1;
+      const newChallenge = generateMotionLevel(nextLvlNum);
+      setLevelsList((prev) => [...prev, newChallenge]);
       setCurrentLevelIndex((prev) => prev + 1);
     }
   };
