@@ -42,7 +42,7 @@ const EVENTS_DATA = [
     borderColor: 'hover:shadow-[0_0_30px_rgba(168,85,247,0.3)]',
     textColor: 'text-purple-400',
     bgGradient: 'from-purple-950/80 to-zinc-950/90',
-    image: '/events/bodhantra.jpeg',
+    image: '/event-assets/bodhantra.jpeg',
     icon: Sparkles,
     gallery: [
       'https://images.unsplash.com/photo-1511578314322-379afb476865?w=400&q=80',
@@ -84,7 +84,7 @@ const EVENTS_DATA = [
     borderColor: 'hover:shadow-[0_0_30px_rgba(59,130,246,0.3)]',
     textColor: 'text-blue-400',
     bgGradient: 'from-blue-950/80 to-zinc-950/90',
-    image: '/events/invicta.png',
+    image: '/event-assets/invicta.png',
     icon: Code,
     gallery: [
       'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=400&q=80',
@@ -126,7 +126,7 @@ const EVENTS_DATA = [
     borderColor: 'hover:shadow-[0_0_30px_rgba(249,115,22,0.3)]',
     textColor: 'text-orange-400',
     bgGradient: 'from-orange-950/80 to-zinc-950/90',
-    image: '/events/verbafest.JPG',
+    image: '/event-assets/verbafest.JPG',
     icon: Megaphone,
     gallery: [
       'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=400&q=80',
@@ -168,7 +168,7 @@ const EVENTS_DATA = [
     borderColor: 'hover:shadow-[0_0_30px_rgba(16,185,129,0.3)]',
     textColor: 'text-emerald-400',
     bgGradient: 'from-emerald-950/80 to-zinc-950/90',
-    image: '/events/school_visit.jpg',
+    image: '/event-assets/school_visit.jpg',
     icon: Palette,
     gallery: [
       'https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=400&q=80',

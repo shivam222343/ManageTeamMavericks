@@ -83,4 +83,18 @@ class Router {
         echo json_encode($data);
         exit;
     }
+
+    /**
+     * Alias for sendJson
+     */
+    public static function jsonResponse(array $data, int $statusCode = 200): void {
+        self::sendJson($data, $statusCode);
+    }
+
+    /**
+     * Get JSON request body helper
+     */
+    public static function getJsonBody(): array {
+        return json_decode(file_get_contents('php://input'), true) ?? [];
+    }
 }

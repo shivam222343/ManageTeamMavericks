@@ -1,0 +1,199 @@
+.tear-ticket-wrapper {
+  position: relative;
+  user-select: none;
+  perspective: 1200px;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+.tear-ticket-container {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+  transform-style: preserve-3d;
+  border-radius: 24px;
+  overflow: visible;
+  isolation: isolate;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+@media (min-width: 640px) {
+  .tear-ticket-container {
+    flex-direction: row;
+  }
+}
+
+.tear-ticket-main {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  background: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+@media (min-width: 640px) {
+  .tear-ticket-main {
+    border-top-right-radius: 0;
+    border-bottom-left-radius: inherit;
+  }
+}
+
+.tear-ticket-stub {
+  position: relative;
+  width: 100%;
+  border-top-right-radius: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+  background: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  cursor: grab;
+  transform-origin: top left;
+  transition: transform 0.15s ease-out;
+  touch-action: pan-y;
+}
+
+@media (min-width: 640px) {
+  .tear-ticket-stub {
+    width: var(--stub-width, 210px);
+    border-bottom-left-radius: 0;
+    border-top-right-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
+}
+
+.tear-ticket-stub.is-dragging {
+  cursor: grabbing;
+  z-index: 30;
+}
+
+.tear-ticket-stub.is-torn {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(40px) rotate(12deg) scale(0.92);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+/* ============================================================ */
+/* PERFORATION DIVIDER - DESKTOP (VERTICAL BETWEEN LEFT & RIGHT) */
+/* ============================================================ */
+@media (min-width: 640px) {
+  .tear-ticket-perforation {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
+    z-index: 15;
+    pointer-events: none;
+  }
+
+  .tear-ticket-notch-top {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--ticket-page-bg, #070C18);
+    z-index: 16;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
+    top: -13px;
+    right: -13px;
+  }
+
+  .tear-ticket-notch-bottom {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--ticket-page-bg, #070C18);
+    z-index: 16;
+    box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.45);
+    bottom: -13px;
+    right: -13px;
+  }
+
+  .tear-ticket-hole {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ticket-page-bg, #070C18);
+    margin: 4px 0;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  .tear-ticket-dash-line {
+    position: absolute;
+    top: 14px;
+    bottom: 14px;
+    right: 0;
+    border-right: 1.5px dashed rgba(148, 163, 184, 0.35);
+    pointer-events: none;
+  }
+}
+
+/* ============================================================ */
+/* PERFORATION DIVIDER - MOBILE (HORIZONTAL BETWEEN TOP & BOTTOM) */
+/* ============================================================ */
+@media (max-width: 639.98px) {
+  .tear-ticket-perforation {
+    position: relative;
+    width: 100%;
+    height: 1px;
+    display: block;
+    z-index: 15;
+    pointer-events: none;
+  }
+
+  .tear-ticket-notch-top {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ticket-page-bg, #070C18);
+    z-index: 16;
+    box-shadow: inset 2px 0 4px rgba(0, 0, 0, 0.45);
+    top: -12px;
+    left: -12px;
+  }
+
+  .tear-ticket-notch-bottom {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ticket-page-bg, #070C18);
+    z-index: 16;
+    box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.45);
+    top: -12px;
+    right: -12px;
+  }
+
+  .tear-ticket-hole {
+    display: none;
+  }
+
+  .tear-ticket-dash-line {
+    position: absolute;
+    top: 0;
+    left: 14px;
+    right: 14px;
+    border-bottom: 1.5px dashed rgba(148, 163, 184, 0.35);
+    pointer-events: none;
+  }
+}

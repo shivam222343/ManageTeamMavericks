@@ -1,0 +1,487 @@
+/* From Uiverse.io by Pinparker - Mind Saga Retro Space Key Form */
+.mindsaga-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.mindsaga-space-form {
+  position: relative;
+  display: block;
+  padding: 2.4rem 2.2rem;
+  max-width: 425px;
+  width: 100%;
+  background: linear-gradient(
+      14deg,
+      rgba(2, 0, 36, 0.95) 0%,
+      rgba(24, 24, 65, 0.92) 66%,
+      rgb(20, 76, 99) 100%
+    ),
+    radial-gradient(
+      circle,
+      rgba(2, 0, 36, 0.6) 0%,
+      rgba(32, 15, 53, 0.3) 65%,
+      rgba(14, 29, 28, 0.95) 100%
+    );
+  border: 2px solid #ffffff;
+  /* Subtle shadow without outer glow spread */
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.4);
+  overflow: hidden;
+  z-index: 1;
+  border-radius: 0px;
+  box-sizing: border-box;
+}
+
+/*------close button-------*/
+.mindsaga-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0px;
+  transition: all 0.15s ease;
+}
+
+.mindsaga-close-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/*------header section-------*/
+.mindsaga-space-form .form-title {
+  font-size: 1.15rem;
+  line-height: 1.6rem;
+  font-family: monospace;
+  font-weight: 600;
+  text-align: center;
+  color: #fff;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.7);
+  animation-duration: 1.5s;
+  overflow: hidden;
+  transition: 0.12s;
+  letter-spacing: 0.04rem;
+}
+
+.mindsaga-space-form .form-title span {
+  animation: flickering 2s linear infinite both;
+}
+
+.mindsaga-space-form .title-2 {
+  display: block;
+  margin-top: -0.3rem;
+  margin-bottom: 1.25rem;
+  font-size: 2.1rem;
+  font-weight: 800;
+  font-family: Arial, Helvetica, sans-serif;
+  text-align: center;
+  -webkit-text-stroke: #fff 0.08rem;
+  letter-spacing: 0.2rem;
+  color: transparent;
+  position: relative;
+  text-shadow: 0px 0px 16px #cecece;
+}
+
+.mindsaga-space-form .title-2 span::before,
+.mindsaga-space-form .title-2 span::after {
+  content: "—";
+}
+
+@keyframes flickering {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  41.99% {
+    opacity: 1;
+  }
+
+  42% {
+    opacity: 0;
+  }
+
+  43% {
+    opacity: 0;
+  }
+
+  43.01% {
+    opacity: 1;
+  }
+
+  47.99% {
+    opacity: 1;
+  }
+
+  48% {
+    opacity: 0;
+  }
+
+  49% {
+    opacity: 0;
+  }
+
+  49.01% {
+    opacity: 1;
+  }
+}
+
+/*------input and submit section-------*/
+.mindsaga-space-form .input-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.mindsaga-space-form .input-container input,
+.mindsaga-space-form button.submit {
+  outline: none;
+  border: 2px solid #ffffff;
+  margin: 6px 0;
+  font-family: monospace;
+  border-radius: 0px;
+  box-sizing: border-box;
+}
+
+.mindsaga-space-form .input-container input {
+  background-color: #ffffff;
+  color: #0f172a;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  width: 100%;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.mindsaga-space-form .input-mail:focus::placeholder {
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.mindsaga-space-form .input-pwd:focus::placeholder {
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.mindsaga-space-form .submit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 12px;
+  background: linear-gradient(90deg, #243949 0%, #517fa4 100%);
+  color: #ffffff;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+  width: 100%;
+  text-transform: uppercase;
+  overflow: hidden;
+  cursor: pointer;
+  letter-spacing: 0.06rem;
+  margin-top: 10px;
+  transition: all 0.2s ease-out;
+}
+
+.mindsaga-space-form .submit:hover:not(:disabled) {
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+
+.mindsaga-space-form .submit:hover:not(:disabled)::before {
+  animation: sh02 0.5s 0s linear;
+}
+
+.mindsaga-space-form .submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.mindsaga-space-form .submit::before {
+  content: "";
+  display: block;
+  width: 0px;
+  height: 85%;
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  opacity: 0;
+  background: #fff;
+  box-shadow: 0 0 50px 30px #fff;
+  transform: skewX(-20deg);
+}
+
+@keyframes sh02 {
+  from {
+    opacity: 0;
+    left: 0%;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+    left: 100%;
+  }
+}
+
+/*--------signup section---------*/
+.mindsaga-space-form .signup-link {
+  color: #c0c0c0;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  text-align: center;
+  font-family: monospace;
+  margin-top: 14px;
+  margin-bottom: 0;
+}
+
+.mindsaga-space-form .signup-link a,
+.mindsaga-space-form .signup-link button {
+  color: #ffffff;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: inherit;
+  font-weight: 700;
+}
+
+.mindsaga-space-form .up:hover {
+  text-decoration: underline;
+}
+
+/*---------shooting stars-----------*/
+.mindsaga-space-form .bg-stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  background-size: cover;
+  animation: animateBg 50s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes animateBg {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.mindsaga-space-form .star {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1),
+    0 0 0 8px rgba(255, 255, 255, 0.1), 0 0 20px rgba(255, 255, 255, 0.1);
+  animation: animate 3s linear infinite;
+}
+
+.mindsaga-space-form .star::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 300px;
+  height: 1px;
+  background: linear-gradient(90deg, #fff, transparent);
+}
+
+@keyframes animate {
+  0% {
+    transform: rotate(315deg) translateX(0);
+    opacity: 1;
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: rotate(315deg) translateX(-1000px);
+    opacity: 0;
+  }
+}
+
+.mindsaga-space-form .star:nth-child(1) {
+  top: 0;
+  right: 0;
+  left: initial;
+  animation-delay: 0s;
+  animation-duration: 1.2s;
+}
+
+.mindsaga-space-form .star:nth-child(2) {
+  top: 0;
+  right: 100px;
+  left: initial;
+  animation-delay: 0.3s;
+  animation-duration: 3s;
+}
+
+.mindsaga-space-form .star:nth-child(3) {
+  top: 0;
+  right: 220px;
+  left: initial;
+  animation-delay: 2.75s;
+  animation-duration: 2.75s;
+}
+
+.mindsaga-space-form .star:nth-child(4) {
+  top: 0;
+  right: -220px;
+  left: initial;
+  animation-delay: 1.6s;
+  animation-duration: 1.6s;
+}
+
+/* ==========================================================================
+   MINDSAGA RETRO SPACE FORM - LIGHT THEME SYSTEM (0 CURVE SIZE)
+   ========================================================================== */
+body.light .mindsaga-modal-backdrop,
+.light .mindsaga-modal-backdrop {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+body.light .mindsaga-space-form,
+.light .mindsaga-space-form {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%);
+  border: 2px solid #0f172a;
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.2), 0 0 1px rgba(15, 23, 42, 0.3);
+  border-radius: 0px !important;
+}
+
+body.light .mindsaga-close-btn,
+.light .mindsaga-close-btn {
+  color: #64748b;
+  border-radius: 0px !important;
+}
+
+body.light .mindsaga-close-btn:hover,
+.light .mindsaga-close-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+body.light .mindsaga-space-form .form-title,
+.light .mindsaga-space-form .form-title {
+  color: #475569;
+  text-shadow: none;
+}
+
+body.light .mindsaga-space-form .title-2,
+.light .mindsaga-space-form .title-2 {
+  -webkit-text-stroke: 1.5px #0f172a;
+  color: #0f172a;
+  text-shadow: none;
+}
+
+body.light .mindsaga-space-form .title-2 span::before,
+body.light .mindsaga-space-form .title-2 span::after,
+.light .mindsaga-space-form .title-2 span::before,
+.light .mindsaga-space-form .title-2 span::after {
+  color: #0f172a;
+}
+
+body.light .mindsaga-space-form .input-container input,
+.light .mindsaga-space-form .input-container input {
+  background-color: #ffffff;
+  color: #0f172a;
+  border: 1.5px solid #0f172a;
+  border-radius: 0px !important;
+}
+
+body.light .mindsaga-space-form .input-container input::placeholder,
+.light .mindsaga-space-form .input-container input::placeholder {
+  color: #94a3b8;
+}
+
+body.light .mindsaga-space-form .submit,
+.light .mindsaga-space-form .submit {
+  background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  border: 2px solid #0f172a;
+  border-radius: 0px !important;
+  text-shadow: none;
+}
+
+body.light .mindsaga-space-form .submit:hover:not(:disabled),
+.light .mindsaga-space-form .submit:hover:not(:disabled) {
+  background: #1e293b;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+}
+
+body.light .mindsaga-space-form .signup-link,
+.light .mindsaga-space-form .signup-link {
+  color: #64748b;
+}
+
+body.light .mindsaga-space-form .signup-link a,
+body.light .mindsaga-space-form .signup-link button,
+.light .mindsaga-space-form .signup-link a,
+.light .mindsaga-space-form .signup-link button {
+  color: #0f172a;
+}
+
+body.light .mindsaga-space-form .bg-stars,
+.light .mindsaga-space-form .bg-stars,
+body:not(.dark) .mindsaga-space-form .bg-stars {
+  opacity: 1 !important;
+}
+
+body.light .mindsaga-space-form .star,
+.light .mindsaga-space-form .star,
+body:not(.dark) .mindsaga-space-form .star {
+  width: 5px !important;
+  height: 5px !important;
+  background: #000000 !important;
+  box-shadow: 
+    0 0 0 2.5px rgba(0, 0, 0, 0.35),
+    0 0 0 6px rgba(15, 23, 42, 0.2),
+    0 0 14px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.light .mindsaga-space-form .star::before,
+.light .mindsaga-space-form .star::before,
+body:not(.dark) .mindsaga-space-form .star::before {
+  height: 2.5px !important;
+  width: 340px !important;
+  background: linear-gradient(
+    90deg,
+    #000000 0%,
+    #0f172a 40%,
+    rgba(30, 41, 59, 0.45) 75%,
+    transparent 100%
+  ) !important;
+}
+

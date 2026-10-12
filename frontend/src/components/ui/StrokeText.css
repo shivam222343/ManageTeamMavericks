@@ -1,0 +1,25 @@
+.stroke-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.stroke-text--hover {
+  cursor: pointer;
+}
+
+.stroke-text__svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: var(--stroke-text-height, auto);
+  overflow: visible;
+}
+
+.stroke-text__stroke,
+.stroke-text__fill {
+  user-select: none;
+  font-family: inherit;
+}

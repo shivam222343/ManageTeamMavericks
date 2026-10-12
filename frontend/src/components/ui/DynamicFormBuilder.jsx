@@ -1,0 +1,668 @@
+/**
+ * DynamicFormBuilder.jsx
+ * 
+ * Shared, reusable form builder engine used by BOTH:
+ *   - Recruitment (RecruitmentPage.jsx — campaign-based)
+ *   - Events (EventFormBuilderPage.jsx — event-based)
+ *
+ * This component is intentionally generic. It does NOT know whether it is building
+ * a recruitment form or an event form — that context is provided by the parent.
+ *
+ * Props:
+ *   sections        — array of section objects (from API)
+ *   setSections     — state setter
+ *   canEdit         — boolean: can user edit this form?
+ *   onSave          — async function called when saving
+ *   saving          — boolean: save in progress
+ *   headerContent   — optional JSX rendered in the top bar (buttons, status, etc.)
+ */
+
+import React, { useState, useCallback } from 'react';
+import {
+  Plus,
+  Trash2,
+  X,
+  PlusCircle,
+  GripVertical,
+  ChevronDown,
+  ChevronRight,
+  AlignLeft,
+  Mail,
+  Phone,
+  Hash,
+  CheckSquare,
+  Circle,
+  FileText,
+  Upload,
+  Edit3,
+  FolderPlus,
+  ToggleLeft,
+  Save,
+  Star,
+  Link as LinkIcon,
+  Calendar as CalendarIcon,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// ─── Field type registry ──────────────────────────────────────────────────────
+export const FIELD_TYPES = [
+  { value: 'text',      label: 'Short Text',          icon: AlignLeft  },
+  { value: 'email',     label: 'Email Address',        icon: Mail       },
+  { value: 'phone',     label: 'Phone / Contact',      icon: Phone      },
+  { value: 'number',    label: 'Number / Count',       icon: Hash       },
+  { value: 'prn',       label: 'PRN / Roll No.',       icon: Hash       },
+  { value: 'url',       label: 'URL / Link',           icon: LinkIcon   },
+  { value: 'date',      label: 'Date Picker',          icon: CalendarIcon},
+  { value: 'paragraph', label: 'Long Text Area',       icon: FileText   },
+  { value: 'dropdown',  label: 'Dropdown Select',      icon: ChevronDown},
+  { value: 'checkbox',  label: 'Checkboxes',           icon: CheckSquare},
+  { value: 'radio',     label: 'Radio (Single)',        icon: Circle     },
+  { value: 'file',      label: 'File Upload',          icon: Upload     },
+  { value: 'rating',    label: 'Star Rating',          icon: Star       },
+  { value: 'consent',   label: 'Consent Declaration',  icon: ToggleLeft },
+];
+
+export const blankField = (overrides = {}) => ({
+  id: null,
+  label: '',
+  placeholder: '',
+  field_type: 'text',
+  is_required: false,
+  show_in_analytics: true,
+  description: '',
+  help_text: '',
+  options: [],
+  ...overrides,
+});
+
+export const blankSection = () => ({
+  id: null,
+  name: 'New Section',
+  description: '',
+  is_hidden: false,
+  fields: [],
+});
+
+// ─── Field Preview ────────────────────────────────────────────────────────────
+export const FieldPreview = ({ field }) => {
+  const base =
+    'w-full px-3.5 py-2.5 border rounded-xl bg-zinc-50/50 border-zinc-200/80 text-zinc-450 dark:bg-zinc-950/20 dark:border-zinc-800 text-[11px] font-semibold text-zinc-405 pointer-events-none transition duration-200';
+
+  return (
+    <div className="space-y-1.5 animate-fadeIn">
+      {field.description && (
+        <p className="text-[10px] text-zinc-450 dark:text-zinc-550 font-medium leading-relaxed">{field.description}</p>
+      )}
+      {['text', 'email', 'phone', 'prn', 'number', 'url'].includes(field.field_type) && (
+        <input readOnly placeholder={field.placeholder || `Enter ${field.label || 'value'}…`} className={base} />
+      )}
+      {field.field_type === 'date' && (
+        <input type="date" readOnly className={base} />
+      )}
+      {field.field_type === 'paragraph' && (
+        <textarea readOnly rows={3} placeholder={field.placeholder || 'Type your answer here…'} className={`${base} resize-none`} />
+      )}
+      {field.field_type === 'file' && (
+        <div className={`${base} flex items-center justify-center border-dashed border-2 p-5 flex-col gap-2`}>
+          <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-905 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-zinc-405">
+            <Upload size={14} />
+          </div>
+          <span className="text-[10px] font-bold">Upload file (Max 5MB)</span>
+        </div>
+      )}
+      {field.field_type === 'dropdown' && (
+        <select className={base} disabled>
+          <option>{field.placeholder || 'Select an option…'}</option>
+          {(field.options || []).map((opt, i) => (
+            <option key={i} value={opt.option_value}>{opt.option_label}</option>
+          ))}
+        </select>
+      )}
+      {['checkbox', 'radio'].includes(field.field_type) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+          {(field.options || []).length === 0 && (
+            <p className="text-[10px] italic text-zinc-400 dark:text-zinc-500 pl-1 col-span-2">No options — edit to add.</p>
+          )}
+          {(field.options || []).map((opt, i) => (
+            <div key={i} className="flex items-center gap-2.5 px-3 py-2 border rounded-xl border-zinc-200 bg-white/40 dark:border-zinc-800 dark:bg-zinc-900/10 text-xs text-zinc-555 pointer-events-none select-none">
+              <input type={field.field_type} readOnly className="w-3.5 h-3.5 rounded border-zinc-300 text-blue-600 dark:border-zinc-800 bg-zinc-900" />
+              <span className="truncate">{opt.option_label || opt.option_value || `Option ${i + 1}`}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {field.field_type === 'rating' && (
+        <div className="flex gap-1.5 text-amber-550 text-lg py-1">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <span key={star} className="pointer-events-none">★</span>
+          ))}
+        </div>
+      )}
+      {field.field_type === 'consent' && (
+        <div className="flex gap-2.5 items-start p-2.5 border rounded-xl border-zinc-200/80 bg-white/40 dark:border-zinc-800 dark:bg-zinc-900/10">
+          <input type="checkbox" readOnly className="w-3.5 h-3.5 rounded border-zinc-300 text-blue-600 dark:border-zinc-800 bg-zinc-900 mt-0.5" />
+          <span className="text-[10px] text-zinc-500 leading-relaxed font-medium">
+            {field.description || 'I confirm the accuracy of information.'}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Field Card ───────────────────────────────────────────────────────────────
+const FieldCard = ({
+  field, sectionIdx, fieldIdx, canEdit,
+  onUpdate, onDelete,
+  activeDragField, setActiveDragField,
+  draggingField, dragOverField,
+  onDragStart, onDragEnd, onDragOver, onDrop
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const TypeIcon = FIELD_TYPES.find(t => t.value === field.field_type)?.icon || AlignLeft;
+  const hasOptions = ['checkbox', 'radio', 'dropdown'].includes(field.field_type);
+
+  const update = (key, val) => onUpdate(sectionIdx, fieldIdx, key, val);
+
+  const addOption = () => update('options', [...(field.options || []), { option_value: '', option_label: '' }]);
+  const addOtherOption = () => {
+    const existing = field.options || [];
+    if (existing.some(o => (o.option_label || '').toLowerCase() === 'other')) return;
+    update('options', [...existing, { option_value: 'Other', option_label: 'Other' }]);
+  };
+  const removeOption = (i) => {
+    const opts = [...(field.options || [])];
+    opts.splice(i, 1);
+    update('options', opts);
+  };
+  const updateOption = (i, val) => {
+    const opts = [...(field.options || [])];
+    opts[i] = { option_value: val.toLowerCase().replace(/\s+/g, '_'), option_label: val };
+    update('options', opts);
+  };
+
+  const isDragging   = draggingField?.sectionIdx === sectionIdx && draggingField?.fieldIdx === fieldIdx;
+  const isDragOver   = dragOverField?.sectionIdx === sectionIdx && dragOverField?.fieldIdx === fieldIdx;
+  const isDraggable  = canEdit && activeDragField?.sectionIdx === sectionIdx && activeDragField?.fieldIdx === fieldIdx;
+
+  return (
+    <div
+      draggable={isDraggable}
+      onDragStart={(e) => onDragStart(e, sectionIdx, fieldIdx)}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => onDragOver(e, sectionIdx, fieldIdx)}
+      onDrop={(e) => onDrop(e, sectionIdx, fieldIdx)}
+      className={`border rounded-2xl transition-all duration-250 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-sm overflow-hidden 
+        ${expanded ? 'border-blue-500/40 shadow-lg shadow-blue-500/[0.02]' : 'border-zinc-200/80 dark:border-zinc-800/80'}
+        ${isDragging ? 'opacity-30 border-dashed border-zinc-400 dark:border-zinc-600' : ''}
+        ${isDragOver ? 'border-blue-500 bg-blue-50/5 dark:bg-blue-950/10 scale-[1.01] shadow-md shadow-blue-500/5' : ''}
+      `}
+    >
+      {/* Card header */}
+      <div className="flex items-center gap-3 px-4 py-3.5 select-none">
+        {canEdit && (
+          <GripVertical
+            size={14}
+            className="text-zinc-400 dark:text-zinc-600 shrink-0 cursor-grab active:cursor-grabbing hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            onMouseEnter={() => setActiveDragField({ sectionIdx, fieldIdx })}
+            onMouseLeave={() => { if (!draggingField) setActiveDragField(null); }}
+          />
+        )}
+        <div className="w-8 h-8 rounded-xl bg-zinc-100/85 dark:bg-zinc-950/50 flex items-center justify-center shrink-0 border border-zinc-200/40 dark:border-zinc-800/40 text-zinc-550 dark:text-zinc-400 shadow-sm">
+          <TypeIcon size={14} />
+        </div>
+        <div className="flex-1 min-w-0">
+          {expanded && canEdit ? (
+            <input
+              type="text"
+              value={field.label}
+              onChange={e => update('label', e.target.value)}
+              placeholder="Field Label (e.g. College Name)"
+              className="w-full text-xs font-black bg-transparent border-0 border-b border-dashed border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-blue-500 text-zinc-900 dark:text-white pb-0.5 placeholder:text-zinc-400"
+            />
+          ) : (
+            <p className="text-xs font-black truncate text-zinc-900 dark:text-white uppercase tracking-wide">
+              {field.label || <span className="text-zinc-400 dark:text-zinc-600 italic font-normal normal-case">Untitled field</span>}
+              {(field.is_required === 1 || field.is_required === '1' || field.is_required === true) ? <span className="text-red-500 ml-0.5">*</span> : null}
+            </p>
+          )}
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[8px] uppercase tracking-widest font-extrabold text-zinc-400 dark:text-zinc-500 font-mono">
+              {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
+            </span>
+          </div>
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="p-2 rounded-xl text-zinc-405 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/80 dark:hover:bg-zinc-900/60 transition cursor-pointer shadow-sm border border-zinc-200/20 bg-white/40 dark:bg-zinc-950/20"
+              title={expanded ? 'Collapse' : 'Edit field'}
+            >
+              {expanded ? <ChevronDown size={13} /> : <Edit3 size={13} />}
+            </button>
+            <button
+              onClick={() => onDelete(sectionIdx, fieldIdx)}
+              className="p-2 rounded-xl text-zinc-405 hover:text-red-550 hover:bg-red-50/50 dark:hover:bg-red-950/20 transition cursor-pointer shadow-sm border border-zinc-200/20 bg-white/40 dark:bg-zinc-950/20"
+              title="Remove field"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Preview (collapsed) */}
+      {!expanded && (
+        <div className="px-4 pb-4 pt-0">
+          <FieldPreview field={field} />
+        </div>
+      )}
+
+      {/* Editor panel (expanded) */}
+      {expanded && canEdit && (
+        <div className="px-5 pb-5 border-t border-zinc-200/60 dark:border-zinc-800/60 pt-4 space-y-4 bg-zinc-50/50 dark:bg-zinc-950/80 text-xs font-semibold">
+          {/* Row: type + required */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div>
+              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1.5 font-mono">Field Type</label>
+              <select
+                value={field.field_type}
+                onChange={e => update('field_type', e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200"
+              >
+                {FIELD_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <label className="flex items-center gap-2.5 cursor-pointer select-none pb-3 hover:opacity-90 transition">
+              <input
+                type="checkbox"
+                checked={!!(field.is_required === 1 || field.is_required === '1' || field.is_required === true)}
+                onChange={e => update('is_required', e.target.checked)}
+                className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+              />
+              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-mono">Required Field</span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer select-none pb-3 hover:opacity-90 transition">
+              <input
+                type="checkbox"
+                checked={field.show_in_analytics !== false}
+                onChange={e => update('show_in_analytics', e.target.checked)}
+                className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+              />
+              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-mono">Show in Analytics</span>
+            </label>
+          </div>
+
+          {/* Placeholder + description */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1.5 font-mono">Placeholder Text</label>
+              <input
+                type="text"
+                value={field.placeholder || ''}
+                onChange={e => update('placeholder', e.target.value)}
+                placeholder="e.g. Enter your college name…"
+                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1.5 font-mono">Field Description</label>
+              <input
+                type="text"
+                value={field.description || ''}
+                onChange={e => update('description', e.target.value)}
+                placeholder="e.g. Your official college name"
+                className="w-full px-3.5 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+              />
+            </div>
+          </div>
+
+          {/* Options manager for choice types */}
+          {hasOptions && (
+            <div className="border border-zinc-250/60 dark:border-zinc-800/40 rounded-2xl p-4 bg-zinc-50/40 dark:bg-zinc-950/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 font-mono">Options Configuration</span>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={addOtherOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">
+                    <PlusCircle size={12} /> Add "Other"
+                  </button>
+                  <button type="button" onClick={addOption} className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-primary-blue dark:text-blue-400 hover:underline cursor-pointer">
+                    <PlusCircle size={12} /> Add option
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {(field.options || []).map((opt, oi) => (
+                  <div key={oi} className="flex gap-2.5 items-center">
+                    <input
+                      type="text"
+                      value={opt.option_label}
+                      onChange={e => updateOption(oi, e.target.value)}
+                      placeholder={`Option Label (e.g. Option ${oi + 1})`}
+                      className="flex-1 px-3.5 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition duration-200"
+                    />
+                    <button type="button" onClick={() => removeOption(oi)} className="p-2 text-zinc-400 hover:text-red-550 hover:bg-red-550/10 rounded-xl transition cursor-pointer">
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+                {(field.options || []).length === 0 && (
+                  <p className="text-[10px] italic text-zinc-450 dark:text-zinc-500 pl-1 font-medium">Click "Add option" to build the choice list.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Live preview */}
+          <div className="border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl p-4 bg-zinc-50/50 dark:bg-zinc-950/20">
+            <p className="text-[8px] uppercase tracking-widest font-extrabold text-zinc-400 dark:text-zinc-500 font-mono mb-2.5">Live Preview Layout</p>
+            <FieldPreview field={field} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Add Field Popover ────────────────────────────────────────────────────────
+const AddFieldButton = ({ sectionIdx, onAdd }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-center gap-2 py-3.5 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-[10px] font-extrabold uppercase tracking-widest text-zinc-455 hover:text-blue-555 hover:border-blue-555 dark:hover:border-blue-500/40 dark:hover:text-blue-400 hover:bg-blue-50/20 dark:hover:bg-zinc-900 transition duration-300 cursor-pointer shadow-sm active:scale-[0.99]"
+      >
+        <Plus size={14} /> Add Field to Section
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full mb-3 left-0 right-0 z-20 bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 backdrop-blur-xl animate-fadeIn">
+            <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-2 pb-2.5 font-mono">Choose a field type to append</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {FIELD_TYPES.map(t => {
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => { onAdd(sectionIdx, t.value); setOpen(false); }}
+                    className="flex items-center gap-2.5 p-2.5 rounded-xl text-[10px] font-extrabold uppercase tracking-wider text-zinc-655 hover:text-blue-600 bg-zinc-50/50 border border-zinc-200/40 hover:border-blue-500/20 hover:bg-blue-50/20 dark:bg-zinc-950/20 dark:border-zinc-850/40 dark:text-zinc-450 dark:hover:text-blue-400 dark:hover:bg-blue-950/20 transition duration-150 text-left cursor-pointer"
+                  >
+                    <Icon size={13} className="shrink-0 text-zinc-400 group-hover:text-blue-500" />
+                    <span className="truncate">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ─── Main DynamicFormBuilder Component ───────────────────────────────────────
+const DynamicFormBuilder = ({
+  sections,
+  setSections,
+  canEdit = false,
+  onSave,
+  saving = false,
+  headerContent = null,
+}) => {
+  const [collapsed, setCollapsed]             = useState({});
+  const [addSectionName, setAddSectionName]   = useState('');
+  const [showAddSection, setShowAddSection]   = useState(false);
+  const [activeDragField, setActiveDragField] = useState(null);
+  const [draggingField, setDraggingField]     = useState(null);
+  const [dragOverField, setDragOverField]     = useState(null);
+
+  // ── Drag & Drop Handlers ─────────────────────────────────────────────────
+  const handleDragStart = useCallback((e, sectionIdx, fieldIdx) => {
+    setDraggingField({ sectionIdx, fieldIdx });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `${sectionIdx},${fieldIdx}`);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingField(null);
+    setDragOverField(null);
+    setActiveDragField(null);
+  }, []);
+
+  const handleDragOver = useCallback((e, sectionIdx, fieldIdx) => {
+    e.preventDefault();
+    if (draggingField && (draggingField.sectionIdx !== sectionIdx || draggingField.fieldIdx !== fieldIdx)) {
+      setDragOverField({ sectionIdx, fieldIdx });
+    }
+  }, [draggingField]);
+
+  const handleDrop = useCallback((e, targetSectionIdx, targetFieldIdx) => {
+    e.preventDefault();
+    setDragOverField(null);
+    let sourceSectionIdx = draggingField?.sectionIdx;
+    let sourceFieldIdx   = draggingField?.fieldIdx;
+    if (sourceSectionIdx === undefined) {
+      const data = e.dataTransfer.getData('text/plain');
+      if (!data) return;
+      [sourceSectionIdx, sourceFieldIdx] = data.split(',').map(Number);
+    }
+    if (sourceSectionIdx === undefined || sourceFieldIdx === undefined) return;
+    if (sourceSectionIdx === targetSectionIdx && sourceFieldIdx === targetFieldIdx) return;
+
+    setSections(prev => {
+      const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
+      const fieldToMove = next[sourceSectionIdx].fields[sourceFieldIdx];
+      next[sourceSectionIdx].fields.splice(sourceFieldIdx, 1);
+      next[targetSectionIdx].fields.splice(targetFieldIdx, 0, fieldToMove);
+      return next;
+    });
+    setDraggingField(null);
+    setActiveDragField(null);
+  }, [draggingField, setSections]);
+
+  // ── Mutators ─────────────────────────────────────────────────────────────
+  const updateField = useCallback((secIdx, fldIdx, key, val) => {
+    setSections(prev => {
+      const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
+      next[secIdx].fields[fldIdx] = { ...next[secIdx].fields[fldIdx], [key]: val };
+      return next;
+    });
+  }, [setSections]);
+
+  const addField = useCallback((secIdx, fieldType) => {
+    setSections(prev => {
+      const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
+      next[secIdx].fields.push(blankField({ field_type: fieldType, dragId: Math.random().toString(36).substring(2, 9) }));
+      return next;
+    });
+  }, [setSections]);
+
+  const deleteField = useCallback((secIdx, fldIdx) => {
+    setSections(prev => {
+      const next = prev.map(s => ({ ...s, fields: [...s.fields] }));
+      next[secIdx].fields.splice(fldIdx, 1);
+      return next;
+    });
+    toast('Field removed — save to persist.', { icon: '🗑️' });
+  }, [setSections]);
+
+  const addSection = () => {
+    const name = addSectionName.trim() || 'New Section';
+    setSections(prev => [...prev, { ...blankSection(), name }]);
+    setAddSectionName('');
+    setShowAddSection(false);
+    toast.success(`Section "${name}" added!`);
+  };
+
+  const deleteSection = (secIdx) => {
+    setSections(prev => prev.filter((_, i) => i !== secIdx));
+    toast('Section removed — save to persist.', { icon: '🗑️' });
+  };
+
+  const updateSectionName = (secIdx, val) => {
+    setSections(prev => {
+      const next = [...prev];
+      next[secIdx] = { ...next[secIdx], name: val };
+      return next;
+    });
+  };
+
+  const toggleCollapse = (i) => setCollapsed(prev => ({ ...prev, [i]: !prev[i] }));
+
+  return (
+    <div className="space-y-4">
+      {/* Optional header slot */}
+      {headerContent}
+
+      {/* Sections list */}
+      <div className="space-y-4">
+        {sections.map((section, secIdx) => (
+          <div key={section.id || secIdx} className="bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl overflow-hidden shadow-md transition duration-300">
+            {/* Section header */}
+            <div
+              className="flex items-center justify-between gap-3 px-6 py-4 bg-zinc-50/50 dark:bg-zinc-900/10 border-b border-zinc-200/40 dark:border-zinc-850/40 cursor-pointer select-none group"
+              onClick={() => toggleCollapse(secIdx)}
+            >
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-6 h-6 rounded-lg bg-zinc-200/40 dark:bg-zinc-800/40 flex items-center justify-center text-zinc-450 dark:text-zinc-500 shrink-0">
+                  {collapsed[secIdx] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                </div>
+                {canEdit ? (
+                  <input
+                    type="text"
+                    value={section.name}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => updateSectionName(secIdx, e.target.value)}
+                    className="flex-1 text-xs font-black uppercase tracking-widest bg-transparent border-0 border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:border-blue-500 text-zinc-700 dark:text-white placeholder:text-zinc-400 py-0.5 transition duration-150"
+                  />
+                ) : (
+                  <span className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-white">
+                    {section.name}
+                  </span>
+                )}
+                <span className="text-[8px] px-2.5 py-0.5 rounded-full bg-zinc-200/50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-wider font-mono shrink-0">
+                  {section.fields?.length || 0} fields
+                </span>
+              </div>
+              {canEdit && (
+                <button
+                  onClick={e => { e.stopPropagation(); deleteSection(secIdx); }}
+                  className="p-2 rounded-xl text-zinc-400 dark:text-zinc-650 hover:text-red-550 hover:bg-red-500/10 transition cursor-pointer shrink-0 border border-transparent hover:border-red-500/10"
+                  title="Delete section"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Fields list */}
+            {!collapsed[secIdx] && (
+              <div className="p-5 space-y-4">
+                {(section.fields || []).length === 0 && (
+                  <div className="py-8 text-center text-zinc-400 dark:text-zinc-650 text-xs font-bold border-2 border-dashed border-zinc-200 dark:border-zinc-800/80 rounded-2xl bg-zinc-50/10">
+                    No fields configured in this section yet.
+                    {canEdit && <span className="block text-[9px] mt-1 font-extrabold uppercase tracking-widest text-zinc-450 dark:text-zinc-500 font-mono">Use the action card below to append field elements.</span>}
+                  </div>
+                )}
+                {(section.fields || []).map((field, fldIdx) => (
+                  <FieldCard
+                    key={field.dragId || field.id || fldIdx}
+                    field={field}
+                    sectionIdx={secIdx}
+                    fieldIdx={fldIdx}
+                    canEdit={canEdit}
+                    onUpdate={updateField}
+                    onDelete={deleteField}
+                    activeDragField={activeDragField}
+                    setActiveDragField={setActiveDragField}
+                    draggingField={draggingField}
+                    dragOverField={dragOverField}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  />
+                ))}
+                {canEdit && (
+                  <AddFieldButton sectionIdx={secIdx} onAdd={addField} />
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Empty state */}
+      {sections.length === 0 && (
+        <div className="py-20 text-center border-2 border-dashed border-zinc-200/80 dark:border-zinc-800/60 rounded-3xl bg-white/20 dark:bg-zinc-900/10">
+          <FileText size={32} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-4" />
+          <p className="text-zinc-800 dark:text-white text-sm font-black uppercase tracking-wider">No form sections configured</p>
+          <p className="text-[10px] text-zinc-455 dark:text-zinc-500 font-mono mt-1.5 uppercase tracking-widest">Click below to initialize your first section.</p>
+        </div>
+      )}
+
+      {/* Add Section control */}
+      {canEdit && (
+        <div className="animate-fadeIn">
+          {showAddSection ? (
+            <div className="flex gap-3 items-center bg-white/60 dark:bg-zinc-900/60 border border-blue-500/20 rounded-2xl p-4 shadow-lg backdrop-blur-xl">
+              <FolderPlus size={18} className="text-blue-555 shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                value={addSectionName}
+                onChange={e => setAddSectionName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addSection(); if (e.key === 'Escape') setShowAddSection(false); }}
+                placeholder="Section Name (e.g. Personal Details, Experience)…"
+                className="flex-1 bg-transparent text-sm font-bold text-zinc-900 dark:text-white focus:outline-none placeholder:text-zinc-400"
+              />
+              <button onClick={addSection} className="px-4 py-2 bg-zinc-950 dark:bg-white dark:text-zinc-950 text-white rounded-xl text-xs font-bold cursor-pointer hover:opacity-90 active:scale-95 transition">Add Section</button>
+              <button onClick={() => { setShowAddSection(false); setAddSectionName(''); }} className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer">
+                <X size={15} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAddSection(true)}
+              className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl text-[10px] font-extrabold uppercase tracking-widest text-zinc-455 hover:text-blue-550 hover:border-blue-550/50 dark:hover:border-blue-500/40 dark:hover:text-blue-400 hover:bg-blue-50/10 dark:hover:bg-zinc-900/10 transition duration-300 cursor-pointer shadow-sm active:scale-[0.99]"
+            >
+              <FolderPlus size={15} className="text-zinc-400" />
+              <span>Add New Section</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Sticky save footer */}
+      {canEdit && sections.length > 0 && onSave && (
+        <div className="sticky bottom-6 z-50">
+          <div className="bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl px-6 py-4 shadow-2xl flex items-center justify-between gap-4 animate-slideUp">
+            <p className="text-[9px] text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-widest font-mono">
+              {sections.reduce((acc, s) => acc + (s.fields?.length || 0), 0)} fields &bull; {sections.length} sections active
+            </p>
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className="flex items-center gap-2 h-11 px-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-650 text-white rounded-xl text-xs font-extrabold uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition duration-150 cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <Save size={14} />
+              <span>{saving ? 'Saving to database…' : 'Save Form to Database'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DynamicFormBuilder;

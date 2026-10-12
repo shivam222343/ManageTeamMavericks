@@ -77,9 +77,6 @@ const SuccessPage = () => {
             }
           `}
         >
-          {/* Subtle neon glowing light at top */}
-          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-
           {/* Premium Checkmark Icon Animation */}
           <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
             {/* Outer rotating/pulsing ring */}
