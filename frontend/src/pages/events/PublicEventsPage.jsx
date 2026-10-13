@@ -29,7 +29,6 @@ import MajorLoader from '../../components/ui/MajorLoader';
 import { useTheme } from '../../context/ThemeContext';
 import Footer from '../../components/layout/Footer';
 import { BASE_URL } from '../../config/api';
-import DitherVeil from '../../components/ui/DitherVeil';
 import ElectricBorder from '../../components/ui/ElectricBorder';
 import TechText from '../../components/ui/TechText';
 import SpecularButton from '../../components/ui/SpecularButton';
@@ -393,46 +392,35 @@ const PublicEventsPage = () => {
               </div>
             </div>
 
-            {/* Right Column - DitherVeil Visual Animation (All Events Landing) */}
+            {/* Right Column - Official Team Mavericks Logo */}
             <div className="lg:col-span-6 flex flex-col justify-center items-center relative w-full">
-              <div className={`absolute -inset-4 rounded-full blur-3xl opacity-20 pointer-events-none ${isDark ? 'bg-indigo-600/30' : 'bg-blue-100/30'
-                }`} />
-
+              {/* Subtle Blue Ambient Glow */}
               <div
-                className="w-full h-[420px] sm:h-[520px] md:h-[580px] relative overflow-hidden select-none"
-                style={{
-                  WebkitMaskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-                  maskImage: 'radial-gradient(ellipse 75% 75% at 50% 50%, black 40%, rgba(0,0,0,0.7) 65%, transparent 100%)',
-                }}
-              >
-                <DitherVeil
-                  src="https://images.unsplash.com/photo-1737071371043-761e02b1ef95?q=80&w=1400&auto=format&fit=crop"
-                  pattern="floyd"
-                  pixelSize={1.6}
-                  inkColor={isDark ? "#070C18" : "#FFFFFF"}
-                  paperColor={isDark ? "#93C5FD" : "#000000"}
-                  revealRadius={220}
-                  softness={0.65}
-                  linger={1.2}
-                  fit="contain"
-                  rimColor={isDark ? "#a78bfa" : "#3b82f6"}
-                  palette="duotone"
-                  levels={2}
-                  contrast={1.1}
-                  brightness={0.10}
-                  rim={0}
-                  reverse={false}
-                  wander={false}
-                  clickBurst
-                />
+                className={`absolute w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full blur-3xl pointer-events-none transition-opacity duration-300 ${
+                  isDark ? 'bg-blue-600/20' : 'bg-blue-500/15'
+                }`}
+                aria-hidden="true"
+              />
 
-                <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${isDark
-                    ? 'bg-gradient-to-t from-[#070C18] via-transparent to-[#070C18]/60'
-                    : 'bg-gradient-to-t from-[#FAFAF9] via-transparent to-transparent'
-                  }`} />
+              {/* Official Logo Display */}
+              <div className="w-full flex items-center justify-center py-4 sm:py-6 lg:py-2 select-none relative z-10">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                  className="w-full max-w-[280px] sm:max-w-[340px] md:max-w-[400px] lg:max-w-[440px] xl:max-w-[480px] aspect-square flex items-center justify-center"
+                >
+                  <img
+                    src="/Logos/Mavericks_Logo.png"
+                    alt="Team Mavericks Official Logo"
+                    className="w-full h-full object-contain filter drop-shadow-sm transition-transform duration-300 hover:scale-[1.02]"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </motion.div>
               </div>
 
-              {/* Mobile Search & Mode Filters (below idol) */}
+              {/* Mobile Search & Mode Filters (below logo) */}
               <div className="block lg:hidden w-full pt-4">
                 {searchAndFilterControls}
               </div>
